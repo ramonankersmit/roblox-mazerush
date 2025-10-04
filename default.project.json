@@ -1,0 +1,102 @@
+{
+  "name": "MazeRush",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Modules": {
+        "$className": "Folder",
+        "$path": "src/ReplicatedStorage/Modules"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "RoundState": {
+          "$className": "RemoteEvent"
+        },
+        "Countdown": {
+          "$className": "RemoteEvent"
+        },
+        "Pickup": {
+          "$className": "RemoteEvent"
+        },
+        "DoorOpened": {
+          "$className": "RemoteEvent"
+        },
+        "SetMazeAlgorithm": {
+          "$className": "RemoteEvent"
+        }
+      },
+      "State": {
+        "$className": "Folder",
+        "MazeAlgorithm": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "DFS"
+          }
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "Prefabs": {
+        "$className": "Folder"
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "Maze": {
+        "$className": "Folder"
+      },
+      "Spawns": {
+        "$className": "Folder",
+        "PlayerSpawn": {
+          "$className": "SpawnLocation",
+          "$properties": {
+            "Anchored": true,
+            "Enabled": true,
+            "Duration": 0
+          }
+        },
+        "ExitPad": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              1,
+              4
+            ],
+            "Transparency": 0.2
+          }
+        },
+        "LobbyBase": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Size": [
+              60,
+              1,
+              60
+            ],
+            "Position": [
+              -40,
+              0,
+              -40
+            ]
+          }
+        }
+      }
+    }
+  }
+}
