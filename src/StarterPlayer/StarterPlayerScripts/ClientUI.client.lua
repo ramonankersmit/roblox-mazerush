@@ -64,8 +64,10 @@ RoundState.OnClientEvent:Connect(function(state) status.Text = "State: " .. tost
 Countdown.OnClientEvent:Connect(function(t) timerLbl.Text = "Time: " .. t end)
 Pickup.OnClientEvent:Connect(function(item)
         if item == "Key" then
-                inventoryState.keys += 1
-                updateInventoryLabel()
+                -- The server immediately sends an authoritative inventory update
+                -- after awarding a key. Avoid updating the local count here so
+                -- we don't double-count when that update arrives.
+                return
         end
 end)
 local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
