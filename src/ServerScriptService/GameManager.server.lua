@@ -3,6 +3,8 @@ local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
+local Config = require(Replicated.Modules.RoundConfig)
+
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
 local function ensureRemote(name)
@@ -54,7 +56,6 @@ if not prefabs:FindFirstChild("Door") then
 	door.PrimaryPart = part
 end
 
-local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ANIM_DURATION = 12
