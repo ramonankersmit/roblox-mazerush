@@ -1,9 +1,22 @@
 local WARN_DELAY = 3
+local RETRY_DELAY = 0.1
 
 local cachedService
 
+local function validateInventory(service)
+        if type(service) ~= "table" then
+                return false
+        end
+
+        if type(service.AddKey) ~= "function" or type(service.UseKey) ~= "function" or type(service.HasKey) ~= "function" then
+                return false
+        end
+
+        return true
+end
+
 local function waitForInventory()
-        if cachedService then
+        if cachedService and validateInventory(cachedService) then
                 return cachedService
         end
 
@@ -12,7 +25,7 @@ local function waitForInventory()
 
         while true do
                 local inventoryService = _G.Inventory or shared.Inventory
-                if inventoryService then
+                if inventoryService and validateInventory(inventoryService) then
                         cachedService = inventoryService
                         return cachedService
                 end
@@ -22,7 +35,7 @@ local function waitForInventory()
                         warned = true
                 end
 
-                task.wait()
+                task.wait(RETRY_DELAY)
         end
 end
 
