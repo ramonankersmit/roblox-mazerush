@@ -6,7 +6,9 @@ local RoundState = Remotes:WaitForChild("RoundState")
 local Countdown = Remotes:WaitForChild("Countdown")
 local Pickup = Remotes:WaitForChild("Pickup")
 local SetMazeAlgorithm = Remotes:WaitForChild("SetMazeAlgorithm")
+local SetLoopChance = Remotes:WaitForChild("SetLoopChance")
 local State = game.ReplicatedStorage:WaitForChild("State")
+local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 
 local gui = Instance.new("ScreenGui"); gui.Name = "MazeUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
 local function mkLabel(name, x, y)
@@ -17,10 +19,13 @@ local timerLbl = mkLabel("Timer", 20, 70)
 local invLbl = mkLabel("Inventory", 20, 120)
 
 -- Algo switcher UI (top-right)
-local frame = Instance.new("Frame"); frame.Name = "Algo"; frame.Size = UDim2.new(0,260,0,60); frame.Position = UDim2.new(1,-280,0,20); frame.BackgroundTransparency = 0.2; frame.Parent = gui
+local frame = Instance.new("Frame"); frame.Name = "Algo"; frame.Size = UDim2.new(0,260,0,110); frame.Position = UDim2.new(1,-280,0,20); frame.BackgroundTransparency = 0.2; frame.Parent = gui
 local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.BackgroundTransparency = 1; title.Text = "Maze Algorithm"; title.Parent = frame
 local btnDFS = Instance.new("TextButton"); btnDFS.Size = UDim2.new(0.5,-10,0,28); btnDFS.Position = UDim2.new(0,10,0,28); btnDFS.Text = "DFS"; btnDFS.Parent = frame
 local btnPRIM = Instance.new("TextButton"); btnPRIM.Size = UDim2.new(0.5,-10,0,28); btnPRIM.Position = UDim2.new(0.5,0,0,28); btnPRIM.Text = "PRIM"; btnPRIM.Parent = frame
+local loopMinus = Instance.new("TextButton"); loopMinus.Size = UDim2.new(0,36,0,24); loopMinus.Position = UDim2.new(0,10,0,66); loopMinus.Text = "-"; loopMinus.Parent = frame
+local loopLabel = Instance.new("TextLabel"); loopLabel.Size = UDim2.new(1,-112,0,24); loopLabel.Position = UDim2.new(0,56,0,66); loopLabel.BackgroundTransparency = 1; loopLabel.TextXAlignment = Enum.TextXAlignment.Center; loopLabel.TextScaled = true; loopLabel.Text = "Loop Chance: 0%"; loopLabel.Parent = frame
+local loopPlus = Instance.new("TextButton"); loopPlus.Size = UDim2.new(0,36,0,24); loopPlus.Position = UDim2.new(1,-46,0,66); loopPlus.Text = "+"; loopPlus.Parent = frame
 local cur = mkLabel("CurrentAlgo", 20, 170); cur.Text = "Algo: " .. (State.MazeAlgorithm and State.MazeAlgorithm.Value or "DFS")
 
 local function updateAlgoLabel()
@@ -28,8 +33,59 @@ local function updateAlgoLabel()
 end
 if State:FindFirstChild("MazeAlgorithm") then State.MazeAlgorithm:GetPropertyChangedSignal("Value"):Connect(updateAlgoLabel) end
 
+local loopChanceValue = State:FindFirstChild("LoopChance")
+local LOOP_STEP = 0.05
+
+local function getLoopChance()
+        if loopChanceValue and typeof(loopChanceValue.Value) == "number" then
+                return loopChanceValue.Value
+        end
+        return RoundConfig.LoopChance or 0
+end
+
+local function updateLoopLabel()
+        local percent = math.floor(getLoopChance() * 100 + 0.5)
+        loopLabel.Text = string.format("Loop Chance: %d%%", percent)
+end
+
+local function watchLoopChance()
+        if not loopChanceValue then
+                return
+        end
+        loopChanceValue:GetPropertyChangedSignal("Value"):Connect(updateLoopLabel)
+end
+
+if loopChanceValue then
+        watchLoopChance()
+else
+        State.ChildAdded:Connect(function(child)
+                if child.Name == "LoopChance" then
+                        loopChanceValue = child
+                        watchLoopChance()
+                        updateLoopLabel()
+                end
+        end)
+end
+
+updateLoopLabel()
+
+local function adjustLoopChance(delta)
+        local newValue = math.clamp(getLoopChance() + delta, 0, 1)
+        newValue = math.floor((newValue / LOOP_STEP) + 0.5) * LOOP_STEP
+        newValue = math.clamp(newValue, 0, 1)
+        SetLoopChance:FireServer(newValue)
+end
+
+loopMinus.MouseButton1Click:Connect(function()
+        adjustLoopChance(-LOOP_STEP)
+end)
+
+loopPlus.MouseButton1Click:Connect(function()
+        adjustLoopChance(LOOP_STEP)
+end)
+
 btnDFS.MouseButton1Click:Connect(function()
-	SetMazeAlgorithm:FireServer("DFS")
+        SetMazeAlgorithm:FireServer("DFS")
 end)
 btnPRIM.MouseButton1Click:Connect(function()
 	SetMazeAlgorithm:FireServer("PRIM")
@@ -442,7 +498,6 @@ RoundState.OnClientEvent:Connect(function(state)
 end)
 
 -- === Minimap (perk) ===
-local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDim2.new(0, 200, 0, 200)
 mapFrame.Position = UDim2.new(1, -220, 0, 220); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
 mapFrame.Active = true

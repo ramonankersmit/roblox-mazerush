@@ -25,6 +25,9 @@
         "SetMazeAlgorithm": {
           "$className": "RemoteEvent"
         },
+        "SetLoopChance": {
+          "$className": "RemoteEvent"
+        },
         "InventoryUpdate": {
           "$className": "RemoteEvent"
         },
@@ -44,6 +47,12 @@
           "$className": "StringValue",
           "$properties": {
             "Value": "DFS"
+          }
+        },
+        "LoopChance": {
+          "$className": "NumberValue",
+          "$properties": {
+            "Value": 0
           }
         },
         "Phase": {
