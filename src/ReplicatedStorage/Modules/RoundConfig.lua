@@ -5,7 +5,7 @@ local Config = {
 	WallHeight = 8,
 	Theme = "Spooky",
 	RoundTime = 240,
-	PrepTime = 15,
+	PrepTime = 15, -- (used for UI only; actual build animation ~12s then delays)
 	EnemyCount = 2,
 	KeyCount = 3,
 

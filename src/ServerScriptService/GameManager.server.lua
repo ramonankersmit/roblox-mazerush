@@ -24,7 +24,7 @@ local spawns = Workspace:FindFirstChild("Spawns") or Instance.new("Folder", Work
 local playerSpawn = spawns:FindFirstChild("PlayerSpawn") or Instance.new("SpawnLocation", spawns); playerSpawn.Name = "PlayerSpawn"; playerSpawn.Anchored = true; playerSpawn.Enabled = true; playerSpawn.Size = Vector3.new(10,1,10)
 
 -- Lobby base
-local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spawns); lobbyBase.Name = "LobbyBase"; lobbyBase.Anchored = true; lobbyBase.Size = Vector3.new(60,1,60); lobbyBase.Position = Vector3.new(-40,0,-40); lobbyBase.Color = Color3.fromRGB(200,200,200)
+local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spawns); lobbyBase.Name = "LobbyBase"; lobbyBase.Anchored = true; lobbyBase.Size = Vector3.new(80,1,80); lobbyBase.Material = Enum.Material.Glass; lobbyBase.Transparency = 0.4
 
 -- Exit pad
 local exitPad = spawns:FindFirstChild("ExitPad") or Instance.new("Part", spawns); exitPad.Name = "ExitPad"; exitPad.Anchored = true; exitPad.Size = Vector3.new(4,1,4)
@@ -54,8 +54,57 @@ end
 local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
+local ANIM_DURATION = 12
+local POST_ENEMY_DELAY = 3
+
+-- Position lobby above maze center with glass walls
+local function setupSkyLobby()
+	local cx = (Config.GridWidth * Config.CellSize)/2
+	local cz = (Config.GridHeight * Config.CellSize)/2
+	local y = 50
+	lobbyBase.Position = Vector3.new(cx, y, cz)
+	lobbyBase.Color = Color3.fromRGB(230, 230, 255)
+	-- Walls
+	local function wall(x, z, sx, sz)
+		local p = Instance.new("Part"); p.Anchored = true; p.Material = Enum.Material.Glass; p.Transparency = 0.2
+		p.Size = Vector3.new(sx, 20, sz); p.Position = Vector3.new(x, y + 10, z); p.Parent = spawns; return p
+	end
+	-- Clear old walls
+	for _, c in ipairs(spawns:GetChildren()) do
+		if c:IsA("Part") and c.Name:match("^LobbyWall") then c:Destroy() end
+	end
+	local half = 40
+	local cxz = Vector3.new(cx, y, cz)
+	local north = wall(cx, cz - half, 80, 1); north.Name = "LobbyWallN"
+	local south = wall(cx, cz + half, 80, 1); south.Name = "LobbyWallS"
+	local west  = wall(cx - half, cz, 1, 80); west.Name = "LobbyWallW"
+	local east  = wall(cx + half, cz, 1, 80); east.Name = "LobbyWallE"
+	-- Move/resize PlayerSpawn onto lobby center so initial spawn is correct
+	playerSpawn.Position = lobbyBase.Position + Vector3.new(0, 1.5, 0)
+	playerSpawn.Size = Vector3.new(10,1,10)
+	playerSpawn.Neutral = true
+	playerSpawn.Anchored = true
+	playerSpawn.Enabled = true
+end
+setupSkyLobby()
+
 
 local roundActive = false
+local phase = "IDLE"
+local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
+local PhaseValue = State:FindFirstChild("Phase") or Instance.new("StringValue", State); PhaseValue.Name = "Phase"; PhaseValue.Value = phase
+
+-- Teleport characters to sky lobby on spawn during PREP/wait
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char)
+		task.wait(0.1)
+		local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart")
+		if phase ~= "ACTIVE" then
+			hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
+		end
+	end)
+end)
+
 
 local function ensureLeaderstats(plr)
 	local ls = plr:FindFirstChild("leaderstats")
@@ -81,6 +130,8 @@ local function placeExit()
 			local plr = Players:GetPlayerFromCharacter(humanoid.Parent)
 			if plr and roundActive then
 				local ls = plr:FindFirstChild("leaderstats"); if ls and ls:FindFirstChild("Escapes") then ls.Escapes.Value += 1 end
+				-- End the round immediately when someone reaches the exit
+				roundActive = false
 			end
 		end
 	end)
@@ -89,7 +140,7 @@ end
 local function runRound()
 	if roundActive then return end
 	roundActive = true
-	RoundState:FireAllClients("PREP")
+	phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
 	for _, plr in ipairs(Players:GetPlayers()) do
 		local char = plr.Character or plr.CharacterAdded:Wait()
 		local root = char:WaitForChild("HumanoidRootPart")
@@ -110,13 +161,14 @@ local function runRound()
 	end
 	placeExit()
 	if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
-	RoundState:FireAllClients("ACTIVE")
+	phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
 	local timeLeft = Config.RoundTime
 	while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
 	roundActive = false
-	RoundState:FireAllClients("END")
+	phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
 	task.wait(5)
+	phase = "IDLE"; PhaseValue.Value = phase
 	runRound()
 end
 
-runRound()
+_G.StartRound = runRound

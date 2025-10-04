@@ -24,6 +24,18 @@
         },
         "SetMazeAlgorithm": {
           "$className": "RemoteEvent"
+        },
+        "InventoryUpdate": {
+          "$className": "RemoteEvent"
+        },
+        "LobbyState": {
+          "$className": "RemoteEvent"
+        },
+        "ToggleReady": {
+          "$className": "RemoteEvent"
+        },
+        "StartGameRequest": {
+          "$className": "RemoteEvent"
         }
       },
       "State": {
@@ -32,6 +44,12 @@
           "$className": "StringValue",
           "$properties": {
             "Value": "DFS"
+          }
+        },
+        "Phase": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "IDLE"
           }
         }
       }

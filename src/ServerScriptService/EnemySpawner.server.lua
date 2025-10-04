@@ -5,9 +5,10 @@ local Players = game:GetService("Players")
 local Config = require(Replicated.Modules.RoundConfig)
 
 local function createEnemy()
+	-- Build a simple R15-like NPC (Humanoid R15, HRP + Head + Torso)
 	local enemy = Instance.new("Model")
 	enemy.Name = "Hunter"
-	local hum = Instance.new("Humanoid") hum.Parent = enemy
+	local hum = Instance.new("Humanoid"); hum.RigType = Enum.HumanoidRigType.R15; hum.WalkSpeed = 14; hum.Parent = enemy
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"; root.Size = Vector3.new(2,2,1); root.Anchored = false
 	local head = Instance.new("Part"); head.Name = "Head"; head.Size = Vector3.new(2,1,2); head.Anchored = false; head.Parent = enemy
@@ -58,10 +59,11 @@ local function chase(enemy)
 	end
 end
 
-task.delay(2, function()
+_G.SpawnHunters = function()
 	for i = 1, Config.EnemyCount do
 		local e = createEnemy()
-		e:SetPrimaryPartCFrame(CFrame.new(10 + i*4, 4, 10))
+		-- Spawn near maze start with small offsets
+		e:SetPrimaryPartCFrame(CFrame.new( (Config.CellSize/2) + (i*2), 4, (Config.CellSize/2) + (i*2) ))
 		task.spawn(chase, e)
 	end
-end)
+end
