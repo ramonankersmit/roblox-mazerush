@@ -1,12 +1,13 @@
 local Replicated = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Config = require(Replicated.Modules.RoundConfig)
 local Remotes = Replicated:FindFirstChild("Remotes")
 local DoorOpened = Remotes:FindFirstChild("DoorOpened")
 local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
-local Inventory = _G.Inventory
+local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
 
 local function placeModelRandom(model, gridWidth, gridHeight, cellSize)
 	local m = model:Clone()
@@ -24,11 +25,14 @@ _G.KeyDoor_OnRoundStart = function()
 		local pp = key:FindFirstChildWhichIsA("ProximityPrompt", true)
 		if not pp then pp = Instance.new("ProximityPrompt"); pp.Parent = key:FindFirstChildWhichIsA("BasePart") end
 		pp.ActionText = "Pickup Key"
-		pp.Triggered:Connect(function(plr)
-			if Inventory then Inventory.AddKey(plr, 1) end
-			Pickup:FireClient(plr, "Key")
-			key:Destroy()
-		end)
+                pp.Triggered:Connect(function(plr)
+                        local inventory = InventoryProvider.getInventory()
+                        if inventory then
+                                inventory.AddKey(plr, 1)
+                        end
+                        Pickup:FireClient(plr, "Key")
+                        key:Destroy()
+                end)
 	end
 	local door = prefabs.Door:Clone(); door.Name = "ExitDoor"
 	local rx = Config.GridWidth; local ry = Config.GridHeight - 1
@@ -38,12 +42,13 @@ _G.KeyDoor_OnRoundStart = function()
 	-- Proximity prompt to unlock door (server-side check)
 	local panel = door:FindFirstChild("Panel") or door.PrimaryPart
 	local prompt = panel:FindFirstChildOfClass("ProximityPrompt") or Instance.new("ProximityPrompt"); prompt.Parent = panel; prompt.ActionText = "Unlock Door"; prompt.ObjectText = "Exit Door"; prompt.RequiresLineOfSight = false
-	prompt.Triggered:Connect(function(plr)
-		if not locked.Value then return end
-		if Inventory and Inventory.HasKey(plr) and Inventory.UseKey(plr,1) then
-			locked.Value = false
-			for _, part in ipairs(door:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
-			door:Destroy()
-		end
-	end)
+        prompt.Triggered:Connect(function(plr)
+                if not locked.Value then return end
+                local inventory = InventoryProvider.getInventory()
+                if inventory and inventory.HasKey(plr) and inventory.UseKey(plr,1) then
+                        locked.Value = false
+                        for _, part in ipairs(door:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
+                        door:Destroy()
+                end
+        end)
 end
