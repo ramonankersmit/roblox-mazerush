@@ -9,6 +9,35 @@ local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
 
+local function ensureBarrierPart(parent, name, size, cframe)
+    local part = parent:FindFirstChild(name)
+    if not (part and part:IsA("BasePart")) then
+        part = Instance.new("Part")
+        part.Name = name
+        part.Anchored = true
+        part.Material = Enum.Material.ForceField
+        part.Transparency = 1
+        part.CanQuery = false
+        part.CanTouch = false
+        part.Parent = parent
+    end
+
+    part.Size = size
+    part.CFrame = cframe
+    part.CanCollide = true
+
+    return part
+end
+
+local function getExitPad()
+    local spawns = workspace:FindFirstChild("Spawns")
+    if not spawns then
+        return nil
+    end
+
+    return spawns:FindFirstChild("ExitPad")
+end
+
 local function placeModelRandom(model, gridWidth, gridHeight, cellSize)
     local m = model:Clone()
     local rx = math.random(1, gridWidth)
@@ -18,31 +47,117 @@ local function placeModelRandom(model, gridWidth, gridHeight, cellSize)
     return m
 end
 
-local function ensureExitBarrier(door, panel)
-    local barrier = door:FindFirstChild("ExitBarrier")
-    if barrier and barrier:IsA("BasePart") then
-        barrier.CFrame = panel.CFrame
-        barrier.Size = Vector3.new(panel.Size.X, math.max(panel.Size.Y, 10), math.max(1, panel.Size.Z))
-        barrier.CanCollide = true
-        barrier.Anchored = true
-        barrier.CanQuery = false
-        barrier.Transparency = 1
-        return barrier
+local function computeDoorBounds(door)
+    local originalBarrier = door:FindFirstChild("ExitBarrier")
+    local barrierParent
+
+    if originalBarrier and originalBarrier:IsA("BasePart") then
+        barrierParent = originalBarrier.Parent
+        originalBarrier.Parent = nil
     end
 
-    barrier = Instance.new("Part")
-    barrier.Name = "ExitBarrier"
-    barrier.Anchored = true
-    barrier.Material = Enum.Material.ForceField
-    barrier.Transparency = 1
-    barrier.CanQuery = false
-    barrier.CanTouch = false
-    barrier.CanCollide = true
-    barrier.Size = Vector3.new(panel.Size.X, math.max(panel.Size.Y, 10), math.max(1, panel.Size.Z))
-    barrier.CFrame = panel.CFrame
-    barrier.Parent = door
+    local cf, size = door:GetBoundingBox()
 
-    return barrier
+    if originalBarrier then
+        originalBarrier.Parent = barrierParent
+    end
+
+    return cf, size
+end
+
+local function ensureExitBarrier(door, fallbackPanel)
+    local _, boundsSize = computeDoorBounds(door)
+    if boundsSize.X <= 0 or boundsSize.Y <= 0 or boundsSize.Z <= 0 then
+        if fallbackPanel then
+            boundsSize = fallbackPanel.Size
+        else
+            warn("KeyDoorService: Unable to determine door bounds for exit barrier")
+            return nil
+        end
+    end
+    local width = math.max(boundsSize.X, Config.CellSize + 4)
+    local height = math.max(boundsSize.Y, 12)
+    local depth = math.max(boundsSize.Z, 2)
+
+    local referencePanel = fallbackPanel or door.PrimaryPart
+    if not referencePanel or not referencePanel:IsA("BasePart") then
+        warn("KeyDoorService: Door prefab missing a reference panel for barrier placement")
+        return nil
+    end
+
+    local right = referencePanel.CFrame.RightVector
+    local up = referencePanel.CFrame.UpVector
+    local look = referencePanel.CFrame.LookVector
+
+    local exitPad = getExitPad()
+    local exitDirection = 1
+    if exitPad then
+        local delta = exitPad.Position - referencePanel.Position
+        if delta.Magnitude > 0 and delta:Dot(look) < 0 then
+            exitDirection = -1
+        end
+    end
+
+    local orientedLook = look * exitDirection
+    local orientedRight = right * exitDirection
+    local wallThickness = 2
+    local halfInterior = math.max(width / 2 - wallThickness / 2, Config.CellSize / 2)
+    local depthOffset = math.max(Config.CellSize / 2, depth / 2)
+    local basePosition = referencePanel.Position
+
+    local frontBarrier = ensureBarrierPart(door, "ExitBarrier", Vector3.new(width, height, depth), referencePanel.CFrame)
+
+    ensureBarrierPart(
+        door,
+        "ExitRearBarrier",
+        Vector3.new(width, height, wallThickness),
+        CFrame.fromMatrix(
+            basePosition + orientedLook * (Config.CellSize + wallThickness) / 2,
+            orientedRight,
+            up,
+            orientedLook
+        )
+    )
+
+    ensureBarrierPart(
+        door,
+        "ExitSideBarrierLeft",
+        Vector3.new(wallThickness, height, Config.CellSize + wallThickness),
+        CFrame.fromMatrix(
+            basePosition + orientedLook * depthOffset + orientedRight * halfInterior,
+            orientedRight,
+            up,
+            orientedLook
+        )
+    )
+
+    ensureBarrierPart(
+        door,
+        "ExitSideBarrierRight",
+        Vector3.new(wallThickness, height, Config.CellSize + wallThickness),
+        CFrame.fromMatrix(
+            basePosition + orientedLook * depthOffset - orientedRight * halfInterior,
+            orientedRight,
+            up,
+            orientedLook
+        )
+    )
+
+    return frontBarrier
+end
+
+local function ensureExitPadBarrier()
+    local exitPad = getExitPad()
+    if not exitPad then
+        warn("KeyDoorService: ExitPad missing, cannot place exit pad barrier")
+        return nil
+    end
+
+    local spawns = exitPad.Parent or workspace
+    local size = Vector3.new(Config.CellSize, 20, Config.CellSize)
+    local cframe = CFrame.new(exitPad.Position.X, size.Y / 2, exitPad.Position.Z)
+
+    return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe)
 end
 
 local function getInventoryOrWarn(context)
@@ -138,6 +253,7 @@ local function configureDoorPrompt(door, lockedValue)
     end
 
     local barrier = ensureExitBarrier(door, panel)
+    local padBarrier = ensureExitPadBarrier()
 
     for _, part in ipairs(door:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -196,6 +312,19 @@ local function configureDoorPrompt(door, lockedValue)
         if barrier and barrier.Parent == door then
             barrier.CanCollide = false
             barrier:Destroy()
+        end
+
+        for _, childName in ipairs({"ExitRearBarrier", "ExitSideBarrierLeft", "ExitSideBarrierRight"}) do
+            local child = door:FindFirstChild(childName)
+            if child and child:IsA("BasePart") then
+                child.CanCollide = false
+                child:Destroy()
+            end
+        end
+
+        if padBarrier and padBarrier.Parent then
+            padBarrier.CanCollide = false
+            padBarrier:Destroy()
         end
 
         if DoorOpened then
