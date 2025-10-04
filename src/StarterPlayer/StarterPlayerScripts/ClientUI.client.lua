@@ -87,7 +87,10 @@ local function drawTrail(points, name, color3)
 end
 
 local function getHRP()
-        local char = player.Character or player.CharacterAdded:Wait()
+        local char = player.Character
+        if not char then
+                return nil
+        end
         return char:FindFirstChild("HumanoidRootPart")
 end
 
@@ -133,8 +136,20 @@ end
 
 local exitFinderEnabled = false
 local hunterFinderEnabled = false
-local lastExitUpdate = 0
-local lastHunterUpdate = 0
+local exitUpdateToken = 0
+local hunterUpdateToken = 0
+local EXIT_UPDATE_INTERVAL = 0.18
+local HUNTER_UPDATE_INTERVAL = 0.12
+local lastExitTrailKey
+local lastHunterTrailKey
+
+local function trailKey(points)
+        local buffer = table.create(#points)
+        for i, point in ipairs(points) do
+                buffer[i] = string.format("%.2f,%.2f,%.2f", point.X, point.Y, point.Z)
+        end
+        return table.concat(buffer, "|")
+end
 
 local finderFrame = Instance.new("Frame")
 finderFrame.Name = "Finders"
@@ -151,25 +166,97 @@ lbl.Parent = finderFrame
 
 local btnExit, btnHunter
 
+local function startExitFinderLoop(token)
+        task.spawn(function()
+                while exitFinderEnabled and exitUpdateToken == token do
+                        local hrp = getHRP()
+                        if not hrp then
+                                clearTrail(EXIT_TRAIL_NAME)
+                                task.wait(EXIT_UPDATE_INTERVAL)
+                                continue
+                        end
+
+                        local exitPad = findExitPad()
+                        if exitPad then
+                                local points = computePathPoints(hrp.Position, exitPad.Position)
+                                if exitFinderEnabled and exitUpdateToken == token and points and #points >= 2 then
+                                        local key = trailKey(points)
+                                        if key ~= lastExitTrailKey then
+                                                drawTrail(points, EXIT_TRAIL_NAME, Color3.fromRGB(0,255,0))
+                                                lastExitTrailKey = key
+                                        end
+                                elseif exitFinderEnabled and exitUpdateToken == token then
+                                        clearTrail(EXIT_TRAIL_NAME)
+                                        lastExitTrailKey = nil
+                                end
+                        else
+                                clearTrail(EXIT_TRAIL_NAME)
+                                lastExitTrailKey = nil
+                        end
+
+                        task.wait(EXIT_UPDATE_INTERVAL)
+                end
+        end)
+end
+
+local function startHunterFinderLoop(token)
+        task.spawn(function()
+                while hunterFinderEnabled and hunterUpdateToken == token do
+                        local hrp = getHRP()
+                        if not hrp then
+                                clearTrail(HUNTER_TRAIL_NAME)
+                                task.wait(HUNTER_UPDATE_INTERVAL)
+                                continue
+                        end
+
+                        local hunter = getNearestHunter(hrp.Position)
+                        if hunter and hunter.PrimaryPart then
+                                local points = computePathPoints(hrp.Position, hunter.PrimaryPart.Position)
+                                if hunterFinderEnabled and hunterUpdateToken == token and points and #points >= 2 then
+                                        local key = trailKey(points)
+                                        if key ~= lastHunterTrailKey then
+                                                drawTrail(points, HUNTER_TRAIL_NAME, Color3.fromRGB(255,0,0))
+                                                lastHunterTrailKey = key
+                                        end
+                                elseif hunterFinderEnabled and hunterUpdateToken == token then
+                                        clearTrail(HUNTER_TRAIL_NAME)
+                                        lastHunterTrailKey = nil
+                                end
+                        else
+                                clearTrail(HUNTER_TRAIL_NAME)
+                                lastHunterTrailKey = nil
+                        end
+
+                        task.wait(HUNTER_UPDATE_INTERVAL)
+                end
+        end)
+end
+
 local function setExitFinderEnabled(enabled)
         exitFinderEnabled = enabled
-        lastExitUpdate = 0
+        exitUpdateToken += 1
         if btnExit then
                 btnExit.Text = enabled and "Exit Finder ON" or "Exit Finder OFF"
         end
         if not enabled then
                 clearTrail(EXIT_TRAIL_NAME)
+                lastExitTrailKey = nil
+        else
+                startExitFinderLoop(exitUpdateToken)
         end
 end
 
 local function setHunterFinderEnabled(enabled)
         hunterFinderEnabled = enabled
-        lastHunterUpdate = 0
+        hunterUpdateToken += 1
         if btnHunter then
                 btnHunter.Text = enabled and "Hunter Finder ON" or "Hunter Finder OFF"
         end
         if not enabled then
                 clearTrail(HUNTER_TRAIL_NAME)
+                lastHunterTrailKey = nil
+        else
+                startHunterFinderLoop(hunterUpdateToken)
         end
 end
 
@@ -203,44 +290,6 @@ UIS.InputBegan:Connect(function(input, processed)
         end
 end)
 
-RunService.Heartbeat:Connect(function()
-        local hrp = getHRP()
-        if not hrp then
-                return
-        end
-
-        local now = tick()
-
-        if exitFinderEnabled and now - lastExitUpdate > 0.25 then
-                lastExitUpdate = now
-                local exitPad = findExitPad()
-                if exitPad then
-                        local points = computePathPoints(hrp.Position, exitPad.Position)
-                        if points and #points >= 2 then
-                                drawTrail(points, EXIT_TRAIL_NAME, Color3.fromRGB(0,255,0))
-                        else
-                                clearTrail(EXIT_TRAIL_NAME)
-                        end
-                else
-                        clearTrail(EXIT_TRAIL_NAME)
-                end
-        end
-
-        if hunterFinderEnabled and now - lastHunterUpdate > 0.3 then
-                lastHunterUpdate = now
-                local hunter = getNearestHunter(hrp.Position)
-                if hunter and hunter.PrimaryPart then
-                        local points = computePathPoints(hrp.Position, hunter.PrimaryPart.Position)
-                        if points and #points >= 2 then
-                                drawTrail(points, HUNTER_TRAIL_NAME, Color3.fromRGB(255,0,0))
-                        else
-                                clearTrail(HUNTER_TRAIL_NAME)
-                        end
-                else
-                        clearTrail(HUNTER_TRAIL_NAME)
-                end
-        end
-end)
 -- === End Debug Trails ===
 
 RoundState.OnClientEvent:Connect(function(state)
