@@ -45,236 +45,209 @@ InventoryUpdate.OnClientEvent:Connect(function(data)
 end)
 
 
--- === Debug Trails ===
-local PathfindingService = game:GetService("PathfindingService")
-local UIS = game:GetService("UserInputService")
-
-local function clearTrail(name)
-	for _, p in ipairs(workspace:GetChildren()) do
-		if p:IsA("Folder") and p.Name == name then p:Destroy() end
-	end
-end
-
-local function drawTrail(points, name, color3, transparency)
-	clearTrail(name)
-	local folder = Instance.new("Folder"); folder.Name = name; folder.Parent = workspace
-	for i = 1, #points-1 do
-		local a = points[i]; local b = points[i+1]
-		local mid = (a + b) / 2
-		local len = (b - a).Magnitude
-		local part = Instance.new("Part")
-		part.Anchored = true; part.CanCollide = false
-		part.Color = color3
-		part.Transparency = transparency
-		part.Material = Enum.Material.Neon
-		part.Size = Vector3.new(1, 0.2, math.max(0.5, len))
-		part.CFrame = CFrame.new(mid, b) * CFrame.Angles(math.rad(90), 0, 0) -- orient over ground plane
-		part.Parent = folder
-	end
-end
-
-local function pathPoints(fromPos, toPos)
-	local path = PathfindingService:CreatePath()
-	local ok = pcall(function() path:ComputeAsync(fromPos, toPos) end)
-	if not ok or path.Status ~= Enum.PathStatus.Success then return nil end
-	local pts = {}
-	for _, wp in ipairs(path:GetWaypoints()) do
-		table.insert(pts, Vector3.new(wp.Position.X, 0.2, wp.Position.Z))
-	end
-	return pts
-end
-
-local function getHRP()
-	local char = player.Character or player.CharacterAdded:Wait()
-	return char:FindFirstChild("HumanoidRootPart")
-end
-
-local function getExitPad()
-	return workspace:FindFirstChild("Spawns") and workspace.Spawns:FindFirstChild("ExitPad") or nil
-end
-
-local function getNearestHunter(fromPos)
-	local nearestModel, nearestDist
-	for _, m in ipairs(workspace:GetChildren()) do
-		if m:IsA("Model") and m.Name == "Hunter" and m.PrimaryPart then
-			local d = (m.PrimaryPart.Position - fromPos).Magnitude
-			if not nearestDist or d < nearestDist then nearestDist = d; nearestModel = m end
-		end
-	end
-	return nearestModel
-end
-
-UIS.InputBegan:Connect(function(input, gpe)
-	if gpe then return end
-	local hrp = getHRP(); if not hrp then return end
-
-	-- Key "1": trail to ExitPad
-	if input.KeyCode == Enum.KeyCode.One then
-		local exit = getExitPad()
-		if exit then
-			local pts = pathPoints(hrp.Position, exit.Position)
-			if pts then
-				drawTrail(pts, "DebugTrail_Exit", Color3.fromRGB(0,255,0), 0.4) -- translucent green
-			end
-		end
-	end
-
-	-- Key "2": trail to nearest Hunter
-	if input.KeyCode == Enum.KeyCode.Two then
-		local hunter = getNearestHunter(hrp.Position)
-		if hunter and hunter.PrimaryPart then
-			local pts = pathPoints(hrp.Position, hunter.PrimaryPart.Position)
-			if pts then
-                                drawTrail(pts, "DebugTrail_Monster", Color3.fromRGB(255,0,0), 0.4) -- red for hunters
-			end
-		end
-	end
-end)
--- === End Debug Trails ===
-
-
-
--- === Exit/Hunter Finder (continuous) ===
 local PathfindingService = game:GetService("PathfindingService")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 
--- UI toggles
-local finderFrame = Instance.new("Frame"); finderFrame.Name = "Finders"; finderFrame.Size = UDim2.new(0,260,0,60); finderFrame.Position = UDim2.new(1,-280,0,90); finderFrame.BackgroundTransparency = 0.2; finderFrame.Parent = gui
-local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1,0,0,24); lbl.BackgroundTransparency = 1; lbl.Text = "Finders"; lbl.Parent = finderFrame
-local btnExit = Instance.new("TextButton"); btnExit.Size = UDim2.new(0.5,-10,0,28); btnExit.Position = UDim2.new(0,10,0,28); btnExit.Text = exitOn and "Exit Finder ON" or "Exit Finder OFF"; btnExit.Parent = finderFrame
-local btnHunter = Instance.new("TextButton"); btnHunter.Size = UDim2.new(0.5,-10,0,28); btnHunter.Position = UDim2.new(0.5,0,0,28); btnHunter.Text = "Hunter Finder OFF"; btnHunter.Parent = finderFrame
+local EXIT_TRAIL_NAME = "DebugTrail_Exit"
+local HUNTER_TRAIL_NAME = "DebugTrail_Monster"
+local TRAIL_TRANSPARENCY = 0.35
+local TRAIL_WIDTH = 0.6
 
-local exitOn = false
-local hunterOn = false
-
-btnExit.MouseButton1Click:Connect(function()
-	exitOn = not exitOn
-	btnExit.Text = exitOn and "Exit Finder ON" or "Exit Finder OFF"
-	if not exitOn then
-		for _, p in ipairs(workspace:GetChildren()) do if p:IsA("Folder") and p.Name == "DebugTrail_Exit" then p:Destroy() end end
-	end
-end)
-btnHunter.MouseButton1Click:Connect(function()
-	hunterOn = not hunterOn
-	btnHunter.Text = hunterOn and "Hunter Finder ON" or "Hunter Finder OFF"
-	if not hunterOn then
-		for _, p in ipairs(workspace:GetChildren()) do if p:IsA("Folder") and p.Name == "DebugTrail_Monster" then p:Destroy() end end
-	end
-end)
-
-local function clearFolder(name)
-	for _, p in ipairs(workspace:GetChildren()) do
-		if p:IsA("Folder") and p.Name == name then p:Destroy() end
-	end
+local function clearTrail(name)
+        for _, child in ipairs(workspace:GetChildren()) do
+                if child:IsA("Folder") and child.Name == name then
+                        child:Destroy()
+                end
+        end
 end
 
-local function drawSegments(points, name, color3)
-        clearFolder(name)
-        local folder = Instance.new("Folder"); folder.Name = name; folder.Parent = workspace
-        for i = 1, #points-1 do
-                local a = points[i]; local b = points[i+1]
+local function drawTrail(points, name, color3)
+        clearTrail(name)
+        local folder = Instance.new("Folder")
+        folder.Name = name
+        folder.Parent = workspace
+
+        for index = 1, #points - 1 do
+                local a = points[index]
+                local b = points[index + 1]
                 local mid = (a + b) / 2
                 local len = (b - a).Magnitude
+
                 local part = Instance.new("Part")
-                part.Anchored = true; part.CanCollide = false
-                part.Color = color3 or Color3.fromRGB(0,255,0)
-                part.Transparency = 0.4
+                part.Anchored = true
+                part.CanCollide = false
                 part.Material = Enum.Material.Neon
-                part.Size = Vector3.new(0.6, 0.2, math.max(0.5, len))
+                part.Color = color3
+                part.Transparency = TRAIL_TRANSPARENCY
+                part.Size = Vector3.new(TRAIL_WIDTH, 0.2, math.max(0.5, len))
                 part.CFrame = CFrame.new(mid, b) * CFrame.Angles(math.rad(90), 0, 0)
                 part.Parent = folder
-	end
+        end
 end
 
 local function getHRP()
-	local char = player.Character or player.CharacterAdded:Wait()
-	return char:FindFirstChild("HumanoidRootPart")
+        local char = player.Character or player.CharacterAdded:Wait()
+        return char:FindFirstChild("HumanoidRootPart")
 end
 
-local function getExitPad()
-	return workspace:FindFirstChild("Spawns") and workspace.Spawns:FindFirstChild("ExitPad") or nil
+local function findExitPad()
+        local spawns = workspace:FindFirstChild("Spawns")
+        return spawns and spawns:FindFirstChild("ExitPad") or nil
 end
 
 local function getNearestHunter(fromPos)
-	local nearestModel, nearestDist
-	for _, m in ipairs(workspace:GetChildren()) do
-		if m:IsA("Model") and m.Name == "Hunter" and m.PrimaryPart then
-			local d = (m.PrimaryPart.Position - fromPos).Magnitude
-			if not nearestDist or d < nearestDist then nearestDist = d; nearestModel = m end
-		end
-	end
-	return nearestModel
+        local nearestModel
+        local nearestDist
+
+        for _, model in ipairs(workspace:GetChildren()) do
+                if model:IsA("Model") and model.Name == "Hunter" and model.PrimaryPart then
+                        local distance = (model.PrimaryPart.Position - fromPos).Magnitude
+                        if not nearestDist or distance < nearestDist then
+                                nearestDist = distance
+                                nearestModel = model
+                        end
+                end
+        end
+
+        return nearestModel
 end
 
+local function computePathPoints(fromPos, toPos)
+        local path = PathfindingService:CreatePath()
+        local ok = pcall(function()
+                path:ComputeAsync(fromPos, toPos)
+        end)
+
+        if not ok or path.Status ~= Enum.PathStatus.Success then
+                return nil
+        end
+
+        local points = {}
+        for _, waypoint in ipairs(path:GetWaypoints()) do
+                table.insert(points, Vector3.new(waypoint.Position.X, 0.2, waypoint.Position.Z))
+        end
+
+        return points
+end
+
+local exitFinderEnabled = false
+local hunterFinderEnabled = false
 local lastExitUpdate = 0
 local lastHunterUpdate = 0
 
-RunService.Heartbeat:Connect(function(dt)
-	local now = tick()
-	local hrp = getHRP(); if not hrp then return end
+local finderFrame = Instance.new("Frame")
+finderFrame.Name = "Finders"
+finderFrame.Size = UDim2.new(0,260,0,60)
+finderFrame.Position = UDim2.new(1,-280,0,90)
+finderFrame.BackgroundTransparency = 0.2
+finderFrame.Parent = gui
 
-	if exitOn and now - lastExitUpdate > 0.3 then
-		lastExitUpdate = now
-		local exit = getExitPad()
-		if exit then
-			local path = PathfindingService:CreatePath()
-			local ok = pcall(function() path:ComputeAsync(hrp.Position, exit.Position) end)
-			if ok and path.Status == Enum.PathStatus.Success then
-				local pts = {}
-				for _, wp in ipairs(path:GetWaypoints()) do
-					table.insert(pts, Vector3.new(wp.Position.X, 0.2, wp.Position.Z))
-				end
-				if #pts >= 2 then
-                                        drawSegments(pts, "DebugTrail_Exit", Color3.fromRGB(0,255,0))
-				end
-			else
-				clearFolder("DebugTrail_Exit")
-			end
-		end
-	end
+local lbl = Instance.new("TextLabel")
+lbl.Size = UDim2.new(1,0,0,24)
+lbl.BackgroundTransparency = 1
+lbl.Text = "Finders"
+lbl.Parent = finderFrame
 
-	if hunterOn and now - lastHunterUpdate > 0.35 then
-		lastHunterUpdate = now
-		local hunter = getNearestHunter(hrp.Position)
-		if hunter and hunter.PrimaryPart then
-			local path = PathfindingService:CreatePath()
-			local ok = pcall(function() path:ComputeAsync(hrp.Position, hunter.PrimaryPart.Position) end)
-			if ok and path.Status == Enum.PathStatus.Success then
-				local pts = {}
-				for _, wp in ipairs(path:GetWaypoints()) do
-					table.insert(pts, Vector3.new(wp.Position.X, 0.2, wp.Position.Z))
-				end
-				if #pts >= 2 then
-                                        drawSegments(pts, "DebugTrail_Monster", Color3.fromRGB(255,0,0))
-				end
-			else
-				clearFolder("DebugTrail_Monster")
-			end
-		else
-			clearFolder("DebugTrail_Monster")
-		end
-	end
-end)
--- === End Exit/Hunter Finder ===
+local btnExit, btnHunter
 
-
-
--- === Helpers to clear debug folders ===
-local function clearFolder(name)
-	for _, p in ipairs(workspace:GetChildren()) do
-		if p:IsA("Folder") and p.Name == name then p:Destroy() end
-	end
+local function setExitFinderEnabled(enabled)
+        exitFinderEnabled = enabled
+        lastExitUpdate = 0
+        if btnExit then
+                btnExit.Text = enabled and "Exit Finder ON" or "Exit Finder OFF"
+        end
+        if not enabled then
+                clearTrail(EXIT_TRAIL_NAME)
+        end
 end
 
--- Clear trails on round state transitions
+local function setHunterFinderEnabled(enabled)
+        hunterFinderEnabled = enabled
+        lastHunterUpdate = 0
+        if btnHunter then
+                btnHunter.Text = enabled and "Hunter Finder ON" or "Hunter Finder OFF"
+        end
+        if not enabled then
+                clearTrail(HUNTER_TRAIL_NAME)
+        end
+end
+
+btnExit = Instance.new("TextButton")
+btnExit.Size = UDim2.new(0.5,-10,0,28)
+btnExit.Position = UDim2.new(0,10,0,28)
+btnExit.Text = "Exit Finder OFF"
+btnExit.Parent = finderFrame
+btnExit.MouseButton1Click:Connect(function()
+        setExitFinderEnabled(not exitFinderEnabled)
+end)
+
+btnHunter = Instance.new("TextButton")
+btnHunter.Size = UDim2.new(0.5,-10,0,28)
+btnHunter.Position = UDim2.new(0.5,0,0,28)
+btnHunter.Text = "Hunter Finder OFF"
+btnHunter.Parent = finderFrame
+btnHunter.MouseButton1Click:Connect(function()
+        setHunterFinderEnabled(not hunterFinderEnabled)
+end)
+
+UIS.InputBegan:Connect(function(input, processed)
+        if processed then
+                return
+        end
+
+        if input.KeyCode == Enum.KeyCode.One then
+                setExitFinderEnabled(not exitFinderEnabled)
+        elseif input.KeyCode == Enum.KeyCode.Two then
+                setHunterFinderEnabled(not hunterFinderEnabled)
+        end
+end)
+
+RunService.Heartbeat:Connect(function()
+        local hrp = getHRP()
+        if not hrp then
+                return
+        end
+
+        local now = tick()
+
+        if exitFinderEnabled and now - lastExitUpdate > 0.25 then
+                lastExitUpdate = now
+                local exitPad = findExitPad()
+                if exitPad then
+                        local points = computePathPoints(hrp.Position, exitPad.Position)
+                        if points and #points >= 2 then
+                                drawTrail(points, EXIT_TRAIL_NAME, Color3.fromRGB(0,255,0))
+                        else
+                                clearTrail(EXIT_TRAIL_NAME)
+                        end
+                else
+                        clearTrail(EXIT_TRAIL_NAME)
+                end
+        end
+
+        if hunterFinderEnabled and now - lastHunterUpdate > 0.3 then
+                lastHunterUpdate = now
+                local hunter = getNearestHunter(hrp.Position)
+                if hunter and hunter.PrimaryPart then
+                        local points = computePathPoints(hrp.Position, hunter.PrimaryPart.Position)
+                        if points and #points >= 2 then
+                                drawTrail(points, HUNTER_TRAIL_NAME, Color3.fromRGB(255,0,0))
+                        else
+                                clearTrail(HUNTER_TRAIL_NAME)
+                        end
+                else
+                        clearTrail(HUNTER_TRAIL_NAME)
+                end
+        end
+end)
+-- === End Debug Trails ===
+
 RoundState.OnClientEvent:Connect(function(state)
-	if state == "PREP" or state == "END" then
-		clearFolder("DebugTrail_Exit")
-		clearFolder("DebugTrail_Monster")
-		 -- Ensure OFF in lobby (PREP)
-		exitOn = true; btnExit.Text = exitOn and "Exit Finder ON" or "Exit Finder OFF"
-	end
+        if state == "PREP" or state == "END" then
+                setExitFinderEnabled(false)
+                setHunterFinderEnabled(false)
+        end
 end)
 
 -- === Minimap (perk) ===
@@ -310,13 +283,12 @@ local function worldToMap(pos)
 	return UDim2.fromScale(x, z)
 end
 
-local function getExitPad() return workspace.Spawns and workspace.Spawns:FindFirstChild("ExitPad") or nil end
 local function hunters()
-	local list = {}
-	for _, m in ipairs(workspace:GetChildren()) do
-		if m:IsA("Model") and m.Name == "Hunter" and m.PrimaryPart then table.insert(list, m) end
-	end
-	return list
+        local list = {}
+        for _, m in ipairs(workspace:GetChildren()) do
+                if m:IsA("Model") and m.Name == "Hunter" and m.PrimaryPart then table.insert(list, m) end
+        end
+        return list
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
@@ -325,9 +297,9 @@ game:GetService("RunService").Heartbeat:Connect(function()
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
 
-	dotPlayer.Position = worldToMap(hrp.Position)
-	local exit = getExitPad()
-	if exit then dotExit.Visible = true; dotExit.Position = worldToMap(exit.Position) else dotExit.Visible = false end
+        dotPlayer.Position = worldToMap(hrp.Position)
+        local exit = findExitPad()
+        if exit then dotExit.Visible = true; dotExit.Position = worldToMap(exit.Position) else dotExit.Visible = false end
 
 	for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
 	for i, h in ipairs(hunters()) do
