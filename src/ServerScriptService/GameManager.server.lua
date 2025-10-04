@@ -184,6 +184,9 @@ local function runRound()
         phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
         task.wait(5)
         teleportToLobby()
+        if _G.Inventory and type(_G.Inventory.ResetAll) == "function" then
+                _G.Inventory.ResetAll()
+        end
         phase = "IDLE"; PhaseValue.Value = phase; RoundState:FireAllClients("IDLE")
 end
 

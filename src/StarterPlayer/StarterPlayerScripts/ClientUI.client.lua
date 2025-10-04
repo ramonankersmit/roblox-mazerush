@@ -71,7 +71,9 @@ end)
 local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
 
 InventoryUpdate.OnClientEvent:Connect(function(data)
-        inventoryState.keys = (data and data.keys) or inventoryState.keys
+        if data and data.keys ~= nil then
+                inventoryState.keys = data.keys
+        end
         if data and data.exitFinder ~= nil then
                 inventoryState.hasExitFinder = data.exitFinder
         end
