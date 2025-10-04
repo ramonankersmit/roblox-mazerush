@@ -21,29 +21,30 @@ end
 local Service = {}
 
 function Service.AddKey(plr, amount)
-	amount = amount or 1
-	local inv = ensure(plr)
-	inv.keys += amount
-	pushClient(plr)
+        amount = amount or 1
+        local inv = ensure(plr)
+        inv.keys = (inv.keys or 0) + amount
+        pushClient(plr)
 end
 
 function Service.HasKey(plr)
-	local inv = ensure(plr)
-	return (inv.keys or 0) > 0
+        local inv = ensure(plr)
+        return (inv.keys or 0) > 0
 end
 
 function Service.UseKey(plr, amount)
-	amount = amount or 1
-	local inv = ensure(plr)
-	if (inv.keys or 0) >= amount then
-		inv.keys -= amount
-		pushClient(plr)
-		return true
-	end
-	return false
+        amount = amount or 1
+        local inv = ensure(plr)
+        if (inv.keys or 0) >= amount then
+                inv.keys = (inv.keys or 0) - amount
+                pushClient(plr)
+                return true
+        end
+        return false
 end
 
 _G.Inventory = Service
+shared.Inventory = Service
 
 Players.PlayerAdded:Connect(function(plr)
 	ensure(plr)
