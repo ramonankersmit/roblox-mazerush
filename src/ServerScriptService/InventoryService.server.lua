@@ -44,6 +44,7 @@ function Service.UseKey(plr, amount)
 end
 
 _G.Inventory = Service
+shared.Inventory = Service
 
 Players.PlayerAdded:Connect(function(plr)
 	ensure(plr)
