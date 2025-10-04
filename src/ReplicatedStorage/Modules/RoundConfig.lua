@@ -20,6 +20,8 @@ local Config = {
                 MoveTimeout = 2.5,
                 MoveRetryDelay = 0.3,
                 PatrolWaypointTolerance = 3,
+                ProximityRange = 30,
+                SightPersistence = 2.5,
         },
 
         -- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)

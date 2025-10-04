@@ -123,9 +123,17 @@ local function findVisiblePlayer(origin, enemy)
         end
 
         local sightRange = getHunterConfigValue("SightRange", 120)
+        local proximityRange = getHunterConfigValue("ProximityRange", sightRange)
         local closestChar
         local closestPos
         local minDistance = math.huge
+        local ignoreList = { enemy }
+
+        for _, other in ipairs(Workspace:GetChildren()) do
+                if other ~= enemy and other:IsA("Model") and other.Name == enemy.Name then
+                        table.insert(ignoreList, other)
+                end
+        end
 
         for _, plr in ipairs(Players:GetPlayers()) do
                 local char = plr.Character
@@ -133,11 +141,17 @@ local function findVisiblePlayer(origin, enemy)
                 if hrp then
                         local direction = hrp.Position - origin
                         local distance = direction.Magnitude
-                        if distance <= sightRange then
+                        if distance <= proximityRange then
+                                if distance < minDistance then
+                                        minDistance = distance
+                                        closestChar = char
+                                        closestPos = hrp.Position
+                                end
+                        elseif distance <= sightRange then
                                 local params = RaycastParams.new()
                                 params.FilterType = Enum.RaycastFilterType.Exclude
                                 params.IgnoreWater = true
-                                params.FilterDescendantsInstances = { enemy }
+                                params.FilterDescendantsInstances = ignoreList
                                 local result = Workspace:Raycast(origin, direction, params)
                                 if result and result.Instance and result.Instance:IsDescendantOf(char) then
                                         if distance < minDistance then
@@ -191,6 +205,15 @@ local function chase(enemy, baseSpeed)
                 return
         end
 
+        local sightCheckInterval = getHunterConfigValue("SightCheckInterval", 0.2)
+        local sightPersistence = getHunterConfigValue("SightPersistence", 2.5)
+        local chaseSpeedMultiplier = getHunterConfigValue("ChaseSpeedMultiplier", 1.5)
+        local patrolWaypointTolerance = getHunterConfigValue("PatrolWaypointTolerance", 3)
+        local patrolRepathInterval = getHunterConfigValue("PatrolRepathInterval", 2)
+        local chaseRepathInterval = getHunterConfigValue("ChaseRepathInterval", 0.5)
+        local moveTimeout = getHunterConfigValue("MoveTimeout", 2.5)
+        local moveRetryDelay = getHunterConfigValue("MoveRetryDelay", 0.3)
+
         hum.WalkSpeed = baseSpeed
         enemy:SetAttribute("State", "Patrol")
 
@@ -201,6 +224,8 @@ local function chase(enemy, baseSpeed)
         local lastSightCheck = 0
         local targetCharacter
         local targetPosition
+        local lastSeenTime = 0
+        local lastKnownPosition
 
         while enemy.Parent and hum.Parent do
                 if not enemy.PrimaryPart then break end
@@ -208,19 +233,30 @@ local function chase(enemy, baseSpeed)
                 local origin = enemy.PrimaryPart.Position
                 local now = os.clock()
 
-                if now - lastSightCheck >= getHunterConfigValue("SightCheckInterval", 0.2) then
+                if now - lastSightCheck >= sightCheckInterval then
                         lastSightCheck = now
                         local visibleChar, visiblePos = findVisiblePlayer(origin, enemy)
                         if visibleChar then
                                 targetCharacter = visibleChar
                                 targetPosition = visiblePos
+                                lastKnownPosition = visiblePos
+                                lastSeenTime = now
                                 if enemy:GetAttribute("State") ~= "Chase" then
                                         enemy:SetAttribute("State", "Chase")
                                 end
                         else
-                                targetCharacter = nil
-                                if enemy:GetAttribute("State") ~= "Patrol" then
-                                        enemy:SetAttribute("State", "Patrol")
+                                if targetCharacter then
+                                        if now - lastSeenTime > sightPersistence then
+                                                targetCharacter = nil
+                                                targetPosition = lastKnownPosition
+                                                if enemy:GetAttribute("State") ~= "Patrol" then
+                                                        enemy:SetAttribute("State", "Patrol")
+                                                end
+                                        end
+                                else
+                                        if enemy:GetAttribute("State") ~= "Patrol" then
+                                                enemy:SetAttribute("State", "Patrol")
+                                        end
                                 end
                         end
                 end
@@ -231,31 +267,39 @@ local function chase(enemy, baseSpeed)
                         local hrp = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
                         if hrp then
                                 targetPosition = hrp.Position
+                                lastKnownPosition = hrp.Position
+                                lastSeenTime = now
                         else
                                 targetCharacter = nil
-                                state = "Patrol"
-                                enemy:SetAttribute("State", state)
+                                if lastKnownPosition and (now - lastSeenTime) <= sightPersistence then
+                                        targetPosition = lastKnownPosition
+                                else
+                                        state = "Patrol"
+                                        enemy:SetAttribute("State", state)
+                                end
                         end
                 end
 
                 local desiredSpeed = baseSpeed
                 if state == "Chase" then
-                        desiredSpeed = baseSpeed * getHunterConfigValue("ChaseSpeedMultiplier", 1.5)
+                        desiredSpeed = baseSpeed * chaseSpeedMultiplier
                 end
                 hum.WalkSpeed = desiredSpeed
 
                 if state == "Patrol" then
-                        local tolerance = getHunterConfigValue("PatrolWaypointTolerance", 3)
-                        if not targetPosition or (origin - targetPosition).Magnitude <= tolerance then
+                        if not targetPosition or (origin - targetPosition).Magnitude <= patrolWaypointTolerance then
                                 targetPosition = randomCellPosition()
                                 currentWaypoints = {}
                                 waypointIndex = 1
+                                if now - lastSeenTime > sightPersistence then
+                                        lastKnownPosition = nil
+                                end
                         end
                 end
 
-                local repathInterval = getHunterConfigValue("PatrolRepathInterval", 2)
+                local repathInterval = patrolRepathInterval
                 if state == "Chase" then
-                        repathInterval = getHunterConfigValue("ChaseRepathInterval", 0.5)
+                        repathInterval = chaseRepathInterval
                 end
 
                 local needRepath = (#currentWaypoints == 0) or waypointIndex > #currentWaypoints or (now - lastPathTime) >= repathInterval
@@ -273,7 +317,7 @@ local function chase(enemy, baseSpeed)
                                 currentWaypoints = {}
                                 waypointIndex = 1
                                 lastPathTime = now
-                                task.wait(getHunterConfigValue("MoveRetryDelay", 0.3))
+                                task.wait(moveRetryDelay)
                                 continue
                         end
                 end
@@ -284,13 +328,13 @@ local function chase(enemy, baseSpeed)
                                 hum.Jump = true
                         end
 
-                        local reached = moveToWithTimeout(enemy, hum, waypoint.Position, getHunterConfigValue("MoveTimeout", 2.5))
+                        local reached = moveToWithTimeout(enemy, hum, waypoint.Position, moveTimeout)
                         if reached then
                                 waypointIndex += 1
                         else
                                 lastPathTime = 0
                                 waypointIndex = #currentWaypoints + 1
-                                task.wait(getHunterConfigValue("MoveRetryDelay", 0.3))
+                                task.wait(moveRetryDelay)
                         end
                 else
                         task.wait(0.1)
