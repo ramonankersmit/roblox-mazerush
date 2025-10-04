@@ -37,12 +37,60 @@ end)
 
 RoundState.OnClientEvent:Connect(function(state) status.Text = "State: " .. tostring(state) end)
 Countdown.OnClientEvent:Connect(function(t) timerLbl.Text = "Time: " .. t end)
-Pickup.OnClientEvent:Connect(function(item) if item == "Key" then invLbl.Text = "Inventory: Key (client)" end end)
-local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
-InventoryUpdate.OnClientEvent:Connect(function(data)
-	local keys = (data and data.keys) or 0
-	invLbl.Text = "Inventory: Keys x" .. tostring(keys)
+Pickup.OnClientEvent:Connect(function(item)
+        if item == "Key" then
+                inventoryState.keys += 1
+                updateInventoryLabel()
+        end
 end)
+local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
+
+local btnExit, btnHunter
+local exitDistanceLbl, hunterDistanceLbl
+local updateFinderButtonStates
+local exitFinderEnabled = false
+local hunterFinderEnabled = false
+local setExitFinderEnabled
+local setHunterFinderEnabled
+
+local inventoryState = {
+        keys = 0,
+        hasExitFinder = true,
+        hasHunterFinder = true,
+}
+
+local function updateInventoryLabel()
+        local exitStatus = inventoryState.hasExitFinder and "✓" or "✗"
+        local hunterStatus = inventoryState.hasHunterFinder and "✓" or "✗"
+        invLbl.Text = string.format(
+                "Inventory: Keys x%d | Exit Finder %s | Hunter Finder %s",
+                inventoryState.keys,
+                exitStatus,
+                hunterStatus
+        )
+end
+
+InventoryUpdate.OnClientEvent:Connect(function(data)
+        inventoryState.keys = (data and data.keys) or inventoryState.keys
+        if data and data.exitFinder ~= nil then
+                inventoryState.hasExitFinder = data.exitFinder
+        end
+        if data and data.hunterFinder ~= nil then
+                inventoryState.hasHunterFinder = data.hunterFinder
+        end
+        if not inventoryState.hasExitFinder and exitFinderEnabled then
+                setExitFinderEnabled(false)
+        end
+        if not inventoryState.hasHunterFinder and hunterFinderEnabled then
+                setHunterFinderEnabled(false)
+        end
+        updateInventoryLabel()
+        if updateFinderButtonStates then
+                updateFinderButtonStates()
+        end
+end)
+
+updateInventoryLabel()
 
 
 local PathfindingService = game:GetService("PathfindingService")
@@ -53,6 +101,14 @@ local EXIT_TRAIL_NAME = "DebugTrail_Exit"
 local HUNTER_TRAIL_NAME = "DebugTrail_Monster"
 local TRAIL_TRANSPARENCY = 0.35
 local TRAIL_WIDTH = 0.6
+
+local function computePathDistance(points)
+        local total = 0
+        for i = 1, #points - 1 do
+                total += (points[i + 1] - points[i]).Magnitude
+        end
+        return total
+end
 
 local function clearTrail(name)
         for _, child in ipairs(workspace:GetChildren()) do
@@ -134,8 +190,6 @@ local function computePathPoints(fromPos, toPos)
         return points
 end
 
-local exitFinderEnabled = false
-local hunterFinderEnabled = false
 local exitUpdateToken = 0
 local hunterUpdateToken = 0
 local EXIT_UPDATE_INTERVAL = 0.18
@@ -153,7 +207,7 @@ end
 
 local finderFrame = Instance.new("Frame")
 finderFrame.Name = "Finders"
-finderFrame.Size = UDim2.new(0,260,0,60)
+finderFrame.Size = UDim2.new(0,260,0,110)
 finderFrame.Position = UDim2.new(1,-280,0,90)
 finderFrame.BackgroundTransparency = 0.2
 finderFrame.Parent = gui
@@ -164,7 +218,25 @@ lbl.BackgroundTransparency = 1
 lbl.Text = "Finders"
 lbl.Parent = finderFrame
 
-local btnExit, btnHunter
+updateFinderButtonStates = function()
+        if btnExit then
+                btnExit.AutoButtonColor = inventoryState.hasExitFinder
+                if not inventoryState.hasExitFinder then
+                        btnExit.Text = "Exit Finder LOCKED"
+                else
+                        btnExit.Text = exitFinderEnabled and "Exit Finder ON" or "Exit Finder OFF"
+                end
+        end
+
+        if btnHunter then
+                btnHunter.AutoButtonColor = inventoryState.hasHunterFinder
+                if not inventoryState.hasHunterFinder then
+                        btnHunter.Text = "Hunter Finder LOCKED"
+                else
+                        btnHunter.Text = hunterFinderEnabled and "Hunter Finder ON" or "Hunter Finder OFF"
+                end
+        end
+end
 
 local function startExitFinderLoop(token)
         task.spawn(function()
@@ -172,6 +244,9 @@ local function startExitFinderLoop(token)
                         local hrp = getHRP()
                         if not hrp then
                                 clearTrail(EXIT_TRAIL_NAME)
+                                if exitDistanceLbl then
+                                        exitDistanceLbl.Text = "Exit Distance: --"
+                                end
                                 task.wait(EXIT_UPDATE_INTERVAL)
                                 continue
                         end
@@ -181,6 +256,10 @@ local function startExitFinderLoop(token)
                                 local points = computePathPoints(hrp.Position, exitPad.Position)
                                 if exitFinderEnabled and exitUpdateToken == token and points and #points >= 2 then
                                         local key = trailKey(points)
+                                        if exitDistanceLbl then
+                                                local distance = computePathDistance(points)
+                                                exitDistanceLbl.Text = string.format("Exit Distance: %.1f studs", distance)
+                                        end
                                         if key ~= lastExitTrailKey then
                                                 drawTrail(points, EXIT_TRAIL_NAME, Color3.fromRGB(0,255,0))
                                                 lastExitTrailKey = key
@@ -188,10 +267,16 @@ local function startExitFinderLoop(token)
                                 elseif exitFinderEnabled and exitUpdateToken == token then
                                         clearTrail(EXIT_TRAIL_NAME)
                                         lastExitTrailKey = nil
+                                        if exitDistanceLbl then
+                                                exitDistanceLbl.Text = "Exit Distance: --"
+                                        end
                                 end
                         else
                                 clearTrail(EXIT_TRAIL_NAME)
                                 lastExitTrailKey = nil
+                                if exitDistanceLbl then
+                                        exitDistanceLbl.Text = "Exit Distance: --"
+                                end
                         end
 
                         task.wait(EXIT_UPDATE_INTERVAL)
@@ -205,6 +290,9 @@ local function startHunterFinderLoop(token)
                         local hrp = getHRP()
                         if not hrp then
                                 clearTrail(HUNTER_TRAIL_NAME)
+                                if hunterDistanceLbl then
+                                        hunterDistanceLbl.Text = "Hunter Distance: --"
+                                end
                                 task.wait(HUNTER_UPDATE_INTERVAL)
                                 continue
                         end
@@ -214,6 +302,10 @@ local function startHunterFinderLoop(token)
                                 local points = computePathPoints(hrp.Position, hunter.PrimaryPart.Position)
                                 if hunterFinderEnabled and hunterUpdateToken == token and points and #points >= 2 then
                                         local key = trailKey(points)
+                                        if hunterDistanceLbl then
+                                                local distance = computePathDistance(points)
+                                                hunterDistanceLbl.Text = string.format("Hunter Distance: %.1f studs", distance)
+                                        end
                                         if key ~= lastHunterTrailKey then
                                                 drawTrail(points, HUNTER_TRAIL_NAME, Color3.fromRGB(255,0,0))
                                                 lastHunterTrailKey = key
@@ -221,10 +313,16 @@ local function startHunterFinderLoop(token)
                                 elseif hunterFinderEnabled and hunterUpdateToken == token then
                                         clearTrail(HUNTER_TRAIL_NAME)
                                         lastHunterTrailKey = nil
+                                        if hunterDistanceLbl then
+                                                hunterDistanceLbl.Text = "Hunter Distance: --"
+                                        end
                                 end
                         else
                                 clearTrail(HUNTER_TRAIL_NAME)
                                 lastHunterTrailKey = nil
+                                if hunterDistanceLbl then
+                                        hunterDistanceLbl.Text = "Hunter Distance: --"
+                                end
                         end
 
                         task.wait(HUNTER_UPDATE_INTERVAL)
@@ -232,29 +330,39 @@ local function startHunterFinderLoop(token)
         end)
 end
 
-local function setExitFinderEnabled(enabled)
+setExitFinderEnabled = function(enabled)
+        if enabled and not inventoryState.hasExitFinder then
+                updateFinderButtonStates()
+                return
+        end
         exitFinderEnabled = enabled
         exitUpdateToken += 1
-        if btnExit then
-                btnExit.Text = enabled and "Exit Finder ON" or "Exit Finder OFF"
-        end
+        updateFinderButtonStates()
         if not enabled then
                 clearTrail(EXIT_TRAIL_NAME)
                 lastExitTrailKey = nil
+                if exitDistanceLbl then
+                        exitDistanceLbl.Text = "Exit Distance: --"
+                end
         else
                 startExitFinderLoop(exitUpdateToken)
         end
 end
 
-local function setHunterFinderEnabled(enabled)
+setHunterFinderEnabled = function(enabled)
+        if enabled and not inventoryState.hasHunterFinder then
+                updateFinderButtonStates()
+                return
+        end
         hunterFinderEnabled = enabled
         hunterUpdateToken += 1
-        if btnHunter then
-                btnHunter.Text = enabled and "Hunter Finder ON" or "Hunter Finder OFF"
-        end
+        updateFinderButtonStates()
         if not enabled then
                 clearTrail(HUNTER_TRAIL_NAME)
                 lastHunterTrailKey = nil
+                if hunterDistanceLbl then
+                        hunterDistanceLbl.Text = "Hunter Distance: --"
+                end
         else
                 startHunterFinderLoop(hunterUpdateToken)
         end
@@ -266,6 +374,9 @@ btnExit.Position = UDim2.new(0,10,0,28)
 btnExit.Text = "Exit Finder OFF"
 btnExit.Parent = finderFrame
 btnExit.MouseButton1Click:Connect(function()
+        if not inventoryState.hasExitFinder then
+                return
+        end
         setExitFinderEnabled(not exitFinderEnabled)
 end)
 
@@ -275,8 +386,29 @@ btnHunter.Position = UDim2.new(0.5,0,0,28)
 btnHunter.Text = "Hunter Finder OFF"
 btnHunter.Parent = finderFrame
 btnHunter.MouseButton1Click:Connect(function()
+        if not inventoryState.hasHunterFinder then
+                return
+        end
         setHunterFinderEnabled(not hunterFinderEnabled)
 end)
+
+exitDistanceLbl = Instance.new("TextLabel")
+exitDistanceLbl.Size = UDim2.new(1,-10,0,24)
+exitDistanceLbl.Position = UDim2.new(0,5,0,60)
+exitDistanceLbl.BackgroundTransparency = 1
+exitDistanceLbl.TextXAlignment = Enum.TextXAlignment.Left
+exitDistanceLbl.Text = "Exit Distance: --"
+exitDistanceLbl.Parent = finderFrame
+
+hunterDistanceLbl = Instance.new("TextLabel")
+hunterDistanceLbl.Size = UDim2.new(1,-10,0,24)
+hunterDistanceLbl.Position = UDim2.new(0,5,0,84)
+hunterDistanceLbl.BackgroundTransparency = 1
+hunterDistanceLbl.TextXAlignment = Enum.TextXAlignment.Left
+hunterDistanceLbl.Text = "Hunter Distance: --"
+hunterDistanceLbl.Parent = finderFrame
+
+updateFinderButtonStates()
 
 UIS.InputBegan:Connect(function(input, processed)
         if processed then
@@ -284,8 +416,14 @@ UIS.InputBegan:Connect(function(input, processed)
         end
 
         if input.KeyCode == Enum.KeyCode.One then
+                if not inventoryState.hasExitFinder then
+                        return
+                end
                 setExitFinderEnabled(not exitFinderEnabled)
         elseif input.KeyCode == Enum.KeyCode.Two then
+                if not inventoryState.hasHunterFinder then
+                        return
+                end
                 setHunterFinderEnabled(not hunterFinderEnabled)
         end
 end)
