@@ -24,7 +24,7 @@ local spawns = Workspace:FindFirstChild("Spawns") or Instance.new("Folder", Work
 local playerSpawn = spawns:FindFirstChild("PlayerSpawn") or Instance.new("SpawnLocation", spawns); playerSpawn.Name = "PlayerSpawn"; playerSpawn.Anchored = true; playerSpawn.Enabled = true; playerSpawn.Size = Vector3.new(10,1,10); playerSpawn.Transparency = 1; playerSpawn.CanCollide = false; playerSpawn.CanTouch = false
 
 -- Lobby base
-local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spawns); lobbyBase.Name = "LobbyBase"; lobbyBase.Anchored = true; lobbyBase.Size = Vector3.new(80,1,80); lobbyBase.Material = Enum.Material.Glass; lobbyBase.Transparency = 0.4
+local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spawns); lobbyBase.Name = "LobbyBase"; lobbyBase.Anchored = true; lobbyBase.Size = Vector3.new(80,1,80); lobbyBase.Material = Enum.Material.Glass; lobbyBase.Transparency = 0.2
 
 -- Exit pad
 local exitPad = spawns:FindFirstChild("ExitPad") or Instance.new("Part", spawns); exitPad.Name = "ExitPad"; exitPad.Anchored = true; exitPad.Size = Vector3.new(4,1,4)
@@ -65,8 +65,8 @@ local function setupSkyLobby()
 	lobbyBase.Position = Vector3.new(cx, y, cz)
 	lobbyBase.Color = Color3.fromRGB(230, 230, 255)
 	-- Walls
-	local function wall(x, z, sx, sz)
-		local p = Instance.new("Part"); p.Anchored = true; p.Material = Enum.Material.Glass; p.Transparency = 0.2
+        local function wall(x, z, sx, sz)
+                local p = Instance.new("Part"); p.Anchored = true; p.Material = Enum.Material.Glass; p.Transparency = 0.4
 		p.Size = Vector3.new(sx, 20, sz); p.Position = Vector3.new(x, y + 10, z); p.Parent = spawns; return p
 	end
 	-- Clear old walls
