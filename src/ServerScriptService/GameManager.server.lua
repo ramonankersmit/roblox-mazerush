@@ -114,38 +114,40 @@ local function ensureLeaderstats(plr)
 end
 Players.PlayerAdded:Connect(ensureLeaderstats)
 
-local function teleportPlayers()
-	for _, plr in ipairs(Players:GetPlayers()) do
-		local char = plr.Character or plr.CharacterAdded:Wait()
-		local root = char:WaitForChild("HumanoidRootPart")
-		root.CFrame = playerSpawn.CFrame + Vector3.new(0,3,0)
-	end
+local function teleportToLobby()
+        for _, plr in ipairs(Players:GetPlayers()) do
+                local char = plr.Character or plr.CharacterAdded:Wait()
+                local root = char:WaitForChild("HumanoidRootPart")
+                root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
+        end
 end
 
+local exitTouchedConnection
+
 local function placeExit()
-	exitPad.Position = Vector3.new(Config.GridWidth * Config.CellSize - (Config.CellSize/2), 1, Config.GridHeight * Config.CellSize - (Config.CellSize/2))
-	exitPad.Touched:Connect(function(hit)
-		local humanoid = hit.Parent and hit.Parent:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			local plr = Players:GetPlayerFromCharacter(humanoid.Parent)
-			if plr and roundActive then
-				local ls = plr:FindFirstChild("leaderstats"); if ls and ls:FindFirstChild("Escapes") then ls.Escapes.Value += 1 end
-				-- End the round immediately when someone reaches the exit
-				roundActive = false
-			end
-		end
-	end)
+        if exitTouchedConnection then
+                exitTouchedConnection:Disconnect()
+                exitTouchedConnection = nil
+        end
+        exitPad.Position = Vector3.new(Config.GridWidth * Config.CellSize - (Config.CellSize/2), 1, Config.GridHeight * Config.CellSize - (Config.CellSize/2))
+        exitTouchedConnection = exitPad.Touched:Connect(function(hit)
+                local humanoid = hit.Parent and hit.Parent:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                        local plr = Players:GetPlayerFromCharacter(humanoid.Parent)
+                        if plr and roundActive then
+                                local ls = plr:FindFirstChild("leaderstats"); if ls and ls:FindFirstChild("Escapes") then ls.Escapes.Value += 1 end
+                                -- End the round immediately when someone reaches the exit
+                                roundActive = false
+                        end
+                end
+        end)
 end
 
 local function runRound()
 	if roundActive then return end
 	roundActive = true
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
-        for _, plr in ipairs(Players:GetPlayers()) do
-                local char = plr.Character or plr.CharacterAdded:Wait()
-                local root = char:WaitForChild("HumanoidRootPart")
-                root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
-        end
+        teleportToLobby()
 
         -- Bouw de volledige grid direct zodat spelers het doolhof zien ontstaan
         MazeBuilder.Clear(mazeFolder)
@@ -179,10 +181,10 @@ local function runRound()
 	local timeLeft = Config.RoundTime
 	while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
 	roundActive = false
-	phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
-	task.wait(5)
-	phase = "IDLE"; PhaseValue.Value = phase
-	runRound()
+        phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
+        task.wait(5)
+        teleportToLobby()
+        phase = "IDLE"; PhaseValue.Value = phase; RoundState:FireAllClients("IDLE")
 end
 
 _G.StartRound = runRound

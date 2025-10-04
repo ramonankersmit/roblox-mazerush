@@ -60,4 +60,11 @@ StartGameRequest.OnServerEvent:Connect(function(plr)
 end)
 
 -- Keep clients updated on phase changes
-Phase:GetPropertyChangedSignal("Value"):Connect(broadcast)
+Phase:GetPropertyChangedSignal("Value"):Connect(function()
+        if Phase.Value == "IDLE" then
+                for _, plr in ipairs(Players:GetPlayers()) do
+                        Ready[plr.UserId] = false
+                end
+        end
+        broadcast()
+end)
