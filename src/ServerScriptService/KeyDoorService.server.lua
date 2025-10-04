@@ -9,17 +9,38 @@ local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
 
-local function ensureBarrierPart(parent, name, size, cframe)
+local DEFAULT_BARRIER_COLOR = Color3.fromRGB(60, 60, 60)
+
+local function applyAppearanceFromSource(part, source)
+    if source and source:IsA("BasePart") then
+        part.Material = source.Material
+        part.Color = source.Color
+        part.Transparency = source.Transparency
+        part.Reflectance = source.Reflectance
+        part.CastShadow = source.CastShadow
+    else
+        part.Material = Enum.Material.Metal
+        part.Color = DEFAULT_BARRIER_COLOR
+        part.Transparency = 0
+        part.Reflectance = 0
+        part.CastShadow = true
+    end
+end
+
+local function ensureBarrierPart(parent, name, size, cframe, appearanceSource)
     local part = parent:FindFirstChild(name)
     if not (part and part:IsA("BasePart")) then
         part = Instance.new("Part")
         part.Name = name
         part.Anchored = true
-        part.Material = Enum.Material.ForceField
-        part.Transparency = 1
         part.CanQuery = false
         part.CanTouch = false
         part.Parent = parent
+    end
+
+    applyAppearanceFromSource(part, appearanceSource)
+    if part.Transparency >= 1 then
+        part.Transparency = 0
     end
 
     part.Size = size
@@ -105,7 +126,13 @@ local function ensureExitBarrier(door, fallbackPanel)
     local depthOffset = math.max(Config.CellSize / 2, depth / 2)
     local basePosition = referencePanel.Position
 
-    local frontBarrier = ensureBarrierPart(door, "ExitBarrier", Vector3.new(width, height, depth), referencePanel.CFrame)
+    local frontBarrier = ensureBarrierPart(
+        door,
+        "ExitBarrier",
+        Vector3.new(width, height, depth),
+        referencePanel.CFrame,
+        referencePanel
+    )
 
     ensureBarrierPart(
         door,
@@ -116,7 +143,8 @@ local function ensureExitBarrier(door, fallbackPanel)
             orientedRight,
             up,
             orientedLook
-        )
+        ),
+        referencePanel
     )
 
     ensureBarrierPart(
@@ -128,7 +156,8 @@ local function ensureExitBarrier(door, fallbackPanel)
             orientedRight,
             up,
             orientedLook
-        )
+        ),
+        referencePanel
     )
 
     ensureBarrierPart(
@@ -140,7 +169,8 @@ local function ensureExitBarrier(door, fallbackPanel)
             orientedRight,
             up,
             orientedLook
-        )
+        ),
+        referencePanel
     )
 
     return frontBarrier
@@ -157,7 +187,7 @@ local function ensureExitPadBarrier()
     local size = Vector3.new(Config.CellSize, 20, Config.CellSize)
     local cframe = CFrame.new(exitPad.Position.X, size.Y / 2, exitPad.Position.Z)
 
-    return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe)
+    return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe, exitPad)
 end
 
 local function getInventoryOrWarn(context)
