@@ -125,7 +125,7 @@ UIS.InputBegan:Connect(function(input, gpe)
 		if hunter and hunter.PrimaryPart then
 			local pts = pathPoints(hrp.Position, hunter.PrimaryPart.Position)
 			if pts then
-				drawTrail(pts, "DebugTrail_Monster", Color3.fromRGB(0,255,0), 0.4) -- same green
+                                drawTrail(pts, "DebugTrail_Monster", Color3.fromRGB(255,0,0), 0.4) -- red for hunters
 			end
 		end
 	end
@@ -169,21 +169,21 @@ local function clearFolder(name)
 	end
 end
 
-local function drawSegments(points, name)
-	clearFolder(name)
-	local folder = Instance.new("Folder"); folder.Name = name; folder.Parent = workspace
-	for i = 1, #points-1 do
-		local a = points[i]; local b = points[i+1]
-		local mid = (a + b) / 2
-		local len = (b - a).Magnitude
-		local part = Instance.new("Part")
-		part.Anchored = true; part.CanCollide = false
-		part.Color = Color3.fromRGB(0,255,0)
-		part.Transparency = 0.4
-		part.Material = Enum.Material.Neon
-		part.Size = Vector3.new(0.6, 0.2, math.max(0.5, len))
-		part.CFrame = CFrame.new(mid, b) * CFrame.Angles(math.rad(90), 0, 0)
-		part.Parent = folder
+local function drawSegments(points, name, color3)
+        clearFolder(name)
+        local folder = Instance.new("Folder"); folder.Name = name; folder.Parent = workspace
+        for i = 1, #points-1 do
+                local a = points[i]; local b = points[i+1]
+                local mid = (a + b) / 2
+                local len = (b - a).Magnitude
+                local part = Instance.new("Part")
+                part.Anchored = true; part.CanCollide = false
+                part.Color = color3 or Color3.fromRGB(0,255,0)
+                part.Transparency = 0.4
+                part.Material = Enum.Material.Neon
+                part.Size = Vector3.new(0.6, 0.2, math.max(0.5, len))
+                part.CFrame = CFrame.new(mid, b) * CFrame.Angles(math.rad(90), 0, 0)
+                part.Parent = folder
 	end
 end
 
@@ -226,7 +226,7 @@ RunService.Heartbeat:Connect(function(dt)
 					table.insert(pts, Vector3.new(wp.Position.X, 0.2, wp.Position.Z))
 				end
 				if #pts >= 2 then
-					drawSegments(pts, "DebugTrail_Exit")
+                                        drawSegments(pts, "DebugTrail_Exit", Color3.fromRGB(0,255,0))
 				end
 			else
 				clearFolder("DebugTrail_Exit")
@@ -246,7 +246,7 @@ RunService.Heartbeat:Connect(function(dt)
 					table.insert(pts, Vector3.new(wp.Position.X, 0.2, wp.Position.Z))
 				end
 				if #pts >= 2 then
-					drawSegments(pts, "DebugTrail_Monster")
+                                        drawSegments(pts, "DebugTrail_Monster", Color3.fromRGB(255,0,0))
 				end
 			else
 				clearFolder("DebugTrail_Monster")
