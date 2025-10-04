@@ -18,6 +18,33 @@ local function placeModelRandom(model, gridWidth, gridHeight, cellSize)
     return m
 end
 
+local function ensureExitBarrier(door, panel)
+    local barrier = door:FindFirstChild("ExitBarrier")
+    if barrier and barrier:IsA("BasePart") then
+        barrier.CFrame = panel.CFrame
+        barrier.Size = Vector3.new(panel.Size.X, math.max(panel.Size.Y, 10), math.max(1, panel.Size.Z))
+        barrier.CanCollide = true
+        barrier.Anchored = true
+        barrier.CanQuery = false
+        barrier.Transparency = 1
+        return barrier
+    end
+
+    barrier = Instance.new("Part")
+    barrier.Name = "ExitBarrier"
+    barrier.Anchored = true
+    barrier.Material = Enum.Material.ForceField
+    barrier.Transparency = 1
+    barrier.CanQuery = false
+    barrier.CanTouch = false
+    barrier.CanCollide = true
+    barrier.Size = Vector3.new(panel.Size.X, math.max(panel.Size.Y, 10), math.max(1, panel.Size.Z))
+    barrier.CFrame = panel.CFrame
+    barrier.Parent = door
+
+    return barrier
+end
+
 local function getInventoryOrWarn(context)
     local ok, inventory = pcall(InventoryProvider.getInventory)
     if not ok then
@@ -101,6 +128,24 @@ local function configureDoorPrompt(door, lockedValue)
         return
     end
 
+    if not panel:IsA("BasePart") then
+        warn("KeyDoorService: Door panel is not a BasePart")
+        return
+    end
+
+    if door.PrimaryPart == nil then
+        door.PrimaryPart = panel
+    end
+
+    local barrier = ensureExitBarrier(door, panel)
+
+    for _, part in ipairs(door:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = true
+            part.CanCollide = true
+        end
+    end
+
     local prompt = panel:FindFirstChildOfClass("ProximityPrompt") or Instance.new("ProximityPrompt")
     prompt.Parent = panel
     prompt.ActionText = "Unlock Door"
@@ -142,7 +187,15 @@ local function configureDoorPrompt(door, lockedValue)
         for _, part in ipairs(door:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
+                if part ~= panel then
+                    part.Transparency = 1
+                end
             end
+        end
+
+        if barrier and barrier.Parent == door then
+            barrier.CanCollide = false
+            barrier:Destroy()
         end
 
         if DoorOpened then
@@ -155,9 +208,8 @@ end
 
 _G.KeyDoor_OnRoundStart = function()
     for i = 1, Config.KeyCount do
-        local key = prefabs.Key:Clone()
+        local key = placeModelRandom(prefabs.Key, Config.GridWidth, Config.GridHeight, Config.CellSize)
         key.Name = "Key_" .. i
-        placeModelRandom(key, Config.GridWidth, Config.GridHeight, Config.CellSize)
         configureKeyPrompt(key)
     end
     local door = prefabs.Door:Clone()
