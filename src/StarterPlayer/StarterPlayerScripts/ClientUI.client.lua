@@ -440,13 +440,56 @@ end)
 -- === Minimap (perk) ===
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDim2.new(0, 200, 0, 200)
-mapFrame.Position = UDim2.new(1, -220, 0, 160); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
+mapFrame.Position = UDim2.new(1, -220, 0, 220); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
+mapFrame.Active = true
 local mapBtn = Instance.new("TextButton"); mapBtn.Size = UDim2.new(1,0,0,24); mapBtn.Text = "Minimap (perk) ON"; mapBtn.Parent = mapFrame
 local mapCanvas = Instance.new("Frame"); mapCanvas.Size = UDim2.new(1, -8, 1, -32); mapCanvas.Position = UDim2.new(0,4,0,28); mapCanvas.BackgroundTransparency = 1; mapCanvas.Parent = mapFrame
 
+local draggingMap = false
+local dragInput
+local dragStart
+local startPos
+
+local function toVector2(position)
+        return Vector2.new(position.X, position.Y)
+end
+
+local function updateDrag(input)
+        local delta = toVector2(input.Position) - dragStart
+        mapFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+mapFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                draggingMap = true
+                dragStart = toVector2(input.Position)
+                startPos = mapFrame.Position
+                dragInput = input
+
+                input.Changed:Connect(function()
+                        if input.UserInputState == Enum.UserInputState.End then
+                                draggingMap = false
+                                dragInput = nil
+                        end
+                end)
+        end
+end)
+
+mapFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+        end
+end)
+
+UIS.InputChanged:Connect(function(input)
+        if input == dragInput and draggingMap then
+                updateDrag(input)
+        end
+end)
+
 local function makeDot(name, color)
-	local d = mapCanvas:FindFirstChild(name) or Instance.new("Frame"); d.Name = name; d.Size = UDim2.new(0,6,0,6); d.AnchorPoint = Vector2.new(0.5,0.5); d.BackgroundColor3 = color; d.BorderSizePixel = 0; d.Parent = mapCanvas
-	return d
+        local d = mapCanvas:FindFirstChild(name) or Instance.new("Frame"); d.Name = name; d.Size = UDim2.new(0,6,0,6); d.AnchorPoint = Vector2.new(0.5,0.5); d.BackgroundColor3 = color; d.BorderSizePixel = 0; d.Parent = mapCanvas
+        return d
 end
 local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
 local dotExit   = makeDot("E", Color3.fromRGB(255,255,0))
