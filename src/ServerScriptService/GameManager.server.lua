@@ -140,18 +140,23 @@ end
 local function runRound()
 	if roundActive then return end
 	roundActive = true
-	phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
-	for _, plr in ipairs(Players:GetPlayers()) do
-		local char = plr.Character or plr.CharacterAdded:Wait()
-		local root = char:WaitForChild("HumanoidRootPart")
-		root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
-	end
-	for t = Config.PrepTime, 1, -1 do Countdown:FireAllClients(t); task.wait(1) end
+        phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
+        for _, plr in ipairs(Players:GetPlayers()) do
+                local char = plr.Character or plr.CharacterAdded:Wait()
+                local root = char:WaitForChild("HumanoidRootPart")
+                root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
+        end
 
-	-- Build maze
-	MazeBuilder.Clear(mazeFolder)
-	local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
-	MazeBuilder.Build(grid, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        -- Bouw de volledige grid direct zodat spelers het doolhof zien ontstaan
+        MazeBuilder.Clear(mazeFolder)
+        local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
+        MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        MazeBuilder.AnimateRemoveWalls(grid, mazeFolder, math.max(Config.PrepTime, 1))
+
+        for t = Config.PrepTime, 1, -1 do
+                Countdown:FireAllClients(t)
+                task.wait(1)
+        end
 	-- Teleport naar start in de maze (cel 1,1)
 	local startPos = Vector3.new(Config.CellSize/2, 3, Config.CellSize/2)
 	for _, plr in ipairs(Players:GetPlayers()) do
@@ -160,8 +165,17 @@ local function runRound()
 		root.CFrame = CFrame.new(startPos)
 	end
 	placeExit()
-	if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
-	phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
+        if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
+        phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
+        -- Verwijder oude vijanden en spawn nieuwe voor de ronde
+        for _, existing in ipairs(Workspace:GetChildren()) do
+                if existing:IsA("Model") and existing.Name == "Hunter" then
+                        existing:Destroy()
+                end
+        end
+        if _G.SpawnHunters then
+                task.spawn(_G.SpawnHunters)
+        end
 	local timeLeft = Config.RoundTime
 	while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
 	roundActive = false
