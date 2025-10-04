@@ -35,16 +35,6 @@ btnPRIM.MouseButton1Click:Connect(function()
 	SetMazeAlgorithm:FireServer("PRIM")
 end)
 
-RoundState.OnClientEvent:Connect(function(state) status.Text = "State: " .. tostring(state) end)
-Countdown.OnClientEvent:Connect(function(t) timerLbl.Text = "Time: " .. t end)
-Pickup.OnClientEvent:Connect(function(item)
-        if item == "Key" then
-                inventoryState.keys += 1
-                updateInventoryLabel()
-        end
-end)
-local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
-
 local btnExit, btnHunter
 local exitDistanceLbl, hunterDistanceLbl
 local updateFinderButtonStates
@@ -69,6 +59,16 @@ local function updateInventoryLabel()
                 hunterStatus
         )
 end
+
+RoundState.OnClientEvent:Connect(function(state) status.Text = "State: " .. tostring(state) end)
+Countdown.OnClientEvent:Connect(function(t) timerLbl.Text = "Time: " .. t end)
+Pickup.OnClientEvent:Connect(function(item)
+        if item == "Key" then
+                inventoryState.keys += 1
+                updateInventoryLabel()
+        end
+end)
+local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
 
 InventoryUpdate.OnClientEvent:Connect(function(data)
         inventoryState.keys = (data and data.keys) or inventoryState.keys
