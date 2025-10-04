@@ -184,7 +184,7 @@ local function ensureExitPadBarrier()
     end
 
     local spawns = exitPad.Parent or workspace
-    local size = Vector3.new(Config.CellSize, 20, Config.CellSize)
+    local size = Vector3.new(Config.CellSize, math.max(Config.WallHeight, 20), Config.CellSize)
     local cframe = CFrame.new(exitPad.Position.X, size.Y / 2, exitPad.Position.Z)
 
     return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe, exitPad)
@@ -375,7 +375,7 @@ _G.KeyDoor_OnRoundStart = function()
     door.Name = "ExitDoor"
     local rx = Config.GridWidth
     local ry = Config.GridHeight - 1
-    door:PivotTo(CFrame.new(rx * Config.CellSize - (Config.CellSize / 2), 4, ry * Config.CellSize - (Config.CellSize / 2)))
+    door:PivotTo(CFrame.new(rx * Config.CellSize - (Config.CellSize / 2), Config.WallHeight / 2, ry * Config.CellSize - (Config.CellSize / 2)))
     door.Parent = workspace.Maze
     local locked = door:FindFirstChild("Locked")
     if not locked then

@@ -31,13 +31,17 @@ local exitPad = spawns:FindFirstChild("ExitPad") or Instance.new("Part", spawns)
 
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
+
+local Config = require(Replicated.Modules.RoundConfig)
+
 local function ensurePart(name, size)
-	local p = prefabs:FindFirstChild(name)
-	if not p then p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.Size = size or Vector3.new(4,4,1); p.Parent = prefabs end
-	return p
+        local p = prefabs:FindFirstChild(name)
+        if not p then p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.Size = size or Vector3.new(4,4,1); p.Parent = prefabs end
+        return p
 end
-ensurePart("Wall", Vector3.new(8,8,1))
-ensurePart("Floor", Vector3.new(8,1,8))
+
+ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
+ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
 if not prefabs:FindFirstChild("Key") then
 	local keyModel = Instance.new("Model"); keyModel.Name = "Key"; keyModel.Parent = prefabs
 	local part = Instance.new("Part"); part.Name = "Handle"; part.Size = Vector3.new(1,1,1); part.Anchored = true; part.Parent = keyModel
@@ -45,13 +49,12 @@ if not prefabs:FindFirstChild("Key") then
 	keyModel.PrimaryPart = part
 end
 if not prefabs:FindFirstChild("Door") then
-	local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
-	local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
-	local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
-	door.PrimaryPart = part
+        local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
+        local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(math.max(6, Config.CellSize - 2), Config.WallHeight, 1); part.Anchored = true; part.Parent = door
+        local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
+        door.PrimaryPart = part
 end
 
-local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ANIM_DURATION = 12
