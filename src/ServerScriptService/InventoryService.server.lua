@@ -25,6 +25,7 @@ function Service.AddKey(plr, amount)
         local inv = ensure(plr)
         inv.keys = (inv.keys or 0) + amount
         pushClient(plr)
+        return true
 end
 
 function Service.HasKey(plr)
@@ -41,6 +42,26 @@ function Service.UseKey(plr, amount)
                 return true
         end
         return false
+end
+
+function Service.Reset(plr)
+        if not plr then
+                return
+        end
+
+        local inv = ensure(plr)
+        inv.keys = 0
+        pushClient(plr)
+end
+
+function Service.ResetAll()
+        for userId, inv in pairs(Inventory) do
+                inv.keys = 0
+                local plr = Players:GetPlayerByUserId(userId)
+                if plr then
+                        pushClient(plr)
+                end
+        end
 end
 
 _G.Inventory = Service
