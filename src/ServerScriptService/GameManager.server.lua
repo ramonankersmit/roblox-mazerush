@@ -22,7 +22,7 @@ local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Repli
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
 algoValue.Name = "MazeAlgorithm"; algoValue.Value = "DFS"
 local loopChanceValue = State:FindFirstChild("LoopChance") or Instance.new("NumberValue", State)
-loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance or 0
+loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance or 0.01
 
 local mazeFolder = Workspace:FindFirstChild("Maze") or Instance.new("Folder", Workspace); mazeFolder.Name = "Maze"
 local spawns = Workspace:FindFirstChild("Spawns") or Instance.new("Folder", Workspace); spawns.Name = "Spawns"

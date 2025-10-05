@@ -2,7 +2,7 @@
 
 ## Wat is nieuw
 - **Server-authoritatieve toggle** tussen `DFS` en `PRIM` via `ReplicatedStorage/State/MazeAlgorithm`.
-- **LoopChance**: stel in welk percentage muren na generatie verwijderd wordt (maakt lussen).
+- **LoopChance**: stel in welk percentage muren na generatie verwijderd wordt (maakt lussen, standaard 1%).
 - **Lobby UI** met knoppen (DFS/PRIM + loop-kans). Client vraagt wissels aan; server valideert en zet de waardes.
 - **MazeGenerator** leest runtime-waardes; valt terug op `RoundConfig` bij ontbreken.
 

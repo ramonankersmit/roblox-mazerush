@@ -52,7 +52,7 @@
         "LoopChance": {
           "$className": "NumberValue",
           "$properties": {
-            "Value": 0
+            "Value": 0.01
           }
         },
         "Phase": {
