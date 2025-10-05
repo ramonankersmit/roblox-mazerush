@@ -10,6 +10,7 @@ local function carveLoops(grid, width, height, chance)
         end
 
         local candidates = {}
+        local removalCount = 0
         for x = 1, width do
                 for y = 1, height do
                         local cell = grid[x][y]
@@ -35,9 +36,13 @@ local function carveLoops(grid, width, height, chance)
                         if a and b then
                                 a.walls[wall.dir] = false
                                 b.walls[wall.opp] = false
+                                removalCount = removalCount + 1
                         end
                 end
         end
+
+        print(('[MazeGenerator] Removed %d loop walls out of %d candidates (chance=%.2f)')
+                :format(removalCount, #candidates, chance))
 end
 
 local function newGrid(w, h)
