@@ -42,11 +42,44 @@ local function createEnemy(speed)
         local root = Instance.new("Part")
         root.Name = "HumanoidRootPart"; root.Size = Vector3.new(2,2,1); root.Anchored = false
         local head = Instance.new("Part"); head.Name = "Head"; head.Size = Vector3.new(2,1,2); head.Anchored = false; head.Parent = enemy
-	local weld = Instance.new("WeldConstraint"); weld.Part0 = root; weld.Part1 = head; weld.Parent = enemy
-	root.Parent = enemy
-	enemy.PrimaryPart = root
-	enemy.Parent = workspace
-	return enemy
+        local weld = Instance.new("WeldConstraint"); weld.Part0 = root; weld.Part1 = head; weld.Parent = enemy
+        root.Parent = enemy
+        enemy.PrimaryPart = root
+        enemy.Parent = workspace
+        return enemy
+end
+
+local function attachHunterDamage(enemy)
+        local root = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+        if not root or not root:IsA("BasePart") then
+                return
+        end
+        local touchTimestamps = {}
+        root.Touched:Connect(function(hit)
+                if not root.Parent or not hit or not hit.Parent then
+                        return
+                end
+                local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
+                if not humanoid or humanoid.Parent == enemy then
+                        return
+                end
+                if humanoid.Health <= 0 then
+                        return
+                end
+                local plr = Players:GetPlayerFromCharacter(humanoid.Parent)
+                if not plr then
+                        return
+                end
+                local now = os.clock()
+                local last = touchTimestamps[plr]
+                if last and now - last < 1.5 then
+                        return
+                end
+                touchTimestamps[plr] = now
+                if _G.GameEliminatePlayer then
+                        _G.GameEliminatePlayer(plr, root.Position)
+                end
+        end)
 end
 
 local function computePathDistance(fromPos, toPos)
@@ -352,6 +385,7 @@ _G.SpawnHunters = function()
                 local e = createEnemy(enemySpeed)
                 local spawnPos = findSpawnPosition(enemySpeed)
                 e:SetPrimaryPartCFrame(CFrame.new(spawnPos))
+                attachHunterDamage(e)
                 task.spawn(chase, e, enemySpeed)
         end
 end

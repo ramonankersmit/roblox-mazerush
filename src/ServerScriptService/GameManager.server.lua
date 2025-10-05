@@ -2,6 +2,7 @@ local Replicated = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
 
 local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
@@ -18,6 +19,8 @@ local RoundState = ensureRemote("RoundState")
 local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
+local AliveStatus = ensureRemote("AliveStatus")
+local PlayerEliminated = ensureRemote("PlayerEliminated")
 local ToggleWallHeight = ensureRemote("ToggleWallHeight")
 
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
@@ -217,30 +220,228 @@ local roundActive = false
 local phase = "IDLE"
 local PhaseValue = State:FindFirstChild("Phase") or Instance.new("StringValue", State); PhaseValue.Name = "Phase"; PhaseValue.Value = phase
 
--- Teleport characters to sky lobby on spawn during PREP/wait
-Players.PlayerAdded:Connect(function(plr)
-	plr.CharacterAdded:Connect(function(char)
-		task.wait(0.1)
-		local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart")
-		if phase ~= "ACTIVE" then
-			hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
-		end
-	end)
-end)
+local playerStates = {}
+local eliminatedPlayers = {}
+local defaultMovement = {}
 
-
-local function ensureLeaderstats(plr)
-	local ls = plr:FindFirstChild("leaderstats")
-	if not ls then ls = Instance.new("Folder"); ls.Name = "leaderstats"; ls.Parent = plr end
-	if not ls:FindFirstChild("Coins") then local v = Instance.new("IntValue"); v.Name = "Coins"; v.Parent = ls end
-	if not ls:FindFirstChild("Escapes") then local v = Instance.new("IntValue"); v.Name = "Escapes"; v.Parent = ls end
+local function recordDefaultMovement(plr, humanoid)
+        if defaultMovement[plr] then
+                return
+        end
+        defaultMovement[plr] = {
+                walkSpeed = humanoid and humanoid.WalkSpeed or 16,
+                useJumpPower = humanoid and humanoid.UseJumpPower or true,
+                jumpPower = humanoid and humanoid.JumpPower or 50,
+                jumpHeight = humanoid and humanoid.JumpHeight or 7.2,
+        }
 end
-Players.PlayerAdded:Connect(ensureLeaderstats)
+
+local function restoreMovement(plr)
+        local char = plr.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        local defaults = defaultMovement[plr]
+        if defaults then
+                humanoid.WalkSpeed = defaults.walkSpeed or 16
+                humanoid.UseJumpPower = defaults.useJumpPower ~= false
+                if humanoid.UseJumpPower then
+                        humanoid.JumpPower = defaults.jumpPower or 50
+                else
+                        humanoid.JumpHeight = defaults.jumpHeight or 7.2
+                end
+        else
+                humanoid.WalkSpeed = 16
+                humanoid.UseJumpPower = true
+                humanoid.JumpPower = 50
+        end
+        humanoid.AutoRotate = true
+        humanoid.PlatformStand = false
+        humanoid.Sit = false
+end
+
+local function applySpectatorState(plr)
+        local char = plr.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+                humanoid.WalkSpeed = 0
+                local defaults = defaultMovement[plr]
+                if defaults and defaults.useJumpPower ~= nil then
+                        humanoid.UseJumpPower = defaults.useJumpPower ~= false
+                        if humanoid.UseJumpPower then
+                                humanoid.JumpPower = 0
+                        else
+                                humanoid.JumpHeight = 0
+                        end
+                else
+                        humanoid.UseJumpPower = true
+                        humanoid.JumpPower = 0
+                end
+                humanoid.AutoRotate = false
+                humanoid.PlatformStand = true
+                humanoid.Sit = true
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+                root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
+                root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end
+end
+
+local function broadcastAliveStatus()
+        local aliveList = {}
+        local eliminatedList = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+                local state = playerStates[plr]
+                if state == "Alive" then
+                        table.insert(aliveList, plr.Name)
+                elseif state == "Out" then
+                        table.insert(eliminatedList, plr.Name)
+                end
+        end
+        table.sort(aliveList)
+        table.sort(eliminatedList)
+        if #aliveList == 0 and #eliminatedList == 0 then
+                AliveStatus:FireAllClients(nil)
+        else
+                AliveStatus:FireAllClients({
+                        alive = aliveList,
+                        eliminated = eliminatedList,
+                })
+        end
+end
+
+local function clearAliveStatus()
+        AliveStatus:FireAllClients(nil)
+end
+
+local function spawnCrashEffect(position)
+        local pos = position or lobbyBase.Position
+        local explosion = Instance.new("Explosion")
+        explosion.BlastPressure = 0
+        explosion.BlastRadius = 0
+        explosion.Position = pos
+        explosion.Parent = Workspace
+        Debris:AddItem(explosion, 2)
+        for _ = 1, 8 do
+                local shard = Instance.new("Part")
+                shard.Size = Vector3.new(0.6, 0.2, 1)
+                shard.Color = Color3.fromRGB(200, 30, 30)
+                shard.Material = Enum.Material.Neon
+                shard.CFrame = CFrame.new(pos)
+                shard.CanCollide = false
+                shard.Anchored = false
+                shard.Parent = Workspace
+                shard.AssemblyLinearVelocity = Vector3.new(
+                        (math.random() - 0.5) * 40,
+                        math.random(10, 35),
+                        (math.random() - 0.5) * 40
+                )
+                Debris:AddItem(shard, 4)
+        end
+end
+
+local function countAlivePlayers()
+        local count = 0
+        for _, plr in ipairs(Players:GetPlayers()) do
+                if playerStates[plr] == "Alive" then
+                        count += 1
+                end
+        end
+        return count
+end
+
+local function eliminatePlayer(plr, position)
+        if not roundActive then
+                return
+        end
+        if playerStates[plr] ~= "Alive" then
+                return
+        end
+        playerStates[plr] = "Out"
+        eliminatedPlayers[plr] = true
+        local char = plr.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        local effectPos = position
+        if root then
+                effectPos = root.Position
+        end
+        spawnCrashEffect(effectPos)
+        PlayerEliminated:FireAllClients({
+                userId = plr.UserId,
+                name = plr.Name,
+                position = effectPos,
+        })
+        broadcastAliveStatus()
+        if humanoid and humanoid.Health > 0 then
+                humanoid:TakeDamage(humanoid.Health)
+        end
+        if countAlivePlayers() == 0 then
+                roundActive = false
+        end
+end
+
+_G.GameEliminatePlayer = eliminatePlayer
+
+-- Teleport characters to sky lobby on spawn during PREP/wait
+local function ensureLeaderstats(plr)
+        local ls = plr:FindFirstChild("leaderstats")
+        if not ls then ls = Instance.new("Folder"); ls.Name = "leaderstats"; ls.Parent = plr end
+        if not ls:FindFirstChild("Coins") then local v = Instance.new("IntValue"); v.Name = "Coins"; v.Parent = ls end
+        if not ls:FindFirstChild("Escapes") then local v = Instance.new("IntValue"); v.Name = "Escapes"; v.Parent = ls end
+end
+
+local function onCharacterAdded(plr, char)
+        task.wait(0.1)
+        local hrp = char:WaitForChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+                recordDefaultMovement(plr, humanoid)
+        end
+        if phase ~= "ACTIVE" then
+                hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
+                restoreMovement(plr)
+        elseif eliminatedPlayers[plr] then
+                hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
+                applySpectatorState(plr)
+        end
+end
+
+local function onPlayerAdded(plr)
+        ensureLeaderstats(plr)
+        plr.CharacterAdded:Connect(function(char)
+                onCharacterAdded(plr, char)
+        end)
+        if phase == "ACTIVE" then
+                playerStates[plr] = "Out"
+                eliminatedPlayers[plr] = true
+                broadcastAliveStatus()
+        end
+        if plr.Character then
+                onCharacterAdded(plr, plr.Character)
+        end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, plr in ipairs(Players:GetPlayers()) do
+        onPlayerAdded(plr)
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+        playerStates[plr] = nil
+        eliminatedPlayers[plr] = nil
+        defaultMovement[plr] = nil
+        broadcastAliveStatus()
+end)
 
 local function teleportToLobby()
         for _, plr in ipairs(Players:GetPlayers()) do
                 local char = plr.Character or plr.CharacterAdded:Wait()
                 local root = char:WaitForChild("HumanoidRootPart")
+                restoreMovement(plr)
                 root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
         end
 end
@@ -278,6 +479,13 @@ local function runRound()
         roundActive = true
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
         teleportToLobby()
+
+        playerStates = {}
+        eliminatedPlayers = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+                playerStates[plr] = "Alive"
+        end
+        broadcastAliveStatus()
 
         -- Bouw de volledige grid direct zodat spelers het doolhof zien ontstaan
         MazeBuilder.Clear(mazeFolder)
@@ -353,6 +561,12 @@ local function runRound()
         phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
         task.wait(5)
         teleportToLobby()
+        clearAliveStatus()
+        for _, plr in ipairs(Players:GetPlayers()) do
+                eliminatedPlayers[plr] = nil
+                playerStates[plr] = nil
+                restoreMovement(plr)
+        end
         if _G.Inventory and type(_G.Inventory.ResetAll) == "function" then
                 _G.Inventory.ResetAll()
         end
