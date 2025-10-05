@@ -17,6 +17,18 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(255, 180, 75),
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0,
+                lobby = {
+                        assetFolderPath = {"LobbyAssets", "Spooky"},
+                        previewModels = {"PreviewStand"},
+                        ambientSound = "Ambient",
+                        lighting = {
+                                Ambient = Color3.fromRGB(15, 10, 25),
+                                OutdoorAmbient = Color3.fromRGB(30, 20, 50),
+                                FogColor = Color3.fromRGB(30, 25, 45),
+                                FogEnd = 120,
+                                Brightness = 1.5,
+                        },
+                },
         },
         {
                 id = "Jungle",
@@ -34,6 +46,18 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(245, 215, 110),
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0,
+                lobby = {
+                        assetFolderPath = {"LobbyAssets", "Jungle"},
+                        previewModels = {"PreviewStand"},
+                        ambientSound = "Wildlife",
+                        lighting = {
+                                Ambient = Color3.fromRGB(35, 60, 35),
+                                OutdoorAmbient = Color3.fromRGB(70, 100, 70),
+                                FogColor = Color3.fromRGB(80, 120, 80),
+                                FogEnd = 150,
+                                Brightness = 2.2,
+                        },
+                },
         },
         {
                 id = "Frost",
@@ -51,6 +75,18 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(255, 255, 255),
                 exitMaterial = Enum.Material.Glass,
                 exitTransparency = 0.1,
+                lobby = {
+                        assetFolderPath = {"LobbyAssets", "Frost"},
+                        previewModels = {"PreviewStand"},
+                        ambientSound = "Wind",
+                        lighting = {
+                                Ambient = Color3.fromRGB(160, 190, 255),
+                                OutdoorAmbient = Color3.fromRGB(200, 230, 255),
+                                FogColor = Color3.fromRGB(215, 235, 255),
+                                FogEnd = 180,
+                                Brightness = 2.8,
+                        },
+                },
         },
         {
                 id = "Glaze",
@@ -66,6 +102,18 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(255, 255, 255),
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0.25,
+                lobby = {
+                        assetFolderPath = {"LobbyAssets", "Glaze"},
+                        previewModels = {"PreviewStand"},
+                        ambientSound = "Chimes",
+                        lighting = {
+                                Ambient = Color3.fromRGB(205, 230, 255),
+                                OutdoorAmbient = Color3.fromRGB(235, 245, 255),
+                                FogColor = Color3.fromRGB(255, 255, 255),
+                                FogEnd = 220,
+                                Brightness = 3.2,
+                        },
+                },
         },
 }
 
@@ -83,6 +131,14 @@ ThemeConfig.Order = ThemeOrder
 
 function ThemeConfig.Get(themeId)
         return ThemeMap[themeId]
+end
+
+function ThemeConfig.GetLobbyAssets(themeId)
+        local theme = ThemeMap[themeId]
+        if theme then
+                return theme.lobby
+        end
+        return nil
 end
 
 local function cloneIds()
