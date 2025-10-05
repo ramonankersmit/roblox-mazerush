@@ -3,23 +3,13 @@ local Replicated = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local Remotes = Replicated:WaitForChild("Remotes")
 local RoundState = Remotes:WaitForChild("RoundState")
-local Countdown = Remotes:WaitForChild("Countdown")
 local Pickup = Remotes:WaitForChild("Pickup")
-local SetMazeAlgorithm = Remotes:WaitForChild("SetMazeAlgorithm")
-local SetLoopChance = Remotes:WaitForChild("SetLoopChance")
 local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 
 local gui = Instance.new("ScreenGui"); gui.Name = "MazeUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
-local function mkLabel(name, x, y)
-	local l = Instance.new("TextLabel"); l.Name = name; l.Size = UDim2.new(0,300,0,40); l.Position = UDim2.new(0,x,0,y); l.TextScaled = true; l.BackgroundTransparency = 0.3; l.Parent = gui; return l
-end
-local status = mkLabel("Status", 20, 20)
-local timerLbl = mkLabel("Timer", 20, 70)
-local invLbl = mkLabel("Inventory", 20, 120)
-
 local scoreboardFrame = Instance.new("Frame")
 scoreboardFrame.Name = "SurvivorBoard"
 scoreboardFrame.Size = UDim2.new(0,260,0,0)
@@ -106,7 +96,6 @@ local function isGameplayState(state)
         return state == "PREP" or state == "ACTIVE" or state == "OVERVIEW"
 end
 
-local updateAlgoUIVisibility
 local updateMinimapVisibility
 local minimapOn = true
 local mapFrame
@@ -218,87 +207,6 @@ local function playEliminationSequence(position)
         end)
 end
 
--- Algo switcher UI (top-right)
-local frame = Instance.new("Frame"); frame.Name = "Algo"; frame.Size = UDim2.new(0,260,0,110); frame.Position = UDim2.new(1,-280,0,20); frame.BackgroundTransparency = 0.2; frame.Parent = gui
-local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.BackgroundTransparency = 1; title.Text = "Maze Algorithm"; title.Parent = frame
-local btnDFS = Instance.new("TextButton"); btnDFS.Size = UDim2.new(0.5,-10,0,28); btnDFS.Position = UDim2.new(0,10,0,28); btnDFS.Text = "DFS"; btnDFS.Parent = frame
-local btnPRIM = Instance.new("TextButton"); btnPRIM.Size = UDim2.new(0.5,-10,0,28); btnPRIM.Position = UDim2.new(0.5,0,0,28); btnPRIM.Text = "PRIM"; btnPRIM.Parent = frame
-local loopMinus = Instance.new("TextButton"); loopMinus.Size = UDim2.new(0,36,0,24); loopMinus.Position = UDim2.new(0,10,0,66); loopMinus.Text = "-"; loopMinus.Parent = frame
-local loopLabel = Instance.new("TextLabel"); loopLabel.Size = UDim2.new(1,-112,0,24); loopLabel.Position = UDim2.new(0,56,0,66); loopLabel.BackgroundTransparency = 1; loopLabel.TextXAlignment = Enum.TextXAlignment.Center; loopLabel.TextScaled = true; loopLabel.Text = "Loop Chance: 0%"; loopLabel.Parent = frame
-local loopPlus = Instance.new("TextButton"); loopPlus.Size = UDim2.new(0,36,0,24); loopPlus.Position = UDim2.new(1,-46,0,66); loopPlus.Text = "+"; loopPlus.Parent = frame
-local cur = mkLabel("CurrentAlgo", 20, 170); cur.Text = "Algo: " .. (State.MazeAlgorithm and State.MazeAlgorithm.Value or "DFS")
-
-updateAlgoUIVisibility = function()
-        local visible = isGameplayState()
-        frame.Visible = visible
-        cur.Visible = visible
-end
-
-updateAlgoUIVisibility()
-
-local function updateAlgoLabel()
-	cur.Text = "Algo: " .. (State.MazeAlgorithm and State.MazeAlgorithm.Value or "DFS")
-end
-if State:FindFirstChild("MazeAlgorithm") then State.MazeAlgorithm:GetPropertyChangedSignal("Value"):Connect(updateAlgoLabel) end
-
-local loopChanceValue = State:FindFirstChild("LoopChance")
-local LOOP_STEP = 0.05
-
-local function getLoopChance()
-        if loopChanceValue and typeof(loopChanceValue.Value) == "number" then
-                return loopChanceValue.Value
-        end
-        return RoundConfig.LoopChance or 0.05
-end
-
-local function updateLoopLabel()
-        local percent = math.floor(getLoopChance() * 100 + 0.5)
-        loopLabel.Text = string.format("Loop Chance: %d%%", percent)
-end
-
-local function watchLoopChance()
-        if not loopChanceValue then
-                return
-        end
-        loopChanceValue:GetPropertyChangedSignal("Value"):Connect(updateLoopLabel)
-end
-
-if loopChanceValue then
-        watchLoopChance()
-else
-        State.ChildAdded:Connect(function(child)
-                if child.Name == "LoopChance" then
-                        loopChanceValue = child
-                        watchLoopChance()
-                        updateLoopLabel()
-                end
-        end)
-end
-
-updateLoopLabel()
-
-local function adjustLoopChance(delta)
-        local newValue = math.clamp(getLoopChance() + delta, 0, 1)
-        newValue = math.floor((newValue / LOOP_STEP) + 0.5) * LOOP_STEP
-        newValue = math.clamp(newValue, 0, 1)
-        SetLoopChance:FireServer(newValue)
-end
-
-loopMinus.MouseButton1Click:Connect(function()
-        adjustLoopChance(-LOOP_STEP)
-end)
-
-loopPlus.MouseButton1Click:Connect(function()
-        adjustLoopChance(LOOP_STEP)
-end)
-
-btnDFS.MouseButton1Click:Connect(function()
-        SetMazeAlgorithm:FireServer("DFS")
-end)
-btnPRIM.MouseButton1Click:Connect(function()
-	SetMazeAlgorithm:FireServer("PRIM")
-end)
-
 local btnExit, btnHunter, btnKey
 local exitDistanceLbl, hunterDistanceLbl, keyDistanceLbl
 local updateFinderButtonStates
@@ -316,29 +224,12 @@ local inventoryState = {
         hasKeyFinder = false,
 }
 
-local function updateInventoryLabel()
-        local exitStatus = inventoryState.hasExitFinder and "✓" or "✗"
-        local hunterStatus = inventoryState.hasHunterFinder and "✓" or "✗"
-        local keyFinderStatus = inventoryState.hasKeyFinder and "✓" or "✗"
-        invLbl.Text = string.format(
-                "Inventory: Keys x%d | Exit Finder %s | Hunter Finder %s | Key Finder %s",
-                inventoryState.keys,
-                exitStatus,
-                hunterStatus,
-                keyFinderStatus
-        )
-end
-
 RoundState.OnClientEvent:Connect(function(state)
         currentRoundState = tostring(state)
-        status.Text = "State: " .. currentRoundState
         if currentRoundState ~= "ACTIVE" and eliminationCameraToken then
                 resetEliminationCamera(eliminationCameraToken)
         end
         refreshScoreboardVisibility()
-        if updateAlgoUIVisibility then
-                updateAlgoUIVisibility()
-        end
         if updateMinimapVisibility then
                 updateMinimapVisibility()
         end
@@ -352,7 +243,6 @@ PlayerEliminatedRemote.OnClientEvent:Connect(function(info)
                 playEliminationSequence(info.position)
         end
 end)
-Countdown.OnClientEvent:Connect(function(t) timerLbl.Text = "Time: " .. t end)
 Pickup.OnClientEvent:Connect(function(item)
         if item == "Key" then
                 -- The server immediately sends an authoritative inventory update
@@ -385,13 +275,10 @@ InventoryUpdate.OnClientEvent:Connect(function(data)
         if not inventoryState.hasKeyFinder and keyFinderEnabled then
                 setKeyFinderEnabled(false)
         end
-        updateInventoryLabel()
         if updateFinderButtonStates then
                 updateFinderButtonStates()
         end
 end)
-
-updateInventoryLabel()
 
 
 local PathfindingService = game:GetService("PathfindingService")
