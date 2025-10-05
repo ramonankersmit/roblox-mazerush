@@ -420,9 +420,24 @@ _G.KeyDoor_OnRoundStart = function()
     end
     local door = prefabs.Door:Clone()
     door.Name = "ExitDoor"
+  
     local rx = Config.GridWidth
     local ry = Config.GridHeight - 1
     door:PivotTo(CFrame.new(rx * Config.CellSize - (Config.CellSize / 2), Config.WallHeight / 2, ry * Config.CellSize - (Config.CellSize / 2)))
+    
+    local panel = door:FindFirstChild("Panel") or door.PrimaryPart
+    if door.PrimaryPart == nil and panel then
+        door.PrimaryPart = panel
+    end
+
+    local doorHeight = 4
+    if panel and panel:IsA("BasePart") then
+        doorHeight = panel.Size.Y / 2
+    end
+
+    local doorX = Config.GridWidth * Config.CellSize - (Config.CellSize / 2)
+    local doorZ = Config.GridHeight * Config.CellSize
+    door:PivotTo(CFrame.new(doorX, doorHeight, doorZ))
     door.Parent = workspace.Maze
     local locked = door:FindFirstChild("Locked")
     if not locked then
