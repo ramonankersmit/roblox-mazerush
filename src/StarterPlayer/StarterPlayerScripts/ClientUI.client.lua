@@ -3,6 +3,7 @@ local Replicated = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local Remotes = Replicated:WaitForChild("Remotes")
 local RoundState = Remotes:WaitForChild("RoundState")
+local Countdown = Remotes:WaitForChild("Countdown")
 local Pickup = Remotes:WaitForChild("Pickup")
 local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
@@ -87,9 +88,74 @@ eliminationMessage.TextColor3 = Color3.fromRGB(255, 230, 230)
 eliminationMessage.Visible = false
 eliminationMessage.Parent = gui
 
+local countdownLabel = Instance.new("TextLabel")
+countdownLabel.Name = "RoundCountdown"
+countdownLabel.Size = UDim2.new(0, 260, 0, 120)
+countdownLabel.Position = UDim2.new(0.5, 0, 0.35, 0)
+countdownLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+countdownLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+countdownLabel.BackgroundTransparency = 0.35
+countdownLabel.Text = ""
+countdownLabel.TextScaled = true
+countdownLabel.Font = Enum.Font.GothamBlack
+countdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+countdownLabel.Visible = false
+countdownLabel.Parent = gui
+
+local countdownStroke = Instance.new("UIStroke")
+countdownStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+countdownStroke.Thickness = 2
+countdownStroke.Color = Color3.fromRGB(0, 0, 0)
+countdownStroke.Parent = countdownLabel
+
 local scoreboardData
 local currentRoundState = "IDLE"
 local eliminationCameraToken
+
+local COUNTDOWN_SHOW_THRESHOLD = 10
+local COUNTDOWN_EMPHASIS_THRESHOLD = 3
+local COUNTDOWN_DEFAULT_SIZE = countdownLabel.Size
+local COUNTDOWN_EMPHASIS_SIZE = UDim2.new(0, 320, 0, 160)
+
+local function hideCountdown()
+        countdownLabel.Visible = false
+end
+
+local function updateCountdownDisplay(seconds)
+        if type(seconds) ~= "number" then
+                hideCountdown()
+                return
+        end
+
+        if currentRoundState ~= "PREP" and currentRoundState ~= "OVERVIEW" then
+                hideCountdown()
+                return
+        end
+
+        if seconds <= 0 or seconds > COUNTDOWN_SHOW_THRESHOLD then
+                hideCountdown()
+                return
+        end
+
+        countdownLabel.Visible = true
+        countdownLabel.Text = tostring(seconds)
+
+        if seconds <= COUNTDOWN_EMPHASIS_THRESHOLD then
+                countdownLabel.Size = COUNTDOWN_EMPHASIS_SIZE
+                countdownLabel.BackgroundTransparency = 0.1
+                countdownLabel.BackgroundColor3 = Color3.fromRGB(90, 0, 0)
+                countdownLabel.TextColor3 = Color3.fromRGB(255, 180, 120)
+                countdownStroke.Thickness = 4
+                countdownStroke.Color = Color3.fromRGB(255, 120, 120)
+        else
+                countdownLabel.Size = COUNTDOWN_DEFAULT_SIZE
+                countdownLabel.BackgroundTransparency = 0.35
+                countdownLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+                countdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                countdownStroke.Thickness = 2
+                countdownStroke.Color = Color3.fromRGB(0, 0, 0)
+        end
+end
 
 local function isGameplayState(state)
         state = state or currentRoundState
@@ -230,6 +296,9 @@ RoundState.OnClientEvent:Connect(function(state)
                 resetEliminationCamera(eliminationCameraToken)
         end
         refreshScoreboardVisibility()
+        if currentRoundState ~= "PREP" and currentRoundState ~= "OVERVIEW" then
+                hideCountdown()
+        end
         if updateMinimapVisibility then
                 updateMinimapVisibility()
         end
@@ -252,6 +321,8 @@ Pickup.OnClientEvent:Connect(function(item)
         end
 end)
 local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
+
+Countdown.OnClientEvent:Connect(updateCountdownDisplay)
 
 InventoryUpdate.OnClientEvent:Connect(function(data)
         if data and data.keys ~= nil then
