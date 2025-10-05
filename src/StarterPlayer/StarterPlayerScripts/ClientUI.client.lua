@@ -416,9 +416,27 @@ local function getHRP()
         return char:FindFirstChild("HumanoidRootPart")
 end
 
-local function findExitPad()
+local function findExitTarget()
+        local maze = workspace:FindFirstChild("Maze")
+        if maze then
+                local door = maze:FindFirstChild("ExitDoor")
+                if door then
+                        local primary = door.PrimaryPart or door:FindFirstChild("Panel")
+                        if primary and primary:IsA("BasePart") then
+                                return primary
+                        end
+                end
+        end
+
         local spawns = workspace:FindFirstChild("Spawns")
-        return spawns and spawns:FindFirstChild("ExitPad") or nil
+        if spawns then
+                local exitPad = spawns:FindFirstChild("ExitPad")
+                if exitPad and exitPad:IsA("BasePart") then
+                        return exitPad
+                end
+        end
+
+        return nil
 end
 
 local function getNearestHunter(fromPos)
@@ -517,9 +535,9 @@ local function startExitFinderLoop(token)
                                 continue
                         end
 
-                        local exitPad = findExitPad()
-                        if exitPad then
-                                local points = computePathPoints(hrp.Position, exitPad.Position)
+                        local exitTarget = findExitTarget()
+                        if exitTarget then
+                                local points = computePathPoints(hrp.Position, exitTarget.Position)
                                 if exitFinderEnabled and exitUpdateToken == token and points and #points >= 2 then
                                         local key = trailKey(points)
                                         if exitDistanceLbl then
@@ -793,7 +811,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
 	if not hrp then return end
 
         dotPlayer.Position = worldToMap(hrp.Position)
-        local exit = findExitPad()
+        local exit = findExitTarget()
         if exit then dotExit.Visible = true; dotExit.Position = worldToMap(exit.Position) else dotExit.Visible = false end
 
 	for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end

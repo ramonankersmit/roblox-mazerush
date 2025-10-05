@@ -1,5 +1,6 @@
 local Replicated = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
@@ -7,6 +8,7 @@ local Debris = game:GetService("Debris")
 local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
+local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 
 local Config = require(Replicated.Modules.RoundConfig)
 
@@ -123,12 +125,7 @@ if not prefabs:FindFirstChild("Key") then
 	local pp = Instance.new("ProximityPrompt"); pp.Parent = part
 	keyModel.PrimaryPart = part
 end
-if not prefabs:FindFirstChild("Door") then
-        local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
-        local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(math.max(6, Config.CellSize - 2), Config.WallHeight, 1); part.Anchored = true; part.Parent = door
-        local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
-        door.PrimaryPart = part
-end
+ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
 
 local function resizePartToWallHeight(part, height)
         if not (part and part:IsA("BasePart")) then
@@ -158,17 +155,9 @@ local function applyWallHeight(newHeight)
 
         local doorPrefab = prefabs:FindFirstChild("Door")
         if doorPrefab then
-                resizePartToWallHeight(doorPrefab:FindFirstChild("Panel"), newHeight)
-                local primary = doorPrefab.PrimaryPart
-                if primary and primary:IsA("BasePart") then
-                        local cf = primary.CFrame
-                        doorPrefab:PivotTo(CFrame.fromMatrix(
-                                Vector3.new(cf.Position.X, newHeight / 2, cf.Position.Z),
-                                cf.RightVector,
-                                cf.UpVector,
-                                cf.LookVector
-                        ))
-                end
+                ExitDoorBuilder.UpdateDoorModel(doorPrefab, Config)
+        else
+                ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
         end
 
         for _, descendant in ipairs(mazeFolder:GetDescendants()) do
