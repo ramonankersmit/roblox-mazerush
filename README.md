@@ -17,3 +17,8 @@
 - `src/StarterPlayer/StarterPlayerScripts/ClientUI.client.lua` – UI voor toggles, loop-kans en basis HUD.
 
 > Tip: Je kunt ook server-only wisselen door `State.MazeAlgorithm.Value = "PRIM"` in de command bar te zetten.
+
+## Inventory en Roblox-backpack
+Maze Rush houdt de inventaris server-side bij in `InventoryService` en deelt die service via `_G.Inventory` zodat bijvoorbeeld `KeyDoorService` kan valideren of iemand een sleutel bezit. Vanaf nu spiegelt de service ook automatisch het sleutel-aantal naar de standaard Roblox-backpack: voor elke sleutel verschijnt er een `Maze Key`-tool (zonder handle) in de backpack van de speler.
+
+De custom HUD in `ClientUI.client.lua` blijft nuttig voor bediening van Maze Rush-specifieke toggles, maar spelers kunnen nu hun sleutels beheren zoals elke andere Roblox-tool – inclusief ondersteuning voor controller/mobile dankzij de standaard backpack UI. Wanneer een sleutel wordt gebruikt of gereset, verwijdert `InventoryService` het overeenkomstige tool-item zodat de backpack altijd de serverstatus volgt.

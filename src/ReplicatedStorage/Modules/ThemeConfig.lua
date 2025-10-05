@@ -17,6 +17,14 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(255, 180, 75),
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0,
+                music = {
+                        soundId = "rbxassetid://119338609842850",
+                        soundIds = {
+                                "rbxassetid://119338609842850",
+                        },
+                        volume = 0.4,
+                        playbackSpeed = 1,
+                },
                 lobby = {
                         assetFolderPath = {"LobbyAssets", "Spooky"},
                         previewModels = {"PreviewStand"},
@@ -46,6 +54,14 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(245, 215, 110),
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0,
+                music = {
+                    soundId = "rbxassetid://89091061200191",
+                    soundIds = {
+                        "rbxassetid://89091061200191",
+                    },
+                    volume = 0.35,
+                    playbackSpeed = 1,
+                },
                 lobby = {
                         assetFolderPath = {"LobbyAssets", "Jungle"},
                         previewModels = {"PreviewStand"},
@@ -75,8 +91,16 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(255, 255, 255),
                 exitMaterial = Enum.Material.Glass,
                 exitTransparency = 0.1,
+                music = {
+                    soundId = "rbxassetid://78060248797702",
+                    soundIds = {
+                        "rbxassetid://78060248797702",
+                    },
+                    volume = 0.32,
+                    playbackSpeed = 1,
+                },
                 lobby = {
-                        assetFolderPath = {"LobbyAssets", "Frost"},
+                          assetFolderPath = {"LobbyAssets", "Frost"},
                         previewModels = {"PreviewStand"},
                         ambientSound = "Wind",
                         lighting = {
@@ -102,6 +126,14 @@ local ThemeList = {
                 exitColor = Color3.fromRGB(255, 255, 255),
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0.25,
+                music = {
+                    soundId = "rbxassetid://138011222529058",
+                    soundIds = {
+                        "rbxassetid://138011222529058",
+                    },
+                    volume = 0.28,
+                    playbackSpeed = 1,
+                },
                 lobby = {
                         assetFolderPath = {"LobbyAssets", "Glaze"},
                         previewModels = {"PreviewStand"},
@@ -115,14 +147,15 @@ local ThemeList = {
                         },
                 },
         },
+    },
 }
 
 local ThemeMap = {}
 local ThemeOrder = {}
 
 for index, theme in ipairs(ThemeList) do
-        ThemeMap[theme.id] = theme
-        ThemeOrder[index] = theme.id
+    ThemeMap[theme.id] = theme
+    ThemeOrder[index] = theme.id
 end
 
 ThemeConfig.Default = ThemeList[1].id
@@ -130,7 +163,7 @@ ThemeConfig.Themes = ThemeMap
 ThemeConfig.Order = ThemeOrder
 
 function ThemeConfig.Get(themeId)
-        return ThemeMap[themeId]
+    return ThemeMap[themeId]
 end
 
 function ThemeConfig.GetLobbyAssets(themeId)
@@ -142,23 +175,23 @@ function ThemeConfig.GetLobbyAssets(themeId)
 end
 
 local function cloneIds()
-        local ids = table.create(#ThemeOrder)
-        for index, themeId in ipairs(ThemeOrder) do
-                ids[index] = themeId
-        end
-        return ids
+    local ids = table.create(#ThemeOrder)
+    for index, themeId in ipairs(ThemeOrder) do
+        ids[index] = themeId
+    end
+    return ids
 end
 
 function ThemeConfig.GetOrderedIds()
-        return cloneIds()
+    return cloneIds()
 end
 
 function ThemeConfig.GetOrderedThemes()
-        local list = table.create(#ThemeList)
-        for index, theme in ipairs(ThemeList) do
-                list[index] = theme
-        end
-        return list
+    local list = table.create(#ThemeList)
+    for index, theme in ipairs(ThemeList) do
+        list[index] = theme
+    end
+    return list
 end
 
 return ThemeConfig

@@ -241,6 +241,7 @@ local function safelyCall(inventory, methodName, ...)
 end
 
 local function configureKeyPrompt(keyModel)
+    keyModel:SetAttribute("MazeRushPickupType", "Key")
     local prompt = keyModel:FindFirstChildWhichIsA("ProximityPrompt", true)
     if not prompt then
         local targetPart = keyModel:FindFirstChildWhichIsA("BasePart")
@@ -283,6 +284,64 @@ local function configureKeyPrompt(keyModel)
         end
 
         keyModel:Destroy()
+    end)
+end
+
+local function configureFinderPrompt(model, options)
+    options = options or {}
+    local pickupType = options.pickupType or "Finder"
+    model:SetAttribute("MazeRushPickupType", pickupType)
+
+    local prompt = model:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if not prompt then
+        local targetPart = model:FindFirstChildWhichIsA("BasePart")
+        if not targetPart then
+            warn(string.format("KeyDoorService: %s prefab has no BasePart to attach prompt", pickupType))
+            return
+        end
+
+        prompt = Instance.new("ProximityPrompt")
+        prompt.Parent = targetPart
+    end
+
+    local displayName = options.displayName or "Finder"
+    prompt.ActionText = options.actionText or ("Pick Up " .. displayName)
+    prompt.ObjectText = options.objectText or displayName
+    prompt.HoldDuration = 0
+    prompt.RequiresLineOfSight = false
+    prompt.MaxActivationDistance = options.maxDistance or 12
+
+    prompt.Triggered:Connect(function(plr)
+        if not plr or not plr:IsA("Player") then
+            return
+        end
+
+        prompt.Enabled = false
+
+        local inventory = getInventoryOrWarn("picking up " .. string.lower(displayName))
+        if not inventory then
+            prompt.Enabled = true
+            return
+        end
+
+        local method = options.inventoryMethod
+        if not method then
+            warn(string.format("KeyDoorService: Missing inventory method for %s pickup", displayName))
+            prompt.Enabled = true
+            return
+        end
+
+        local granted = safelyCall(inventory, method, plr)
+        if not granted then
+            prompt.Enabled = true
+            return
+        end
+
+        if Pickup then
+            Pickup:FireClient(plr, pickupType)
+        end
+
+        model:Destroy()
     end)
 end
 
@@ -390,6 +449,45 @@ _G.KeyDoor_OnRoundStart = function()
         local key = placeModelRandom(prefabs.Key, Config.GridWidth, Config.GridHeight, Config.CellSize)
         key.Name = "Key_" .. i
         configureKeyPrompt(key)
+    end
+
+    local exitFinderPrefab = prefabs:FindFirstChild("ExitFinder")
+    if exitFinderPrefab then
+        local exitFinder = placeModelRandom(exitFinderPrefab, Config.GridWidth, Config.GridHeight, Config.CellSize)
+        exitFinder.Name = "ExitFinder"
+        configureFinderPrompt(exitFinder, {
+            pickupType = "ExitFinder",
+            displayName = "Exit Finder",
+            inventoryMethod = "GrantExitFinder",
+        })
+    else
+        warn("KeyDoorService: ExitFinder prefab missing")
+    end
+
+    local hunterFinderPrefab = prefabs:FindFirstChild("HunterFinder")
+    if hunterFinderPrefab then
+        local hunterFinder = placeModelRandom(hunterFinderPrefab, Config.GridWidth, Config.GridHeight, Config.CellSize)
+        hunterFinder.Name = "HunterFinder"
+        configureFinderPrompt(hunterFinder, {
+            pickupType = "HunterFinder",
+            displayName = "Hunter Finder",
+            inventoryMethod = "GrantHunterFinder",
+        })
+    else
+        warn("KeyDoorService: HunterFinder prefab missing")
+    end
+
+    local keyFinderPrefab = prefabs:FindFirstChild("KeyFinder")
+    if keyFinderPrefab then
+        local keyFinder = placeModelRandom(keyFinderPrefab, Config.GridWidth, Config.GridHeight, Config.CellSize)
+        keyFinder.Name = "KeyFinder"
+        configureFinderPrompt(keyFinder, {
+            pickupType = "KeyFinder",
+            displayName = "Key Finder",
+            inventoryMethod = "GrantKeyFinder",
+        })
+    else
+        warn("KeyDoorService: KeyFinder prefab missing")
     end
     local doorPrefab = ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
     local door = doorPrefab:Clone()
