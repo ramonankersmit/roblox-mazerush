@@ -23,6 +23,10 @@ local RoundState = ensureRemote("RoundState")
 local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
+ensureRemote("ThemeVote")
+
+local ThemeConfig = require(Replicated.Modules.ThemeConfig)
+local Config = require(Replicated.Modules.RoundConfig)
 ensureRemote("SetLoopChance")
 local AliveStatus = ensureRemote("AliveStatus")
 local PlayerEliminated = ensureRemote("PlayerEliminated")
@@ -31,6 +35,12 @@ local ToggleWallHeight = ensureRemote("ToggleWallHeight")
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
 algoValue.Name = "MazeAlgorithm"; algoValue.Value = "DFS"
+local themeValue = State:FindFirstChild("Theme") or Instance.new("StringValue", State)
+themeValue.Name = "Theme"
+if themeValue.Value == "" then
+        themeValue.Value = ThemeConfig.Default
+end
+Config.Theme = themeValue.Value ~= "" and themeValue.Value or ThemeConfig.Default
 local loopChanceValue = State:FindFirstChild("LoopChance") or Instance.new("NumberValue", State)
 loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance or 0.05
 
@@ -40,6 +50,7 @@ local playerSpawn = spawns:FindFirstChild("PlayerSpawn") or Instance.new("SpawnL
 
 -- Lobby base
 local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spawns); lobbyBase.Name = "LobbyBase"; lobbyBase.Anchored = true; lobbyBase.Size = Vector3.new(80,1,80); lobbyBase.Material = Enum.Material.Glass; lobbyBase.Transparency = 0.2
+local DEFAULT_LOBBY_COLOR = Color3.fromRGB(230, 230, 255)
 
 -- Exit pad
 local exitPad = spawns:FindFirstChild("ExitPad") or Instance.new("Part", spawns); exitPad.Name = "ExitPad"; exitPad.Anchored = true; exitPad.Size = Vector3.new(4,1,4)
@@ -125,6 +136,12 @@ if not prefabs:FindFirstChild("Key") then
 	local pp = Instance.new("ProximityPrompt"); pp.Parent = part
 	keyModel.PrimaryPart = part
 end
+if not prefabs:FindFirstChild("Door") then
+        local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
+	local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
+	local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
+	door.PrimaryPart = part
+end
 ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
 
 local function resizePartToWallHeight(part, height)
@@ -184,7 +201,7 @@ local function setupSkyLobby()
 	local cz = (Config.GridHeight * Config.CellSize)/2
 	local y = 50
 	lobbyBase.Position = Vector3.new(cx, y, cz)
-	lobbyBase.Color = Color3.fromRGB(230, 230, 255)
+        lobbyBase.Color = DEFAULT_LOBBY_COLOR
 	-- Walls
         local function wall(x, z, sx, sz)
                 local p = Instance.new("Part"); p.Anchored = true; p.Material = Enum.Material.Glass; p.Transparency = 0.4
@@ -208,6 +225,80 @@ local function setupSkyLobby()
 	playerSpawn.Enabled = true
 end
 setupSkyLobby()
+
+
+local function clampedTransparency(value)
+        if value == nil then
+                return nil
+        end
+        return math.clamp(value, 0, 1)
+end
+
+local function applyPartTheme(part, color, material, transparency, fallbackTransparency)
+        if color then
+                part.Color = color
+        end
+        if material then
+                part.Material = material
+        end
+        local resolved = transparency
+        if resolved == nil then
+                resolved = fallbackTransparency
+        end
+        if resolved ~= nil then
+                part.Transparency = clampedTransparency(resolved)
+        end
+end
+
+local function applyTheme(themeId)
+        local data = ThemeConfig.Themes[themeId] or ThemeConfig.Themes[ThemeConfig.Default]
+        if not data then return end
+
+        Config.Theme = data.id or themeId
+
+        local wallTransparency = clampedTransparency(data.wallTransparency) or 0
+        local floorTransparency = clampedTransparency(data.floorTransparency) or 0
+
+        local wallPrefab = prefabs:FindFirstChild("Wall")
+        if wallPrefab then
+                applyPartTheme(wallPrefab, data.wallColor, data.wallMaterial, data.wallTransparency, 0)
+        end
+
+        local floorPrefab = prefabs:FindFirstChild("Floor")
+        if floorPrefab then
+                applyPartTheme(floorPrefab, data.floorColor, data.floorMaterial, data.floorTransparency, 0)
+        end
+
+        if lobbyBase then
+                lobbyBase.Color = DEFAULT_LOBBY_COLOR
+                lobbyBase.Material = Enum.Material.Glass
+                lobbyBase.Transparency = 0.2
+        end
+
+        if exitPad then
+                applyPartTheme(exitPad, data.exitColor, data.exitMaterial, data.exitTransparency, 0)
+        end
+
+        for _, part in ipairs(mazeFolder:GetChildren()) do
+                if part:IsA("BasePart") then
+                        if part.Name:match("^W_") then
+                                applyPartTheme(part, data.wallColor, data.wallMaterial, data.wallTransparency, wallTransparency)
+                        else
+                                applyPartTheme(part, data.floorColor, data.floorMaterial, data.floorTransparency, floorTransparency)
+                        end
+                end
+        end
+end
+
+local function resolvedThemeValue()
+        return themeValue.Value ~= "" and themeValue.Value or ThemeConfig.Default
+end
+
+applyTheme(resolvedThemeValue())
+
+themeValue:GetPropertyChangedSignal("Value"):Connect(function()
+        applyTheme(resolvedThemeValue())
+end)
 
 
 local roundActive = false
@@ -471,6 +562,7 @@ end
 local function runRound()
         if roundActive then return end
         roundActive = true
+        applyTheme(resolvedThemeValue())
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
         teleportToLobby()
 
