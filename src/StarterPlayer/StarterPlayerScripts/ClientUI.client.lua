@@ -40,7 +40,7 @@ local function getLoopChance()
         if loopChanceValue and typeof(loopChanceValue.Value) == "number" then
                 return loopChanceValue.Value
         end
-        return RoundConfig.LoopChance or 0.01
+        return RoundConfig.LoopChance or 0.05
 end
 
 local function updateLoopLabel()

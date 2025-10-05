@@ -128,7 +128,7 @@ function MazeGenerator.Generate(width, height)
         -- Server-authoritatieve bron: ReplicatedStorage.State.MazeAlgorithm (StringValue)
         local stateFolder = game.ReplicatedStorage:FindFirstChild("State")
         local algo = Config.MazeAlgorithm
-        local loopChance = Config.LoopChance or 0.01
+        local loopChance = Config.LoopChance or 0.05
         if stateFolder and stateFolder:FindFirstChild("MazeAlgorithm") then
                 algo = stateFolder.MazeAlgorithm.Value or algo
         end
