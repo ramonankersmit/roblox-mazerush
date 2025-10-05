@@ -3,6 +3,52 @@ local Config = require(game.ReplicatedStorage.Modules.RoundConfig)
 
 local MazeGenerator = {}
 
+local function carveLoops(grid, width, height, chance)
+        chance = math.clamp(chance or 0, 0, 1)
+
+        local candidates = {}
+        local removalCount = 0
+        for x = 1, width do
+                for y = 1, height do
+                        local cell = grid[x][y]
+                        -- Alleen oost- en zuidmuur bekijken om dubbele paren te vermijden.
+                        if x < width and cell.walls.E and grid[x + 1][y].walls.W then
+                                table.insert(candidates, { x = x, y = y, dir = "E", nx = x + 1, ny = y, opp = "W" })
+                        end
+                        if y < height and cell.walls.S and grid[x][y + 1].walls.N then
+                                table.insert(candidates, { x = x, y = y, dir = "S", nx = x, ny = y + 1, opp = "N" })
+                        end
+                end
+        end
+
+        if #candidates == 0 then
+                print("[MazeGenerator] Loop carving skipped: geen kandidaten gevonden.")
+                return
+        end
+
+        if chance <= 0 then
+                print(('[MazeGenerator] Loop carving uitgeschakeld (kans=%.2f, kandidaten=%d)')
+                        :format(chance, #candidates))
+                return
+        end
+
+        Utils.shuffle(candidates)
+        for _, wall in ipairs(candidates) do
+                if math.random() < chance then
+                        local a = grid[wall.x][wall.y]
+                        local b = grid[wall.nx][wall.ny]
+                        if a and b then
+                                a.walls[wall.dir] = false
+                                b.walls[wall.opp] = false
+                                removalCount = removalCount + 1
+                        end
+                end
+        end
+
+        print(('[MazeGenerator] Removed %d loop walls out of %d candidates (chance=%.2f)')
+                :format(removalCount, #candidates, chance))
+end
+
 local function newGrid(w, h)
 	local g = {}
 	for x = 1, w do
@@ -77,19 +123,30 @@ local function genPrim(width, height)
 	return grid
 end
 
+
 function MazeGenerator.Generate(width, height)
-	-- Server-authoritatieve bron: ReplicatedStorage.State.MazeAlgorithm (StringValue)
-	local stateFolder = game.ReplicatedStorage:FindFirstChild("State")
-	local algo = Config.MazeAlgorithm
-	if stateFolder and stateFolder:FindFirstChild("MazeAlgorithm") then
-		algo = stateFolder.MazeAlgorithm.Value or algo
-	end
-	algo = string.upper(algo or "DFS")
-	if algo == "PRIM" then
-		return genPrim(width, height)
-	else
-		return genDFS(width, height)
-	end
+        -- Server-authoritatieve bron: ReplicatedStorage.State.MazeAlgorithm (StringValue)
+        local stateFolder = game.ReplicatedStorage:FindFirstChild("State")
+        local algo = Config.MazeAlgorithm
+        local loopChance = Config.LoopChance or 0.05
+        if stateFolder and stateFolder:FindFirstChild("MazeAlgorithm") then
+                algo = stateFolder.MazeAlgorithm.Value or algo
+        end
+        if stateFolder and stateFolder:FindFirstChild("LoopChance") then
+                local value = stateFolder.LoopChance.Value
+                if typeof(value) == "number" then
+                        loopChance = value
+                end
+        end
+        algo = string.upper(algo or "DFS")
+        local grid
+        if algo == "PRIM" then
+                grid = genPrim(width, height)
+        else
+                grid = genDFS(width, height)
+        end
+        carveLoops(grid, width, height, loopChance)
+        return grid
 end
 
 return MazeGenerator

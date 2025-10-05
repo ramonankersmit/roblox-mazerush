@@ -8,6 +8,8 @@ local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 
+local Config = require(Replicated.Modules.RoundConfig)
+
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
 local function ensureRemote(name)
@@ -19,6 +21,7 @@ local RoundState = ensureRemote("RoundState")
 local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
+ensureRemote("SetLoopChance")
 local AliveStatus = ensureRemote("AliveStatus")
 local PlayerEliminated = ensureRemote("PlayerEliminated")
 local ToggleWallHeight = ensureRemote("ToggleWallHeight")
@@ -26,6 +29,8 @@ local ToggleWallHeight = ensureRemote("ToggleWallHeight")
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
 algoValue.Name = "MazeAlgorithm"; algoValue.Value = "DFS"
+local loopChanceValue = State:FindFirstChild("LoopChance") or Instance.new("NumberValue", State)
+loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance or 0.05
 
 local mazeFolder = Workspace:FindFirstChild("Maze") or Instance.new("Folder", Workspace); mazeFolder.Name = "Maze"
 local spawns = Workspace:FindFirstChild("Spawns") or Instance.new("Folder", Workspace); spawns.Name = "Spawns"

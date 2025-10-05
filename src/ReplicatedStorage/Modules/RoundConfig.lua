@@ -28,5 +28,7 @@ local Config = {
 
         -- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
         MazeAlgorithm = "DFS", -- "DFS" of "PRIM"
+        -- Kans (0-1) dat een bestaande muur na generatie alsnog wordt verwijderd om lussen te maken.
+        LoopChance = 0.05,
 }
 return Config
