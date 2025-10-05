@@ -1,3 +1,4 @@
+local ContentProvider = game:GetService("ContentProvider")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -85,37 +86,117 @@ local function resolveThemeId()
         return ThemeConfig.Default
 end
 
+local currentMusicSoundId = ""
+local musicAssetStatus = {}
+
+local function collectCandidateSoundIds(music)
+        if typeof(music) ~= "table" then
+                return table.create(0)
+        end
+
+        local candidates = table.create(4)
+        if typeof(music.soundId) == "string" and music.soundId ~= "" then
+                table.insert(candidates, music.soundId)
+        end
+
+        if typeof(music.soundIds) == "table" then
+                for _, candidate in ipairs(music.soundIds) do
+                        if typeof(candidate) == "string" and candidate ~= "" and not table.find(candidates, candidate) then
+                                table.insert(candidates, candidate)
+                        end
+                end
+        end
+
+        return candidates
+end
+
+local function ensureSoundIdIsLoaded(candidate, originalSoundId)
+        if candidate == "" then
+                return false
+        end
+
+        local status = musicAssetStatus[candidate]
+        if status == true then
+                if backgroundSound.SoundId ~= candidate then
+                        backgroundSound.SoundId = candidate
+                end
+                return true
+        elseif status == false then
+                return false
+        end
+
+        local success, result = pcall(function()
+                backgroundSound.SoundId = candidate
+                ContentProvider:PreloadAsync({ backgroundSound })
+        end)
+
+        if success then
+                musicAssetStatus[candidate] = true
+                return true
+        end
+
+        musicAssetStatus[candidate] = false
+        backgroundSound.SoundId = originalSoundId or ""
+        warn(string.format("[AudioController] Failed to load theme music asset %s: %s", candidate, tostring(result)))
+        return false
+end
+
+local function resolveMusicSoundId(music)
+        local candidates = collectCandidateSoundIds(music)
+        if #candidates == 0 then
+                return ""
+        end
+
+        if currentMusicSoundId ~= "" then
+                for _, candidate in ipairs(candidates) do
+                        if candidate == currentMusicSoundId and ensureSoundIdIsLoaded(candidate, backgroundSound.SoundId) then
+                                return candidate
+                        end
+                end
+        end
+
+        local originalSoundId = backgroundSound.SoundId
+        for _, candidate in ipairs(candidates) do
+                if ensureSoundIdIsLoaded(candidate, originalSoundId) then
+                        return candidate
+                end
+        end
+
+        return ""
+end
+
 local function applyThemeMusic()
         local themeId = resolveThemeId()
         local theme = ThemeConfig.Themes[themeId]
         local music = theme and theme.music
         local targetVolume = 0
         local playbackSpeed = 1
-        local soundId = ""
 
-        if music and music.soundId and music.soundId ~= "" then
-                soundId = music.soundId
+        if typeof(music) == "table" then
                 targetVolume = typeof(music.volume) == "number" and music.volume or 0.4
                 playbackSpeed = typeof(music.playbackSpeed) == "number" and music.playbackSpeed or 1
         end
 
-        if backgroundSound.SoundId ~= soundId then
-                backgroundSound.SoundId = soundId
-                backgroundSound.TimePosition = 0
-        end
+        local resolvedSoundId = resolveMusicSoundId(music)
 
         backgroundSound.PlaybackSpeed = playbackSpeed
 
-        if soundId ~= "" then
+        if resolvedSoundId ~= "" then
+                if resolvedSoundId ~= currentMusicSoundId then
+                        backgroundSound.TimePosition = 0
+                end
+                currentMusicSoundId = resolvedSoundId
                 if not backgroundSound.IsPlaying then
                         backgroundSound:Play()
                 end
                 tweenVolume(backgroundSound, targetVolume, 1.5)
         else
+                currentMusicSoundId = ""
                 tweenVolume(backgroundSound, 0, 1)
                 task.delay(1, function()
                         if backgroundSound.Volume <= 0.01 then
                                 backgroundSound:Stop()
+                                backgroundSound.SoundId = ""
                         end
                 end)
         end

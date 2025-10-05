@@ -18,7 +18,12 @@ local ThemeList = {
         exitMaterial = Enum.Material.Neon,
         exitTransparency = 0,
         music = {
-            soundId = "rbxassetid://183927051",
+            soundId = "rbxassetid://1846720915",
+            soundIds = {
+                "rbxassetid://1846720915",
+                "rbxassetid://9042621617",
+                "rbxassetid://183924111",
+            },
             volume = 0.4,
             playbackSpeed = 1,
         },
@@ -40,7 +45,12 @@ local ThemeList = {
         exitMaterial = Enum.Material.Neon,
         exitTransparency = 0,
         music = {
-            soundId = "rbxassetid://1841176363",
+            soundId = "rbxassetid://1840616334",
+            soundIds = {
+                "rbxassetid://1840616334",
+                "rbxassetid://9126758128",
+                "rbxassetid://1846207246",
+            },
             volume = 0.35,
             playbackSpeed = 1,
         },
@@ -62,7 +72,12 @@ local ThemeList = {
         exitMaterial = Enum.Material.Glass,
         exitTransparency = 0.1,
         music = {
-            soundId = "rbxassetid://9047695262",
+            soundId = "rbxassetid://1842651024",
+            soundIds = {
+                "rbxassetid://1842651024",
+                "rbxassetid://9042651293",
+                "rbxassetid://1847187560",
+            },
             volume = 0.32,
             playbackSpeed = 1,
         },
@@ -82,7 +97,12 @@ local ThemeList = {
         exitMaterial = Enum.Material.Neon,
         exitTransparency = 0.25,
         music = {
-            soundId = "rbxassetid://9120291405",
+            soundId = "rbxassetid://9125582673",
+            soundIds = {
+                "rbxassetid://9125582673",
+                "rbxassetid://9042597367",
+                "rbxassetid://1840824792",
+            },
             volume = 0.28,
             playbackSpeed = 1,
         },
