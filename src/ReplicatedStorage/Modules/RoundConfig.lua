@@ -6,12 +6,22 @@ local Config = {
         CellSize = 8,
         WallHeight = 24,
         Theme = ThemeConfig.Default,
-	      RoundTime = 240,
+              RoundTime = 240,
         PrepBuildDuration = 7,
         PrepOverviewDuration = 3,
         PrepTime = 10, -- total prep time exposed to legacy consumers
         EnemyCount = 2,
         KeyCount = 3,
+
+        DifficultyPresets = {
+                { name = "Zeer makkelijk", loopChance = 0.90 },
+                { name = "Makkelijk", loopChance = 0.70 },
+                { name = "Gemiddeld", loopChance = 0.50 },
+                { name = "Moeilijk", loopChance = 0.20 },
+                { name = "Zeer moeilijk", loopChance = 0.10 },
+                { name = "Extreem", loopChance = 0.00 },
+        },
+        DefaultDifficulty = "Gemiddeld",
 
         Hunter = {
                 PatrolSpeed = 12,
