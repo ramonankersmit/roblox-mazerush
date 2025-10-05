@@ -5,9 +5,6 @@ local MazeGenerator = {}
 
 local function carveLoops(grid, width, height, chance)
         chance = math.clamp(chance or 0, 0, 1)
-        if chance <= 0 then
-                return
-        end
 
         local candidates = {}
         local removalCount = 0
@@ -25,6 +22,13 @@ local function carveLoops(grid, width, height, chance)
         end
 
         if #candidates == 0 then
+                print("[MazeGenerator] Loop carving skipped: geen kandidaten gevonden.")
+                return
+        end
+
+        if chance <= 0 then
+                print(('[MazeGenerator] Loop carving uitgeschakeld (kans=%.2f, kandidaten=%d)')
+                        :format(chance, #candidates))
                 return
         end
 
