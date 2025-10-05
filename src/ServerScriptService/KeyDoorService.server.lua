@@ -127,13 +127,10 @@ local function ensureExitBarrier(door, fallbackPanel)
     local depthOffset = math.max(Config.CellSize / 2, depth / 2)
     local basePosition = referencePanel.Position
 
-    local frontBarrier = ensureBarrierPart(
-        door,
-        "ExitBarrier",
-        Vector3.new(width, height, depth),
-        referencePanel.CFrame,
-        referencePanel
-    )
+    local existingFrontBarrier = door:FindFirstChild("ExitBarrier")
+    if existingFrontBarrier and existingFrontBarrier:IsA("BasePart") then
+        existingFrontBarrier:Destroy()
+    end
 
     ensureBarrierPart(
         door,
@@ -174,7 +171,7 @@ local function ensureExitBarrier(door, fallbackPanel)
         referencePanel
     )
 
-    return frontBarrier
+    return nil
 end
 
 local function ensureExitPadBarrier()
@@ -367,7 +364,7 @@ local function configureDoorPrompt(door, lockedValue)
             barrier:Destroy()
         end
 
-        for _, childName in ipairs({"ExitRearBarrier", "ExitSideBarrierLeft", "ExitSideBarrierRight"}) do
+        for _, childName in ipairs({"ExitBarrier", "ExitRearBarrier", "ExitSideBarrierLeft", "ExitSideBarrierRight"}) do
             local child = door:FindFirstChild(childName)
             if child and child:IsA("BasePart") then
                 child.CanCollide = false
