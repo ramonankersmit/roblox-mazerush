@@ -579,12 +579,18 @@ themeCountdown.TextSize = 16; themeCountdown.Position = UDim2.new(0,8,0,34)
 themeCountdown.Size = UDim2.new(1,-16,0,20); themeCountdown.TextColor3 = Color3.fromRGB(220,220,220)
 themeCountdown.Text = "Stemmen..."; themeCountdown.Parent = themePanel
 
-local themeOptions = Instance.new("Frame"); themeOptions.BackgroundTransparency = 1
+local themeOptions = Instance.new("ScrollingFrame"); themeOptions.BackgroundTransparency = 1
+themeOptions.ScrollBarThickness = 4; themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
 themeOptions.Position = UDim2.new(0,6,0,60); themeOptions.Size = UDim2.new(1,-12,1,-70)
+themeOptions.CanvasSize = UDim2.new()
 themeOptions.Parent = themePanel
 
 local themeLayout = Instance.new("UIListLayout"); themeLayout.Parent = themeOptions
 themeLayout.SortOrder = Enum.SortOrder.LayoutOrder; themeLayout.Padding = UDim.new(0,4)
+
+themeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        themeOptions.CanvasSize = UDim2.new(0, 0, 0, themeLayout.AbsoluteContentSize.Y)
+end)
 
 local btnReady = Instance.new("TextButton"); btnReady.Size = UDim2.new(0.5, -12, 0, 36); btnReady.AnchorPoint = Vector2.new(0,1)
 btnReady.Position = UDim2.new(0, 6, 1, -8); btnReady.Text = "Ready"; btnReady.Parent = lobby
