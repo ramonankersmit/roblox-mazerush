@@ -35,6 +35,7 @@ local playerSpawn = spawns:FindFirstChild("PlayerSpawn") or Instance.new("SpawnL
 
 -- Lobby base
 local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spawns); lobbyBase.Name = "LobbyBase"; lobbyBase.Anchored = true; lobbyBase.Size = Vector3.new(80,1,80); lobbyBase.Material = Enum.Material.Glass; lobbyBase.Transparency = 0.2
+local DEFAULT_LOBBY_COLOR = Color3.fromRGB(230, 230, 255)
 
 -- Exit pad
 local exitPad = spawns:FindFirstChild("ExitPad") or Instance.new("Part", spawns); exitPad.Name = "ExitPad"; exitPad.Anchored = true; exitPad.Size = Vector3.new(4,1,4)
@@ -71,7 +72,7 @@ local function setupSkyLobby()
 	local cz = (Config.GridHeight * Config.CellSize)/2
 	local y = 50
 	lobbyBase.Position = Vector3.new(cx, y, cz)
-	lobbyBase.Color = Color3.fromRGB(230, 230, 255)
+        lobbyBase.Color = DEFAULT_LOBBY_COLOR
 	-- Walls
         local function wall(x, z, sx, sz)
                 local p = Instance.new("Part"); p.Anchored = true; p.Material = Enum.Material.Glass; p.Transparency = 0.4
@@ -97,42 +98,64 @@ end
 setupSkyLobby()
 
 
+local function clampedTransparency(value)
+        if value == nil then
+                return nil
+        end
+        return math.clamp(value, 0, 1)
+end
+
+local function applyPartTheme(part, color, material, transparency, fallbackTransparency)
+        if color then
+                part.Color = color
+        end
+        if material then
+                part.Material = material
+        end
+        local resolved = transparency
+        if resolved == nil then
+                resolved = fallbackTransparency
+        end
+        if resolved ~= nil then
+                part.Transparency = clampedTransparency(resolved)
+        end
+end
+
 local function applyTheme(themeId)
         local data = ThemeConfig.Themes[themeId] or ThemeConfig.Themes[ThemeConfig.Default]
         if not data then return end
 
         Config.Theme = data.id or themeId
 
+        local wallTransparency = clampedTransparency(data.wallTransparency) or 0
+        local floorTransparency = clampedTransparency(data.floorTransparency) or 0
+
         local wallPrefab = prefabs:FindFirstChild("Wall")
         if wallPrefab then
-                if data.wallColor then wallPrefab.Color = data.wallColor end
-                if data.wallMaterial then wallPrefab.Material = data.wallMaterial end
+                applyPartTheme(wallPrefab, data.wallColor, data.wallMaterial, data.wallTransparency, 0)
         end
 
         local floorPrefab = prefabs:FindFirstChild("Floor")
         if floorPrefab then
-                if data.floorColor then floorPrefab.Color = data.floorColor end
-                if data.floorMaterial then floorPrefab.Material = data.floorMaterial end
+                applyPartTheme(floorPrefab, data.floorColor, data.floorMaterial, data.floorTransparency, 0)
         end
 
         if lobbyBase then
-                if data.lobbyColor then lobbyBase.Color = data.lobbyColor end
-                lobbyBase.Material = data.lobbyMaterial or Enum.Material.SmoothPlastic
+                lobbyBase.Color = DEFAULT_LOBBY_COLOR
+                lobbyBase.Material = Enum.Material.Glass
+                lobbyBase.Transparency = 0.2
         end
 
         if exitPad then
-                if data.exitColor then exitPad.Color = data.exitColor end
-                exitPad.Material = data.exitMaterial or Enum.Material.Neon
+                applyPartTheme(exitPad, data.exitColor, data.exitMaterial, data.exitTransparency, 0)
         end
 
         for _, part in ipairs(mazeFolder:GetChildren()) do
                 if part:IsA("BasePart") then
                         if part.Name:match("^W_") then
-                                if data.wallColor then part.Color = data.wallColor end
-                                if data.wallMaterial then part.Material = data.wallMaterial end
+                                applyPartTheme(part, data.wallColor, data.wallMaterial, data.wallTransparency, wallTransparency)
                         else
-                                if data.floorColor then part.Color = data.floorColor end
-                                if data.floorMaterial then part.Material = data.floorMaterial end
+                                applyPartTheme(part, data.floorColor, data.floorMaterial, data.floorTransparency, floorTransparency)
                         end
                 end
         end
