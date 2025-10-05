@@ -31,14 +31,16 @@ local Ready = {} -- [userid] = boolean
 local HostUserId = nil
 
 local function getThemeOrder()
-        local order = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds() or ThemeConfig.Order
-        if not order or #order == 0 then
-                order = {}
-                for themeId in pairs(ThemeConfig.Themes) do
-                        table.insert(order, themeId)
-                end
-                table.sort(order)
+        local order = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds()
+        if order and #order > 0 then
+                return order
         end
+
+        order = {}
+        for themeId in pairs(ThemeConfig.Themes) do
+                table.insert(order, themeId)
+        end
+        table.sort(order)
         return order
 end
 
@@ -89,15 +91,29 @@ local function broadcast(precomputedCounts)
 
         local counts = precomputedCounts or tallyVotes()
         local options = {}
-        for _, themeId in ipairs(getThemeOrder()) do
-                local info = ThemeConfig.Themes[themeId]
-                table.insert(options, {
-                        id = themeId,
-                        name = info and info.displayName or themeId,
-                        description = info and info.description or "",
-                        votes = counts[themeId] or 0,
-                        color = info and info.primaryColor,
-                })
+        local orderedThemes = ThemeConfig.GetOrderedThemes and ThemeConfig.GetOrderedThemes() or nil
+        if orderedThemes and #orderedThemes > 0 then
+                for _, info in ipairs(orderedThemes) do
+                        local themeId = info.id
+                        table.insert(options, {
+                                id = themeId,
+                                name = info.displayName or themeId,
+                                description = info.description or "",
+                                votes = counts[themeId] or 0,
+                                color = info.primaryColor,
+                        })
+                end
+        else
+                for _, themeId in ipairs(getThemeOrder()) do
+                        local info = ThemeConfig.Themes[themeId]
+                        table.insert(options, {
+                                id = themeId,
+                                name = info and info.displayName or themeId,
+                                description = info and info.description or "",
+                                votes = counts[themeId] or 0,
+                                color = info and info.primaryColor,
+                        })
+                end
         end
 
         local votesByPlayer = {}

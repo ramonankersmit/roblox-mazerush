@@ -1,10 +1,7 @@
 local ThemeConfig = {}
 
-ThemeConfig.Order = {"Spooky", "Jungle", "Frost", "Glaze"}
-ThemeConfig.Default = "Spooky"
-
-ThemeConfig.Themes = {
-        Spooky = {
+local ThemeList = {
+        {
                 id = "Spooky",
                 displayName = "Spooky Crypt",
                 description = "Donkere stenen muren met griezelige kaarslichten.",
@@ -21,7 +18,7 @@ ThemeConfig.Themes = {
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0,
         },
-        Jungle = {
+        {
                 id = "Jungle",
                 displayName = "Jungle Ruins",
                 description = "Begroeide stenen, mos en warm licht.",
@@ -38,7 +35,7 @@ ThemeConfig.Themes = {
                 exitMaterial = Enum.Material.Neon,
                 exitTransparency = 0,
         },
-        Frost = {
+        {
                 id = "Frost",
                 displayName = "Frozen Cavern",
                 description = "Koude ijsmuren met glinsterende vloeren.",
@@ -55,7 +52,7 @@ ThemeConfig.Themes = {
                 exitMaterial = Enum.Material.Glass,
                 exitTransparency = 0.1,
         },
-        Glaze = {
+        {
                 id = "Glaze",
                 displayName = "Glaze World",
                 description = "Alles is van glas en bijna onzichtbaar.",
@@ -72,36 +69,38 @@ ThemeConfig.Themes = {
         },
 }
 
-function ThemeConfig.Get(themeId)
-        return ThemeConfig.Themes[themeId]
+local ThemeMap = {}
+local ThemeOrder = {}
+
+for index, theme in ipairs(ThemeList) do
+        ThemeMap[theme.id] = theme
+        ThemeOrder[index] = theme.id
 end
 
-local function buildOrderedIds()
-        local ordered = {}
-        local seen = {}
-        for _, themeId in ipairs(ThemeConfig.Order) do
-                if ThemeConfig.Themes[themeId] and not seen[themeId] then
-                        table.insert(ordered, themeId)
-                        seen[themeId] = true
-                end
+ThemeConfig.Default = ThemeList[1].id
+ThemeConfig.Themes = ThemeMap
+ThemeConfig.Order = ThemeOrder
+
+function ThemeConfig.Get(themeId)
+        return ThemeMap[themeId]
+end
+
+local function cloneIds()
+        local ids = table.create(#ThemeOrder)
+        for index, themeId in ipairs(ThemeOrder) do
+                ids[index] = themeId
         end
-        for themeId in pairs(ThemeConfig.Themes) do
-                if not seen[themeId] then
-                        table.insert(ordered, themeId)
-                end
-        end
-        return ordered
+        return ids
 end
 
 function ThemeConfig.GetOrderedIds()
-        return buildOrderedIds()
+        return cloneIds()
 end
 
 function ThemeConfig.GetOrderedThemes()
-        local ids = buildOrderedIds()
-        local list = {}
-        for _, themeId in ipairs(ids) do
-                table.insert(list, ThemeConfig.Themes[themeId])
+        local list = table.create(#ThemeList)
+        for index, theme in ipairs(ThemeList) do
+                list[index] = theme
         end
         return list
 end
