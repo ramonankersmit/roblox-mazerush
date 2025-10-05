@@ -184,9 +184,6 @@ end)
 
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
-local ANIM_DURATION = 12
-local POST_ENEMY_DELAY = 3
-
 -- Position lobby above maze center with glass walls
 local function setupSkyLobby()
 	local cx = (Config.GridWidth * Config.CellSize)/2
@@ -495,23 +492,36 @@ local function runRound()
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
         layoutExitRoom()
-        MazeBuilder.AnimateRemoveWalls(grid, mazeFolder, math.max(Config.PrepTime, 1))
+        local buildDuration = math.max(Config.PrepBuildDuration or Config.PrepTime or 0, 0)
+        local overviewDuration = math.max(Config.PrepOverviewDuration or 0, 0)
+        local buildSeconds = math.max(math.floor(buildDuration + 0.0001), 0)
+        local overviewSeconds = math.max(math.floor(overviewDuration + 0.0001), 0)
+        local totalPrepSeconds = buildSeconds + overviewSeconds
+        local remainingCountdown = totalPrepSeconds
 
-        for t = Config.PrepTime, 1, -1 do
-                Countdown:FireAllClients(t)
+        local function stepCountdown()
+                if remainingCountdown <= 0 then
+                        return
+                end
+                Countdown:FireAllClients(remainingCountdown)
                 task.wait(1)
+                remainingCountdown -= 1
         end
-	-- Teleport naar start in de maze (cel 1,1)
-	local startPos = Vector3.new(Config.CellSize/2, 3, Config.CellSize/2)
-	for _, plr in ipairs(Players:GetPlayers()) do
-		local char = plr.Character or plr.CharacterAdded:Wait()
-		local root = char:WaitForChild("HumanoidRootPart")
-		root.CFrame = CFrame.new(startPos)
-	end
-	placeExit()
-        if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
-        phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
-        -- Verwijder oude vijanden en spawn nieuwe voor de ronde
+
+        MazeBuilder.AnimateRemoveWalls(grid, mazeFolder, math.max(buildDuration, 0.1))
+
+        for _ = 1, buildSeconds do
+                if not roundActive then break end
+                stepCountdown()
+        end
+
+        if roundActive and buildDuration > buildSeconds then
+                task.wait(buildDuration - buildSeconds)
+        end
+
+        placeExit()
+
+        -- Vernieuw vijanden vóór de start zodat spelers ze al zien
         for _, existing in ipairs(Workspace:GetChildren()) do
                 if existing:IsA("Model") and existing.Name == "Hunter" then
                         existing:Destroy()
@@ -520,9 +530,34 @@ local function runRound()
         if _G.SpawnHunters then
                 task.spawn(_G.SpawnHunters)
         end
+
+        if overviewSeconds > 0 then
+                phase = "OVERVIEW"; PhaseValue.Value = phase; RoundState:FireAllClients("OVERVIEW")
+        end
+
+        for _ = 1, overviewSeconds do
+                if not roundActive then break end
+                stepCountdown()
+        end
+
+        if roundActive and overviewDuration > overviewSeconds then
+                task.wait(overviewDuration - overviewSeconds)
+        end
+
+        if roundActive then
+                -- Teleport naar start in de maze (cel 1,1)
+                local startPos = Vector3.new(Config.CellSize/2, 3, Config.CellSize/2)
+                for _, plr in ipairs(Players:GetPlayers()) do
+                        local char = plr.Character or plr.CharacterAdded:Wait()
+                        local root = char:WaitForChild("HumanoidRootPart")
+                        root.CFrame = CFrame.new(startPos)
+                end
+                if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
+                phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
+        end
         local timeLeft = Config.RoundTime
-        while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
-        roundActive = false
+	while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
+	roundActive = false
         phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
         task.wait(5)
         teleportToLobby()
