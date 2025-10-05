@@ -466,5 +466,3 @@ end
 ensurePreviewsExist()
 ThemeValue.Changed:Connect(onThemeChanged)
 onThemeChanged()
-
-*** End of File ***
