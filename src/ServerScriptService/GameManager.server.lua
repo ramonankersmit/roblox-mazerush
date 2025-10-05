@@ -131,17 +131,47 @@ end
 ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
 ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
 if not prefabs:FindFirstChild("Key") then
-	local keyModel = Instance.new("Model"); keyModel.Name = "Key"; keyModel.Parent = prefabs
-	local part = Instance.new("Part"); part.Name = "Handle"; part.Size = Vector3.new(1,1,1); part.Anchored = true; part.Parent = keyModel
-	local pp = Instance.new("ProximityPrompt"); pp.Parent = part
-	keyModel.PrimaryPart = part
+        local keyModel = Instance.new("Model"); keyModel.Name = "Key"; keyModel.Parent = prefabs
+        local part = Instance.new("Part"); part.Name = "Handle"; part.Size = Vector3.new(1,1,1); part.Anchored = true; part.Parent = keyModel
+        local pp = Instance.new("ProximityPrompt"); pp.Parent = part
+        keyModel.PrimaryPart = part
 end
 if not prefabs:FindFirstChild("Door") then
         local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
-	local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
-	local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
-	door.PrimaryPart = part
+        local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
+        local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
+        door.PrimaryPart = part
 end
+
+local function ensureFinderPrefab(name, color)
+        if prefabs:FindFirstChild(name) then
+                return
+        end
+
+        local model = Instance.new("Model")
+        model.Name = name
+        model.Parent = prefabs
+
+        local part = Instance.new("Part")
+        part.Name = "Handle"
+        part.Anchored = true
+        part.Size = Vector3.new(1.6, 1.6, 1.6)
+        part.Shape = Enum.PartType.Ball
+        part.Material = Enum.Material.Neon
+        part.Color = color
+        part.CanCollide = false
+        part.Parent = model
+
+        local prompt = Instance.new("ProximityPrompt")
+        prompt.Parent = part
+
+        model.PrimaryPart = part
+end
+
+ensureFinderPrefab("ExitFinder", Color3.fromRGB(0, 170, 255))
+ensureFinderPrefab("HunterFinder", Color3.fromRGB(255, 85, 85))
+ensureFinderPrefab("KeyFinder", Color3.fromRGB(255, 221, 79))
+
 ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
 
 local function resizePartToWallHeight(part, height)
