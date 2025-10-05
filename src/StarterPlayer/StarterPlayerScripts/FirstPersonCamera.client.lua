@@ -11,6 +11,46 @@ local stateFolder = ReplicatedStorage:FindFirstChild("State")
 local spawnsFolder = Workspace:FindFirstChild("Spawns")
 local lobbyBase = spawnsFolder and spawnsFolder:FindFirstChild("LobbyBase")
 
+local characterConnections = {}
+
+local function updateSpawnReferences()
+    spawnsFolder = Workspace:FindFirstChild("Spawns")
+    lobbyBase = spawnsFolder and spawnsFolder:FindFirstChild("LobbyBase") or lobbyBase
+end
+
+local function watchSpawnFolder(folder)
+    if not folder then
+        return
+    end
+
+    spawnsFolder = folder
+
+    folder.ChildAdded:Connect(function(child)
+        if child.Name == "LobbyBase" then
+            lobbyBase = child
+        end
+    end)
+
+    folder.ChildRemoved:Connect(function(child)
+        if child == lobbyBase then
+            lobbyBase = nil
+        end
+    end)
+end
+
+updateSpawnReferences()
+
+if spawnsFolder then
+    watchSpawnFolder(spawnsFolder)
+else
+    Workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Spawns" then
+            updateSpawnReferences()
+            watchSpawnFolder(child)
+        end
+    end)
+end
+
 local MIN_ZOOM = 0.5
 local MAX_ZOOM = 0.5
 
@@ -20,6 +60,15 @@ local originalMaxZoom = player.CameraMaxZoomDistance
 
 local firstPersonActive = false
 local currentPhase = "IDLE"
+
+local function getHumanoid(character)
+    local char = character or player.Character
+    if not char then
+        return nil
+    end
+
+    return char:FindFirstChildOfClass("Humanoid")
+end
 
 local function getHumanoidRootPart(character)
     local char = character or player.Character
@@ -32,14 +81,24 @@ end
 local function isInLobby()
     local root = getHumanoidRootPart()
     if not root then
-        return false
+        -- Treat unknown positioning as lobby/safe so we don't force first-person while respawning.
+        return true
     end
 
-    if lobbyBase then
+    if not lobbyBase or not lobbyBase.Parent then
+        updateSpawnReferences()
+    end
+
+    if lobbyBase and lobbyBase.Parent then
         -- Treat anything near or above the lobby platform height as being in the lobby.
         local lobbyHeight = lobbyBase.Position.Y
-        local margin = (lobbyBase.Size.Y / 2) + 2
+        local margin = math.max(lobbyBase.Size.Y / 2, 1) + 10
         if root.Position.Y >= lobbyHeight - margin then
+            return true
+        end
+    else
+        -- Fall back to a generous height check if the lobby base hasn't replicated yet.
+        if root.Position.Y >= 40 then
             return true
         end
     end
@@ -49,6 +108,11 @@ end
 
 local function shouldLockFirstPerson()
     if currentPhase ~= "ACTIVE" then
+        return false
+    end
+
+    local humanoid = getHumanoid()
+    if not humanoid or humanoid.Health <= 0 then
         return false
     end
 
@@ -86,6 +150,9 @@ end
 
 local function disableFirstPerson()
     if not firstPersonActive then
+        player.CameraMode = originalMode
+        player.CameraMinZoomDistance = originalMinZoom
+        player.CameraMaxZoomDistance = originalMaxZoom
         return
     end
 
@@ -95,7 +162,40 @@ local function disableFirstPerson()
     player.CameraMaxZoomDistance = originalMaxZoom
 end
 
+local function disconnectCharacterConnections()
+    for _, connection in ipairs(characterConnections) do
+        connection:Disconnect()
+    end
+    table.clear(characterConnections)
+end
+
+local function attachHumanoidListeners(character)
+    disconnectCharacterConnections()
+
+    local humanoid = getHumanoid(character)
+    if not humanoid then
+        table.insert(characterConnections, character.ChildAdded:Connect(function(child)
+            if child:IsA("Humanoid") then
+                attachHumanoidListeners(character)
+            end
+        end))
+        return
+    end
+
+    table.insert(characterConnections, humanoid.Died:Connect(function()
+        disableFirstPerson()
+    end))
+
+    table.insert(characterConnections, humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        if humanoid.Health <= 0 then
+            disableFirstPerson()
+        end
+    end))
+end
+
 local function onCharacterAdded(character)
+    attachHumanoidListeners(character)
+
     if shouldLockFirstPerson() then
         enableFirstPerson()
     else
@@ -118,6 +218,10 @@ if player.Character then
     onCharacterAdded(player.Character)
 end
 player.CharacterAdded:Connect(onCharacterAdded)
+player.CharacterRemoving:Connect(function()
+    disconnectCharacterConnections()
+    disableFirstPerson()
+end)
 
 RunService:BindToRenderStep("EnforceMazeFirstPerson", Enum.RenderPriority.Camera.Value + 1, function()
     local shouldLock = shouldLockFirstPerson()
