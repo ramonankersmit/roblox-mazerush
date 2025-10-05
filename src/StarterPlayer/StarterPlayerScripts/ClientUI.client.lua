@@ -6,7 +6,11 @@ local RoundState = Remotes:WaitForChild("RoundState")
 local Countdown = Remotes:WaitForChild("Countdown")
 local Pickup = Remotes:WaitForChild("Pickup")
 local SetMazeAlgorithm = Remotes:WaitForChild("SetMazeAlgorithm")
+local SetLoopChance = Remotes:WaitForChild("SetLoopChance")
+local AliveStatus = Remotes:WaitForChild("AliveStatus")
+local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
 local State = game.ReplicatedStorage:WaitForChild("State")
+local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 
 local gui = Instance.new("ScreenGui"); gui.Name = "MazeUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
 local function mkLabel(name, x, y)
@@ -16,11 +20,202 @@ local status = mkLabel("Status", 20, 20)
 local timerLbl = mkLabel("Timer", 20, 70)
 local invLbl = mkLabel("Inventory", 20, 120)
 
+local scoreboardFrame = Instance.new("Frame")
+scoreboardFrame.Name = "SurvivorBoard"
+scoreboardFrame.Size = UDim2.new(0,260,0,0)
+scoreboardFrame.Position = UDim2.new(1,-280,0,90)
+scoreboardFrame.BackgroundTransparency = 0.25
+scoreboardFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+scoreboardFrame.BorderSizePixel = 0
+scoreboardFrame.AutomaticSize = Enum.AutomaticSize.Y
+scoreboardFrame.Visible = false
+scoreboardFrame.Parent = gui
+
+local boardLayout = Instance.new("UIListLayout")
+boardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+boardLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+boardLayout.Padding = UDim.new(0,6)
+boardLayout.Parent = scoreboardFrame
+
+local header = Instance.new("TextLabel")
+header.LayoutOrder = 1
+header.Size = UDim2.new(1,-10,0,28)
+header.Position = UDim2.new(0,5,0,0)
+header.BackgroundTransparency = 1
+header.Text = "Ronde status"
+header.TextColor3 = Color3.fromRGB(255,255,255)
+header.TextScaled = true
+header.Font = Enum.Font.SourceSansBold
+header.Parent = scoreboardFrame
+
+local function createSection(titleText, color, order)
+        local section = Instance.new("Frame")
+        section.Name = string.gsub(titleText, " ", "")
+        section.BackgroundTransparency = 1
+        section.Size = UDim2.new(1,-10,0,0)
+        section.AutomaticSize = Enum.AutomaticSize.Y
+        section.LayoutOrder = order
+        section.Parent = scoreboardFrame
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1,0,0,22)
+        title.BackgroundTransparency = 1
+        title.Text = titleText
+        title.TextColor3 = color
+        title.TextScaled = true
+        title.Font = Enum.Font.SourceSansBold
+        title.Parent = section
+
+        local listFrame = Instance.new("Frame")
+        listFrame.BackgroundTransparency = 1
+        listFrame.Size = UDim2.new(1,0,0,0)
+        listFrame.AutomaticSize = Enum.AutomaticSize.Y
+        listFrame.Parent = section
+
+        local layout = Instance.new("UIListLayout")
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Padding = UDim.new(0,2)
+        layout.Parent = listFrame
+
+        return listFrame
+end
+
+local aliveListFrame = createSection("Spelers actief", Color3.fromRGB(120, 255, 180), 2)
+local eliminatedListFrame = createSection("Uitgeschakeld", Color3.fromRGB(255, 120, 120), 3)
+
+local eliminationMessage = Instance.new("TextLabel")
+eliminationMessage.Name = "EliminationNotice"
+eliminationMessage.Size = UDim2.new(0,360,0,80)
+eliminationMessage.Position = UDim2.new(0.5,-180,0.5,-40)
+eliminationMessage.BackgroundTransparency = 0.35
+eliminationMessage.BackgroundColor3 = Color3.fromRGB(70, 0, 0)
+eliminationMessage.BorderSizePixel = 0
+eliminationMessage.Text = ""
+eliminationMessage.TextScaled = true
+eliminationMessage.Font = Enum.Font.SourceSansBold
+eliminationMessage.TextColor3 = Color3.fromRGB(255, 230, 230)
+eliminationMessage.Visible = false
+eliminationMessage.Parent = gui
+
+local scoreboardData
+local currentRoundState = "IDLE"
+local eliminationCameraToken
+
+local function clearTextChildren(container)
+        for _, child in ipairs(container:GetChildren()) do
+                if child:IsA("TextLabel") then
+                        child:Destroy()
+                end
+        end
+end
+
+local function populateList(container, names, placeholder)
+        clearTextChildren(container)
+        if #names == 0 then
+                local emptyLbl = Instance.new("TextLabel")
+                emptyLbl.Size = UDim2.new(1,0,0,20)
+                emptyLbl.BackgroundTransparency = 1
+                emptyLbl.Text = placeholder
+                emptyLbl.TextScaled = true
+                emptyLbl.Font = Enum.Font.SourceSansItalic
+                emptyLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                emptyLbl.Parent = container
+                return
+        end
+        for _, name in ipairs(names) do
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(1,0,0,20)
+                label.BackgroundTransparency = 1
+                label.TextScaled = true
+                label.Text = name
+                if name == player.Name then
+                        label.Font = Enum.Font.SourceSansBold
+                        label.TextColor3 = Color3.fromRGB(255, 255, 170)
+                else
+                        label.Font = Enum.Font.SourceSans
+                        label.TextColor3 = Color3.fromRGB(235, 235, 235)
+                end
+                label.Parent = container
+        end
+end
+
+local function refreshScoreboardVisibility()
+        if not scoreboardData then
+                scoreboardFrame.Visible = false
+                return
+        end
+        if currentRoundState == "ACTIVE" or currentRoundState == "PREP" then
+                scoreboardFrame.Visible = true
+        else
+                scoreboardFrame.Visible = false
+        end
+end
+
+local function updateScoreboard(data)
+        scoreboardData = data
+        if not data then
+                clearTextChildren(aliveListFrame)
+                clearTextChildren(eliminatedListFrame)
+                refreshScoreboardVisibility()
+                return
+        end
+        populateList(aliveListFrame, data.alive or {}, "Geen spelers")
+        populateList(eliminatedListFrame, data.eliminated or {}, "Niemand")
+        refreshScoreboardVisibility()
+end
+
+local function resetEliminationCamera(token)
+        if eliminationCameraToken ~= token then
+                return
+        end
+        eliminationCameraToken = nil
+        eliminationMessage.Visible = false
+        local camera = workspace.CurrentCamera
+        if camera then
+                camera.CameraType = token.originalType or Enum.CameraType.Custom
+                if token.originalCFrame then
+                        camera.CFrame = token.originalCFrame
+                end
+        end
+end
+
+local function playEliminationSequence(position)
+        local camera = workspace.CurrentCamera
+        local focus = position
+        if camera then
+                focus = focus or camera.CFrame.Position
+        end
+        if not focus then
+                focus = Vector3.new(0, 0, 0)
+        end
+        eliminationMessage.Text = "Je bent uitgeschakeld!"
+        eliminationMessage.Visible = true
+        if not camera then
+                task.delay(4, function()
+                        eliminationMessage.Visible = false
+                end)
+                return
+        end
+        local token = {
+                originalType = camera.CameraType,
+                originalCFrame = camera.CFrame,
+        }
+        eliminationCameraToken = token
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = CFrame.new(focus + Vector3.new(0, 60, 0), focus)
+        task.delay(4, function()
+                resetEliminationCamera(token)
+        end)
+end
+
 -- Algo switcher UI (top-right)
-local frame = Instance.new("Frame"); frame.Name = "Algo"; frame.Size = UDim2.new(0,260,0,60); frame.Position = UDim2.new(1,-280,0,20); frame.BackgroundTransparency = 0.2; frame.Parent = gui
+local frame = Instance.new("Frame"); frame.Name = "Algo"; frame.Size = UDim2.new(0,260,0,110); frame.Position = UDim2.new(1,-280,0,20); frame.BackgroundTransparency = 0.2; frame.Parent = gui
 local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.BackgroundTransparency = 1; title.Text = "Maze Algorithm"; title.Parent = frame
 local btnDFS = Instance.new("TextButton"); btnDFS.Size = UDim2.new(0.5,-10,0,28); btnDFS.Position = UDim2.new(0,10,0,28); btnDFS.Text = "DFS"; btnDFS.Parent = frame
 local btnPRIM = Instance.new("TextButton"); btnPRIM.Size = UDim2.new(0.5,-10,0,28); btnPRIM.Position = UDim2.new(0.5,0,0,28); btnPRIM.Text = "PRIM"; btnPRIM.Parent = frame
+local loopMinus = Instance.new("TextButton"); loopMinus.Size = UDim2.new(0,36,0,24); loopMinus.Position = UDim2.new(0,10,0,66); loopMinus.Text = "-"; loopMinus.Parent = frame
+local loopLabel = Instance.new("TextLabel"); loopLabel.Size = UDim2.new(1,-112,0,24); loopLabel.Position = UDim2.new(0,56,0,66); loopLabel.BackgroundTransparency = 1; loopLabel.TextXAlignment = Enum.TextXAlignment.Center; loopLabel.TextScaled = true; loopLabel.Text = "Loop Chance: 0%"; loopLabel.Parent = frame
+local loopPlus = Instance.new("TextButton"); loopPlus.Size = UDim2.new(0,36,0,24); loopPlus.Position = UDim2.new(1,-46,0,66); loopPlus.Text = "+"; loopPlus.Parent = frame
 local cur = mkLabel("CurrentAlgo", 20, 170); cur.Text = "Algo: " .. (State.MazeAlgorithm and State.MazeAlgorithm.Value or "DFS")
 
 local function updateAlgoLabel()
@@ -28,8 +223,59 @@ local function updateAlgoLabel()
 end
 if State:FindFirstChild("MazeAlgorithm") then State.MazeAlgorithm:GetPropertyChangedSignal("Value"):Connect(updateAlgoLabel) end
 
+local loopChanceValue = State:FindFirstChild("LoopChance")
+local LOOP_STEP = 0.05
+
+local function getLoopChance()
+        if loopChanceValue and typeof(loopChanceValue.Value) == "number" then
+                return loopChanceValue.Value
+        end
+        return RoundConfig.LoopChance or 0.05
+end
+
+local function updateLoopLabel()
+        local percent = math.floor(getLoopChance() * 100 + 0.5)
+        loopLabel.Text = string.format("Loop Chance: %d%%", percent)
+end
+
+local function watchLoopChance()
+        if not loopChanceValue then
+                return
+        end
+        loopChanceValue:GetPropertyChangedSignal("Value"):Connect(updateLoopLabel)
+end
+
+if loopChanceValue then
+        watchLoopChance()
+else
+        State.ChildAdded:Connect(function(child)
+                if child.Name == "LoopChance" then
+                        loopChanceValue = child
+                        watchLoopChance()
+                        updateLoopLabel()
+                end
+        end)
+end
+
+updateLoopLabel()
+
+local function adjustLoopChance(delta)
+        local newValue = math.clamp(getLoopChance() + delta, 0, 1)
+        newValue = math.floor((newValue / LOOP_STEP) + 0.5) * LOOP_STEP
+        newValue = math.clamp(newValue, 0, 1)
+        SetLoopChance:FireServer(newValue)
+end
+
+loopMinus.MouseButton1Click:Connect(function()
+        adjustLoopChance(-LOOP_STEP)
+end)
+
+loopPlus.MouseButton1Click:Connect(function()
+        adjustLoopChance(LOOP_STEP)
+end)
+
 btnDFS.MouseButton1Click:Connect(function()
-	SetMazeAlgorithm:FireServer("DFS")
+        SetMazeAlgorithm:FireServer("DFS")
 end)
 btnPRIM.MouseButton1Click:Connect(function()
 	SetMazeAlgorithm:FireServer("PRIM")
@@ -60,7 +306,23 @@ local function updateInventoryLabel()
         )
 end
 
-RoundState.OnClientEvent:Connect(function(state) status.Text = "State: " .. tostring(state) end)
+RoundState.OnClientEvent:Connect(function(state)
+        currentRoundState = tostring(state)
+        status.Text = "State: " .. currentRoundState
+        if currentRoundState ~= "ACTIVE" and eliminationCameraToken then
+                resetEliminationCamera(eliminationCameraToken)
+        end
+        refreshScoreboardVisibility()
+end)
+AliveStatus.OnClientEvent:Connect(updateScoreboard)
+PlayerEliminatedRemote.OnClientEvent:Connect(function(info)
+        if not info then
+                return
+        end
+        if info.userId == player.UserId then
+                playEliminationSequence(info.position)
+        end
+end)
 Countdown.OnClientEvent:Connect(function(t) timerLbl.Text = "Time: " .. t end)
 Pickup.OnClientEvent:Connect(function(item)
         if item == "Key" then
@@ -154,9 +416,27 @@ local function getHRP()
         return char:FindFirstChild("HumanoidRootPart")
 end
 
-local function findExitPad()
+local function findExitTarget()
+        local maze = workspace:FindFirstChild("Maze")
+        if maze then
+                local door = maze:FindFirstChild("ExitDoor")
+                if door then
+                        local primary = door.PrimaryPart or door:FindFirstChild("Panel")
+                        if primary and primary:IsA("BasePart") then
+                                return primary
+                        end
+                end
+        end
+
         local spawns = workspace:FindFirstChild("Spawns")
-        return spawns and spawns:FindFirstChild("ExitPad") or nil
+        if spawns then
+                local exitPad = spawns:FindFirstChild("ExitPad")
+                if exitPad and exitPad:IsA("BasePart") then
+                        return exitPad
+                end
+        end
+
+        return nil
 end
 
 local function getNearestHunter(fromPos)
@@ -255,9 +535,9 @@ local function startExitFinderLoop(token)
                                 continue
                         end
 
-                        local exitPad = findExitPad()
-                        if exitPad then
-                                local points = computePathPoints(hrp.Position, exitPad.Position)
+                        local exitTarget = findExitTarget()
+                        if exitTarget then
+                                local points = computePathPoints(hrp.Position, exitTarget.Position)
                                 if exitFinderEnabled and exitUpdateToken == token and points and #points >= 2 then
                                         local key = trailKey(points)
                                         if exitDistanceLbl then
@@ -442,7 +722,6 @@ RoundState.OnClientEvent:Connect(function(state)
 end)
 
 -- === Minimap (perk) ===
-local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDim2.new(0, 200, 0, 200)
 mapFrame.Position = UDim2.new(1, -220, 0, 220); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
 mapFrame.Active = true
@@ -532,7 +811,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
 	if not hrp then return end
 
         dotPlayer.Position = worldToMap(hrp.Position)
-        local exit = findExitPad()
+        local exit = findExitTarget()
         if exit then dotExit.Visible = true; dotExit.Position = worldToMap(exit.Position) else dotExit.Visible = false end
 
 	for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end

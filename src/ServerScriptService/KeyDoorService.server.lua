@@ -8,6 +8,7 @@ local DoorOpened = Remotes:FindFirstChild("DoorOpened")
 local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
+local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 
 local DEFAULT_BARRIER_COLOR = Color3.fromRGB(60, 60, 60)
 
@@ -98,7 +99,7 @@ local function ensureExitBarrier(door, fallbackPanel)
     end
     local width = math.max(boundsSize.X, Config.CellSize + 4)
     local height = math.max(boundsSize.Y, 12)
-    local depth = math.max(boundsSize.Z, 2)
+    local depth = math.max(boundsSize.Z, 0.75)
 
     local referencePanel = fallbackPanel or door.PrimaryPart
     if not referencePanel or not referencePanel:IsA("BasePart") then
@@ -126,13 +127,10 @@ local function ensureExitBarrier(door, fallbackPanel)
     local depthOffset = math.max(Config.CellSize / 2, depth / 2)
     local basePosition = referencePanel.Position
 
-    local frontBarrier = ensureBarrierPart(
-        door,
-        "ExitBarrier",
-        Vector3.new(width, height, depth),
-        referencePanel.CFrame,
-        referencePanel
-    )
+    local existingFrontBarrier = door:FindFirstChild("ExitBarrier")
+    if existingFrontBarrier and existingFrontBarrier:IsA("BasePart") then
+        existingFrontBarrier:Destroy()
+    end
 
     ensureBarrierPart(
         door,
@@ -173,21 +171,43 @@ local function ensureExitBarrier(door, fallbackPanel)
         referencePanel
     )
 
-    return frontBarrier
+    return nil
 end
 
 local function ensureExitPadBarrier()
-    local exitPad = getExitPad()
-    if not exitPad then
-        warn("KeyDoorService: ExitPad missing, cannot place exit pad barrier")
+    local spawns = workspace:FindFirstChild("Spawns")
+    if not spawns then
         return nil
     end
 
-    local spawns = exitPad.Parent or workspace
-    local size = Vector3.new(Config.CellSize, 20, Config.CellSize)
-    local cframe = CFrame.new(exitPad.Position.X, size.Y / 2, exitPad.Position.Z)
+    local existing = spawns:FindFirstChild("ExitPadBarrier")
+    if existing and existing:IsA("BasePart") then
+        existing:Destroy()
+    end
 
-    return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe, exitPad)
+    return nil
+end
+
+local function updateExitDoorForWallHeight()
+    local maze = workspace:FindFirstChild("Maze")
+    if not maze then
+        return
+    end
+
+    local exitDoor = maze:FindFirstChild("ExitDoor")
+    if not exitDoor then
+        return
+    end
+
+    ExitDoorBuilder.UpdateDoorModel(exitDoor, Config)
+
+    local panel = exitDoor:FindFirstChild("Panel")
+    ensureExitBarrier(exitDoor, panel)
+end
+
+_G.KeyDoor_UpdateForWallHeight = function()
+    updateExitDoorForWallHeight()
+    ensureExitPadBarrier()
 end
 
 local function getInventoryOrWarn(context)
@@ -344,7 +364,7 @@ local function configureDoorPrompt(door, lockedValue)
             barrier:Destroy()
         end
 
-        for _, childName in ipairs({"ExitRearBarrier", "ExitSideBarrierLeft", "ExitSideBarrierRight"}) do
+        for _, childName in ipairs({"ExitBarrier", "ExitRearBarrier", "ExitSideBarrierLeft", "ExitSideBarrierRight"}) do
             local child = door:FindFirstChild(childName)
             if child and child:IsA("BasePart") then
                 child.CanCollide = false
@@ -371,18 +391,28 @@ _G.KeyDoor_OnRoundStart = function()
         key.Name = "Key_" .. i
         configureKeyPrompt(key)
     end
-    local door = prefabs.Door:Clone()
+    local doorPrefab = ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
+    local door = doorPrefab:Clone()
     door.Name = "ExitDoor"
-    local rx = Config.GridWidth
-    local ry = Config.GridHeight - 1
-    door:PivotTo(CFrame.new(rx * Config.CellSize - (Config.CellSize / 2), 4, ry * Config.CellSize - (Config.CellSize / 2)))
+    ExitDoorBuilder.UpdateDoorModel(door, Config)
+    local panel = door.PrimaryPart or door:FindFirstChild("Panel")
+
+    local doorHeight = 4
+    if panel and panel:IsA("BasePart") then
+        doorHeight = panel.Size.Y / 2
+    end
+
+    local doorX = Config.GridWidth * Config.CellSize - (Config.CellSize / 2)
+    local doorZ = Config.GridHeight * Config.CellSize
+    door:PivotTo(CFrame.new(doorX, doorHeight, doorZ))
+
     door.Parent = workspace.Maze
     local locked = door:FindFirstChild("Locked")
     if not locked then
         locked = Instance.new("BoolValue", door)
         locked.Name = "Locked"
-        locked.Value = true
     end
+    locked.Value = true
     -- Proximity prompt to unlock door (server-side check)
     configureDoorPrompt(door, locked)
 end
