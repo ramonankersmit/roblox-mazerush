@@ -8,6 +8,7 @@ local DoorOpened = Remotes:FindFirstChild("DoorOpened")
 local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
+local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 
 local DEFAULT_BARRIER_COLOR = Color3.fromRGB(60, 60, 60)
 
@@ -98,7 +99,7 @@ local function ensureExitBarrier(door, fallbackPanel)
     end
     local width = math.max(boundsSize.X, Config.CellSize + 4)
     local height = math.max(boundsSize.Y, 12)
-    local depth = math.max(boundsSize.Z, 2)
+    local depth = math.max(boundsSize.Z, 0.75)
 
     local referencePanel = fallbackPanel or door.PrimaryPart
     if not referencePanel or not referencePanel:IsA("BasePart") then
@@ -177,31 +178,17 @@ local function ensureExitBarrier(door, fallbackPanel)
 end
 
 local function ensureExitPadBarrier()
-    local exitPad = getExitPad()
-    if not exitPad then
-        warn("KeyDoorService: ExitPad missing, cannot place exit pad barrier")
+    local spawns = workspace:FindFirstChild("Spawns")
+    if not spawns then
         return nil
     end
 
-    local spawns = exitPad.Parent or workspace
-    local size = Vector3.new(Config.CellSize, math.max(Config.WallHeight, 20), Config.CellSize)
-    local cframe = CFrame.new(exitPad.Position.X, size.Y / 2, exitPad.Position.Z)
-
-    return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe, exitPad)
-end
-
-local function resizePartToWallHeight(part)
-    if not (part and part:IsA("BasePart")) then
-        return
+    local existing = spawns:FindFirstChild("ExitPadBarrier")
+    if existing and existing:IsA("BasePart") then
+        existing:Destroy()
     end
-    local cf = part.CFrame
-    part.Size = Vector3.new(part.Size.X, Config.WallHeight, part.Size.Z)
-    part.CFrame = CFrame.fromMatrix(
-        Vector3.new(cf.Position.X, Config.WallHeight / 2, cf.Position.Z),
-        cf.RightVector,
-        cf.UpVector,
-        cf.LookVector
-    )
+
+    return nil
 end
 
 local function updateExitDoorForWallHeight()
@@ -215,20 +202,9 @@ local function updateExitDoorForWallHeight()
         return
     end
 
+    ExitDoorBuilder.UpdateDoorModel(exitDoor, Config)
+
     local panel = exitDoor:FindFirstChild("Panel")
-    resizePartToWallHeight(panel)
-
-    local primary = exitDoor.PrimaryPart or panel
-    if primary and primary:IsA("BasePart") then
-        local cf = primary.CFrame
-        exitDoor:PivotTo(CFrame.fromMatrix(
-            Vector3.new(cf.Position.X, Config.WallHeight / 2, cf.Position.Z),
-            cf.RightVector,
-            cf.UpVector,
-            cf.LookVector
-        ))
-    end
-
     ensureExitBarrier(exitDoor, panel)
 end
 
@@ -418,12 +394,11 @@ _G.KeyDoor_OnRoundStart = function()
         key.Name = "Key_" .. i
         configureKeyPrompt(key)
     end
-    local door = prefabs.Door:Clone()
+    local doorPrefab = ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
+    local door = doorPrefab:Clone()
     door.Name = "ExitDoor"
-    local panel = door:FindFirstChild("Panel") or door.PrimaryPart
-    if door.PrimaryPart == nil and panel then
-        door.PrimaryPart = panel
-    end
+    ExitDoorBuilder.UpdateDoorModel(door, Config)
+    local panel = door.PrimaryPart or door:FindFirstChild("Panel")
 
     local doorHeight = 4
     if panel and panel:IsA("BasePart") then
@@ -439,8 +414,8 @@ _G.KeyDoor_OnRoundStart = function()
     if not locked then
         locked = Instance.new("BoolValue", door)
         locked.Name = "Locked"
-        locked.Value = true
     end
+    locked.Value = true
     -- Proximity prompt to unlock door (server-side check)
     configureDoorPrompt(door, locked)
 end
