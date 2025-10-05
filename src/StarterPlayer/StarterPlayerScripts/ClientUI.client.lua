@@ -101,6 +101,16 @@ local scoreboardData
 local currentRoundState = "IDLE"
 local eliminationCameraToken
 
+local function isGameplayState(state)
+        state = state or currentRoundState
+        return state == "PREP" or state == "ACTIVE" or state == "OVERVIEW"
+end
+
+local updateAlgoUIVisibility
+local updateMinimapVisibility
+local minimapOn = true
+local mapFrame
+
 local function clearTextChildren(container)
         for _, child in ipairs(container:GetChildren()) do
                 if child:IsA("TextLabel") then
@@ -218,6 +228,14 @@ local loopLabel = Instance.new("TextLabel"); loopLabel.Size = UDim2.new(1,-112,0
 local loopPlus = Instance.new("TextButton"); loopPlus.Size = UDim2.new(0,36,0,24); loopPlus.Position = UDim2.new(1,-46,0,66); loopPlus.Text = "+"; loopPlus.Parent = frame
 local cur = mkLabel("CurrentAlgo", 20, 170); cur.Text = "Algo: " .. (State.MazeAlgorithm and State.MazeAlgorithm.Value or "DFS")
 
+updateAlgoUIVisibility = function()
+        local visible = isGameplayState()
+        frame.Visible = visible
+        cur.Visible = visible
+end
+
+updateAlgoUIVisibility()
+
 local function updateAlgoLabel()
 	cur.Text = "Algo: " .. (State.MazeAlgorithm and State.MazeAlgorithm.Value or "DFS")
 end
@@ -318,6 +336,12 @@ RoundState.OnClientEvent:Connect(function(state)
                 resetEliminationCamera(eliminationCameraToken)
         end
         refreshScoreboardVisibility()
+        if updateAlgoUIVisibility then
+                updateAlgoUIVisibility()
+        end
+        if updateMinimapVisibility then
+                updateMinimapVisibility()
+        end
 end)
 AliveStatus.OnClientEvent:Connect(updateScoreboard)
 PlayerEliminatedRemote.OnClientEvent:Connect(function(info)
@@ -872,7 +896,7 @@ RoundState.OnClientEvent:Connect(function(state)
 end)
 
 -- === Minimap (perk) ===
-local mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDim2.new(0, 200, 0, 200)
+mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDim2.new(0, 200, 0, 200)
 mapFrame.Position = UDim2.new(1, -220, 0, 220); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
 mapFrame.Active = true
 local mapBtn = Instance.new("TextButton"); mapBtn.Size = UDim2.new(1,0,0,24); mapBtn.Text = "Minimap (perk) ON"; mapBtn.Parent = mapFrame
@@ -928,13 +952,21 @@ local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
 local dotExit   = makeDot("E", Color3.fromRGB(255,255,0))
 local dotHuntersFolder = mapCanvas:FindFirstChild("Hunters") or Instance.new("Folder", mapCanvas); dotHuntersFolder.Name = "Hunters"
 
-local minimapOn = true
+updateMinimapVisibility = function()
+        if mapFrame then
+                mapFrame.Visible = minimapOn and isGameplayState()
+        end
+end
+
+updateMinimapVisibility()
+
 mapBtn.MouseButton1Click:Connect(function()
-	minimapOn = not minimapOn
-	mapBtn.Text = minimapOn and "Minimap (perk) ON" or "Minimap (perk) OFF"
-	if not minimapOn then
-		for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
-	end
+        minimapOn = not minimapOn
+        mapBtn.Text = minimapOn and "Minimap (perk) ON" or "Minimap (perk) OFF"
+        if not minimapOn then
+                for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
+        end
+        updateMinimapVisibility()
 end)
 
 local function worldToMap(pos)
@@ -955,7 +987,7 @@ local function hunters()
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
-	if not minimapOn then return end
+        if not minimapOn or not isGameplayState() then return end
 	local char = player.Character or player.CharacterAdded:Wait()
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
