@@ -11,6 +11,7 @@ local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
+local ThemeConfig = require(game.ReplicatedStorage.Modules.ThemeConfig)
 
 local gui = Instance.new("ScreenGui"); gui.Name = "MazeUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
 local function mkLabel(name, x, y)
@@ -980,6 +981,94 @@ local ToggleReady = Replicated.Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Replicated.Remotes:WaitForChild("StartGameRequest")
 local ThemeVote = Replicated.Remotes:WaitForChild("ThemeVote")
 
+local function getPreviewStands()
+        local lobbyFolder = workspace:FindFirstChild("Lobby")
+        if not lobbyFolder then
+                return {}
+        end
+        local result = {}
+        local function collectChildren(container)
+                if not container then
+                        return
+                end
+                for _, child in ipairs(container:GetChildren()) do
+                        if child:GetAttribute("ThemeId") then
+                                table.insert(result, child)
+                        end
+                end
+        end
+        collectChildren(lobbyFolder:FindFirstChild("PreviewStands"))
+        collectChildren(lobbyFolder)
+        return result
+end
+
+local function ensureHighlight(instance)
+        local highlight = instance:FindFirstChild("LobbyPreviewHighlight")
+        if not highlight then
+                highlight = Instance.new("Highlight")
+                highlight.Name = "LobbyPreviewHighlight"
+                highlight.Adornee = instance:IsA("Model") and instance or instance:FindFirstChildWhichIsA("BasePart", true)
+                highlight.FillTransparency = 0.8
+                highlight.OutlineTransparency = 1
+                highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+                highlight.Parent = instance
+        end
+        if not highlight.Adornee or not highlight.Adornee.Parent then
+                if instance:IsA("Model") then
+                        highlight.Adornee = instance
+                else
+                        highlight.Adornee = instance:FindFirstChildWhichIsA("BasePart", true)
+                end
+        end
+        return highlight
+end
+
+local function setPreviewParticlesEnabled(container, enabled, color)
+        for _, descendant in ipairs(container:GetDescendants()) do
+                if descendant:IsA("ParticleEmitter") and descendant.Name == "LobbyPreviewParticles" then
+                        descendant.Enabled = enabled
+                        if color then
+                                descendant.Color = ColorSequence.new(color)
+                        end
+                elseif descendant:IsA("PointLight") and descendant.Name == "LobbyAccentLight" then
+                        descendant.Enabled = enabled
+                        if color then
+                                descendant.Color = color
+                        end
+                end
+        end
+end
+
+local function updatePreviewHighlights(targetThemeId, accentColor)
+        local stands = getPreviewStands()
+        if #stands == 0 then
+                return
+        end
+        for _, stand in ipairs(stands) do
+                local standThemeId = stand:GetAttribute("ThemeId")
+                local highlight = ensureHighlight(stand)
+                local isLeader = targetThemeId ~= nil and standThemeId == targetThemeId
+                highlight.Enabled = isLeader
+                if accentColor then
+                        highlight.FillColor = accentColor
+                        highlight.OutlineColor = accentColor
+                else
+                        local theme = standThemeId and ThemeConfig.Get(standThemeId)
+                        local fallback = theme and theme.primaryColor or Color3.fromRGB(255, 255, 255)
+                        highlight.FillColor = fallback
+                        highlight.OutlineColor = fallback
+                end
+                highlight.FillTransparency = isLeader and 0.6 or 1
+                highlight.OutlineTransparency = isLeader and 0 or 1
+                local particleColor = accentColor
+                if not particleColor then
+                        local theme = standThemeId and ThemeConfig.Get(standThemeId)
+                        particleColor = theme and theme.primaryColor or highlight.FillColor
+                end
+                setPreviewParticlesEnabled(stand, isLeader, isLeader and particleColor or nil)
+        end
+end
+
 local lobby = Instance.new("Frame"); lobby.Name = "Lobby"; lobby.Size = UDim2.new(0, 380, 0, 320)
 lobby.Position = UDim2.new(0.5, -190, 0, 10); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
 local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.Text = "Lobby"; title.BackgroundTransparency = 1; title.Parent = lobby
@@ -1124,17 +1213,19 @@ local function renderThemeState(themeState)
         if not themeState or not themeState.options then
                 themePanel.Visible = false
                 activeThemeVote = false
+                themeCountdown.Text = "Geen stemming"
+                themeCountdown.TextColor3 = Color3.fromRGB(220, 220, 220)
+                winningLabel.Text = "Volgende ronde: ?"
+                winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+                updatePreviewHighlights(nil, nil)
+                for _, entry in pairs(themeButtons) do
+                        entry.button.Visible = false
+                end
                 return
         end
 
-        if not lobby.Visible then
-                themePanel.Visible = false
-                activeThemeVote = themeState.active == true
-                return
-        end
-
-	themePanel.Visible = true
-	activeThemeVote = themeState.active == true
+        activeThemeVote = themeState.active == true
+        themePanel.Visible = lobby.Visible
 
 	local totalVotes = themeState.totalVotes or 0
 	local votesByPlayer = themeState.votesByPlayer or {}
@@ -1175,12 +1266,13 @@ local function renderThemeState(themeState)
 	local highlightId = activeThemeVote and leaderId or (themeState.current or leaderId)
 
 	local seen = {}
-	for index, option in ipairs(themeState.options) do
-		local entry = ensureThemeButton(option.id)
-		entry.button.LayoutOrder = index
+        for index, option in ipairs(themeState.options) do
+                local entry = ensureThemeButton(option.id)
+                entry.button.LayoutOrder = index
+                entry.button.Visible = true
 
-		local votes = votesLookup[option.id] or 0
-		local color = optionColors[option.id] or Color3.fromRGB(160,160,160)
+                local votes = votesLookup[option.id] or 0
+                local color = optionColors[option.id] or Color3.fromRGB(160,160,160)
 		local ratio = (totalVotes > 0) and math.clamp(votes / totalVotes, 0, 1) or 0
 
 		entry.fill.BackgroundColor3 = color
@@ -1203,22 +1295,28 @@ local function renderThemeState(themeState)
 		seen[option.id] = true
 	end
 
-	local labelId = highlightId
-	if activeThemeVote then
-		labelId = leaderId or labelId
-	else
-		labelId = themeState.current or labelId
-	end
-	if not labelId and #themeState.options > 0 then
-		labelId = themeState.options[1].id
-	end
+        local labelId = highlightId
+        if activeThemeVote then
+                labelId = leaderId or labelId
+        else
+                labelId = themeState.current or labelId
+        end
+        if not labelId and #themeState.options > 0 then
+                labelId = themeState.options[1].id
+        end
         local labelName = optionNames[labelId] or labelId or "?"
         if not activeThemeVote and themeState.currentName then
                 labelName = themeState.currentName
         end
 
+        local labelTheme = ThemeConfig.Get(labelId)
+        local highlightTheme = ThemeConfig.Get(highlightId)
+        local labelColor = optionColors[labelId] or (labelTheme and labelTheme.primaryColor) or Color3.fromRGB(220,220,220)
+        local accentColor = optionColors[highlightId] or (highlightTheme and highlightTheme.primaryColor) or labelColor
+
         winningLabel.Text = activeThemeVote and string.format("Voorlopige leider: %s", labelName) or string.format("Volgende ronde: %s", labelName)
-	winningLabel.TextColor3 = optionColors[labelId] or Color3.fromRGB(220,220,220)
+        winningLabel.TextColor3 = labelColor
+        updatePreviewHighlights(highlightId, accentColor)
 
 	for themeId, entry in pairs(themeButtons) do
 		if not seen[themeId] then
