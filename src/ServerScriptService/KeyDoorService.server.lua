@@ -184,10 +184,57 @@ local function ensureExitPadBarrier()
     end
 
     local spawns = exitPad.Parent or workspace
-    local size = Vector3.new(Config.CellSize, 20, Config.CellSize)
+    local size = Vector3.new(Config.CellSize, math.max(Config.WallHeight, 20), Config.CellSize)
     local cframe = CFrame.new(exitPad.Position.X, size.Y / 2, exitPad.Position.Z)
 
     return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe, exitPad)
+end
+
+local function resizePartToWallHeight(part)
+    if not (part and part:IsA("BasePart")) then
+        return
+    end
+    local cf = part.CFrame
+    part.Size = Vector3.new(part.Size.X, Config.WallHeight, part.Size.Z)
+    part.CFrame = CFrame.fromMatrix(
+        Vector3.new(cf.Position.X, Config.WallHeight / 2, cf.Position.Z),
+        cf.RightVector,
+        cf.UpVector,
+        cf.LookVector
+    )
+end
+
+local function updateExitDoorForWallHeight()
+    local maze = workspace:FindFirstChild("Maze")
+    if not maze then
+        return
+    end
+
+    local exitDoor = maze:FindFirstChild("ExitDoor")
+    if not exitDoor then
+        return
+    end
+
+    local panel = exitDoor:FindFirstChild("Panel")
+    resizePartToWallHeight(panel)
+
+    local primary = exitDoor.PrimaryPart or panel
+    if primary and primary:IsA("BasePart") then
+        local cf = primary.CFrame
+        exitDoor:PivotTo(CFrame.fromMatrix(
+            Vector3.new(cf.Position.X, Config.WallHeight / 2, cf.Position.Z),
+            cf.RightVector,
+            cf.UpVector,
+            cf.LookVector
+        ))
+    end
+
+    ensureExitBarrier(exitDoor, panel)
+end
+
+_G.KeyDoor_UpdateForWallHeight = function()
+    updateExitDoorForWallHeight()
+    ensureExitPadBarrier()
 end
 
 local function getInventoryOrWarn(context)
@@ -373,9 +420,20 @@ _G.KeyDoor_OnRoundStart = function()
     end
     local door = prefabs.Door:Clone()
     door.Name = "ExitDoor"
-    local rx = Config.GridWidth
-    local ry = Config.GridHeight - 1
-    door:PivotTo(CFrame.new(rx * Config.CellSize - (Config.CellSize / 2), 4, ry * Config.CellSize - (Config.CellSize / 2)))
+    local panel = door:FindFirstChild("Panel") or door.PrimaryPart
+    if door.PrimaryPart == nil and panel then
+        door.PrimaryPart = panel
+    end
+
+    local doorHeight = 4
+    if panel and panel:IsA("BasePart") then
+        doorHeight = panel.Size.Y / 2
+    end
+
+    local doorX = Config.GridWidth * Config.CellSize - (Config.CellSize / 2)
+    local doorZ = Config.GridHeight * Config.CellSize
+    door:PivotTo(CFrame.new(doorX, doorHeight, doorZ))
+
     door.Parent = workspace.Maze
     local locked = door:FindFirstChild("Locked")
     if not locked then

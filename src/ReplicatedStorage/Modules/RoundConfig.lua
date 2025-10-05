@@ -2,10 +2,12 @@ local Config = {
 	GridWidth = 20,
 	GridHeight = 20,
 	CellSize = 8,
-	WallHeight = 8,
+        WallHeight = 24,
 	Theme = "Spooky",
 	RoundTime = 240,
-	PrepTime = 15, -- (used for UI only; actual build animation ~12s then delays)
+        PrepBuildDuration = 7,
+        PrepOverviewDuration = 3,
+        PrepTime = 10, -- total prep time exposed to legacy consumers
         EnemyCount = 2,
         KeyCount = 3,
 
