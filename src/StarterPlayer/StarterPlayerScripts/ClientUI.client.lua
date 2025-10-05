@@ -281,28 +281,33 @@ btnPRIM.MouseButton1Click:Connect(function()
 	SetMazeAlgorithm:FireServer("PRIM")
 end)
 
-local btnExit, btnHunter
-local exitDistanceLbl, hunterDistanceLbl
+local btnExit, btnHunter, btnKey
+local exitDistanceLbl, hunterDistanceLbl, keyDistanceLbl
 local updateFinderButtonStates
 local exitFinderEnabled = false
 local hunterFinderEnabled = false
 local setExitFinderEnabled
 local setHunterFinderEnabled
+local keyFinderEnabled = false
+local setKeyFinderEnabled
 
 local inventoryState = {
         keys = 0,
-        hasExitFinder = true,
-        hasHunterFinder = true,
+        hasExitFinder = false,
+        hasHunterFinder = false,
+        hasKeyFinder = false,
 }
 
 local function updateInventoryLabel()
         local exitStatus = inventoryState.hasExitFinder and "✓" or "✗"
         local hunterStatus = inventoryState.hasHunterFinder and "✓" or "✗"
+        local keyFinderStatus = inventoryState.hasKeyFinder and "✓" or "✗"
         invLbl.Text = string.format(
-                "Inventory: Keys x%d | Exit Finder %s | Hunter Finder %s",
+                "Inventory: Keys x%d | Exit Finder %s | Hunter Finder %s | Key Finder %s",
                 inventoryState.keys,
                 exitStatus,
-                hunterStatus
+                hunterStatus,
+                keyFinderStatus
         )
 end
 
@@ -344,11 +349,17 @@ InventoryUpdate.OnClientEvent:Connect(function(data)
         if data and data.hunterFinder ~= nil then
                 inventoryState.hasHunterFinder = data.hunterFinder
         end
+        if data and data.keyFinder ~= nil then
+                inventoryState.hasKeyFinder = data.keyFinder
+        end
         if not inventoryState.hasExitFinder and exitFinderEnabled then
                 setExitFinderEnabled(false)
         end
         if not inventoryState.hasHunterFinder and hunterFinderEnabled then
                 setHunterFinderEnabled(false)
+        end
+        if not inventoryState.hasKeyFinder and keyFinderEnabled then
+                setKeyFinderEnabled(false)
         end
         updateInventoryLabel()
         if updateFinderButtonStates then
@@ -365,6 +376,7 @@ local UIS = game:GetService("UserInputService")
 
 local EXIT_TRAIL_NAME = "DebugTrail_Exit"
 local HUNTER_TRAIL_NAME = "DebugTrail_Monster"
+local KEY_TRAIL_NAME = "DebugTrail_Key"
 local TRAIL_TRANSPARENCY = 0.35
 local TRAIL_WIDTH = 0.6
 
@@ -439,6 +451,41 @@ local function findExitTarget()
         return nil
 end
 
+local function findNearestKeyTarget(fromPos)
+        local maze = workspace:FindFirstChild("Maze")
+        if not maze then
+                return nil
+        end
+
+        local nearestModel
+        local nearestPart
+        local nearestDistance
+
+        for _, child in ipairs(maze:GetChildren()) do
+                if child:GetAttribute("MazeRushPickupType") == "Key" then
+                        local primary = child.PrimaryPart
+                        if not (primary and primary:IsA("BasePart")) then
+                                primary = child:FindFirstChildWhichIsA("BasePart")
+                        end
+
+                        if primary then
+                                local distance = (primary.Position - fromPos).Magnitude
+                                if not nearestDistance or distance < nearestDistance then
+                                        nearestDistance = distance
+                                        nearestModel = child
+                                        nearestPart = primary
+                                end
+                        end
+                end
+        end
+
+        if nearestModel and nearestPart then
+                return nearestModel, nearestPart
+        end
+
+        return nil
+end
+
 local function getNearestHunter(fromPos)
         local nearestModel
         local nearestDist
@@ -476,10 +523,13 @@ end
 
 local exitUpdateToken = 0
 local hunterUpdateToken = 0
+local keyUpdateToken = 0
 local EXIT_UPDATE_INTERVAL = 0.18
 local HUNTER_UPDATE_INTERVAL = 0.12
+local KEY_UPDATE_INTERVAL = 0.2
 local lastExitTrailKey
 local lastHunterTrailKey
+local lastKeyTrailKey
 
 local function trailKey(points)
         local buffer = table.create(#points)
@@ -491,7 +541,7 @@ end
 
 local finderFrame = Instance.new("Frame")
 finderFrame.Name = "Finders"
-finderFrame.Size = UDim2.new(0,260,0,110)
+finderFrame.Size = UDim2.new(0,260,0,170)
 finderFrame.Position = UDim2.new(1,-280,0,90)
 finderFrame.BackgroundTransparency = 0.2
 finderFrame.Parent = gui
@@ -518,6 +568,15 @@ updateFinderButtonStates = function()
                         btnHunter.Text = "Hunter Finder LOCKED"
                 else
                         btnHunter.Text = hunterFinderEnabled and "Hunter Finder ON" or "Hunter Finder OFF"
+                end
+        end
+
+        if btnKey then
+                btnKey.AutoButtonColor = inventoryState.hasKeyFinder
+                if not inventoryState.hasKeyFinder then
+                        btnKey.Text = "Key Finder LOCKED"
+                else
+                        btnKey.Text = keyFinderEnabled and "Key Finder ON" or "Key Finder OFF"
                 end
         end
 end
@@ -614,6 +673,52 @@ local function startHunterFinderLoop(token)
         end)
 end
 
+local function startKeyFinderLoop(token)
+        task.spawn(function()
+                while keyFinderEnabled and keyUpdateToken == token do
+                        local hrp = getHRP()
+                        if not hrp then
+                                clearTrail(KEY_TRAIL_NAME)
+                                lastKeyTrailKey = nil
+                                if keyDistanceLbl then
+                                        keyDistanceLbl.Text = "Key Distance: --"
+                                end
+                                task.wait(KEY_UPDATE_INTERVAL)
+                                continue
+                        end
+
+                        local _, targetPart = findNearestKeyTarget(hrp.Position)
+                        if targetPart then
+                                local points = computePathPoints(hrp.Position, targetPart.Position)
+                                if keyFinderEnabled and keyUpdateToken == token and points and #points >= 2 then
+                                        local key = trailKey(points)
+                                        if key ~= lastKeyTrailKey then
+                                                drawTrail(points, KEY_TRAIL_NAME, Color3.fromRGB(255, 221, 79))
+                                                lastKeyTrailKey = key
+                                        end
+                                        if keyDistanceLbl then
+                                                keyDistanceLbl.Text = string.format("Key Distance: %.1f studs", computePathDistance(points))
+                                        end
+                                elseif keyFinderEnabled and keyUpdateToken == token then
+                                        clearTrail(KEY_TRAIL_NAME)
+                                        lastKeyTrailKey = nil
+                                        if keyDistanceLbl then
+                                                keyDistanceLbl.Text = "Key Distance: --"
+                                        end
+                                end
+                        elseif keyFinderEnabled and keyUpdateToken == token then
+                                clearTrail(KEY_TRAIL_NAME)
+                                lastKeyTrailKey = nil
+                                if keyDistanceLbl then
+                                        keyDistanceLbl.Text = "Key Distance: --"
+                                end
+                        end
+
+                        task.wait(KEY_UPDATE_INTERVAL)
+                end
+        end)
+end
+
 setExitFinderEnabled = function(enabled)
         if enabled and not inventoryState.hasExitFinder then
                 updateFinderButtonStates()
@@ -652,8 +757,27 @@ setHunterFinderEnabled = function(enabled)
         end
 end
 
+setKeyFinderEnabled = function(enabled)
+        if enabled and not inventoryState.hasKeyFinder then
+                updateFinderButtonStates()
+                return
+        end
+        keyFinderEnabled = enabled
+        keyUpdateToken += 1
+        updateFinderButtonStates()
+        if not enabled then
+                clearTrail(KEY_TRAIL_NAME)
+                lastKeyTrailKey = nil
+                if keyDistanceLbl then
+                        keyDistanceLbl.Text = "Key Distance: --"
+                end
+        else
+                startKeyFinderLoop(keyUpdateToken)
+        end
+end
+
 btnExit = Instance.new("TextButton")
-btnExit.Size = UDim2.new(0.5,-10,0,28)
+btnExit.Size = UDim2.new(0.5,-15,0,28)
 btnExit.Position = UDim2.new(0,10,0,28)
 btnExit.Text = "Exit Finder OFF"
 btnExit.Parent = finderFrame
@@ -665,8 +789,8 @@ btnExit.MouseButton1Click:Connect(function()
 end)
 
 btnHunter = Instance.new("TextButton")
-btnHunter.Size = UDim2.new(0.5,-10,0,28)
-btnHunter.Position = UDim2.new(0.5,0,0,28)
+btnHunter.Size = UDim2.new(0.5,-15,0,28)
+btnHunter.Position = UDim2.new(0.5,5,0,28)
 btnHunter.Text = "Hunter Finder OFF"
 btnHunter.Parent = finderFrame
 btnHunter.MouseButton1Click:Connect(function()
@@ -676,9 +800,21 @@ btnHunter.MouseButton1Click:Connect(function()
         setHunterFinderEnabled(not hunterFinderEnabled)
 end)
 
+btnKey = Instance.new("TextButton")
+btnKey.Size = UDim2.new(1,-20,0,28)
+btnKey.Position = UDim2.new(0,10,0,60)
+btnKey.Text = "Key Finder OFF"
+btnKey.Parent = finderFrame
+btnKey.MouseButton1Click:Connect(function()
+        if not inventoryState.hasKeyFinder then
+                return
+        end
+        setKeyFinderEnabled(not keyFinderEnabled)
+end)
+
 exitDistanceLbl = Instance.new("TextLabel")
 exitDistanceLbl.Size = UDim2.new(1,-10,0,24)
-exitDistanceLbl.Position = UDim2.new(0,5,0,60)
+exitDistanceLbl.Position = UDim2.new(0,5,0,92)
 exitDistanceLbl.BackgroundTransparency = 1
 exitDistanceLbl.TextXAlignment = Enum.TextXAlignment.Left
 exitDistanceLbl.Text = "Exit Distance: --"
@@ -686,11 +822,19 @@ exitDistanceLbl.Parent = finderFrame
 
 hunterDistanceLbl = Instance.new("TextLabel")
 hunterDistanceLbl.Size = UDim2.new(1,-10,0,24)
-hunterDistanceLbl.Position = UDim2.new(0,5,0,84)
+hunterDistanceLbl.Position = UDim2.new(0,5,0,116)
 hunterDistanceLbl.BackgroundTransparency = 1
 hunterDistanceLbl.TextXAlignment = Enum.TextXAlignment.Left
 hunterDistanceLbl.Text = "Hunter Distance: --"
 hunterDistanceLbl.Parent = finderFrame
+
+keyDistanceLbl = Instance.new("TextLabel")
+keyDistanceLbl.Size = UDim2.new(1,-10,0,24)
+keyDistanceLbl.Position = UDim2.new(0,5,0,140)
+keyDistanceLbl.BackgroundTransparency = 1
+keyDistanceLbl.TextXAlignment = Enum.TextXAlignment.Left
+keyDistanceLbl.Text = "Key Distance: --"
+keyDistanceLbl.Parent = finderFrame
 
 updateFinderButtonStates()
 
@@ -709,6 +853,11 @@ UIS.InputBegan:Connect(function(input, processed)
                         return
                 end
                 setHunterFinderEnabled(not hunterFinderEnabled)
+        elseif input.KeyCode == Enum.KeyCode.Three then
+                if not inventoryState.hasKeyFinder then
+                        return
+                end
+                setKeyFinderEnabled(not keyFinderEnabled)
         end
 end)
 
@@ -718,6 +867,7 @@ RoundState.OnClientEvent:Connect(function(state)
         if state == "PREP" or state == "END" then
                 setExitFinderEnabled(false)
                 setHunterFinderEnabled(false)
+                setKeyFinderEnabled(false)
         end
 end)
 
