@@ -21,6 +21,7 @@ ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
 local AliveStatus = ensureRemote("AliveStatus")
 local PlayerEliminated = ensureRemote("PlayerEliminated")
+local ToggleWallHeight = ensureRemote("ToggleWallHeight")
 
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
@@ -100,13 +101,17 @@ end
 
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
+
+local Config = require(Replicated.Modules.RoundConfig)
+
 local function ensurePart(name, size)
-	local p = prefabs:FindFirstChild(name)
-	if not p then p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.Size = size or Vector3.new(4,4,1); p.Parent = prefabs end
-	return p
+        local p = prefabs:FindFirstChild(name)
+        if not p then p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.Size = size or Vector3.new(4,4,1); p.Parent = prefabs end
+        return p
 end
-ensurePart("Wall", Vector3.new(8,8,1))
-ensurePart("Floor", Vector3.new(8,1,8))
+
+ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
+ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
 if not prefabs:FindFirstChild("Key") then
 	local keyModel = Instance.new("Model"); keyModel.Name = "Key"; keyModel.Parent = prefabs
 	local part = Instance.new("Part"); part.Name = "Handle"; part.Size = Vector3.new(1,1,1); part.Anchored = true; part.Parent = keyModel
@@ -114,12 +119,71 @@ if not prefabs:FindFirstChild("Key") then
 	keyModel.PrimaryPart = part
 end
 if not prefabs:FindFirstChild("Door") then
-	local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
-	local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
-	local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
-	door.PrimaryPart = part
+        local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
+        local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(math.max(6, Config.CellSize - 2), Config.WallHeight, 1); part.Anchored = true; part.Parent = door
+        local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
+        door.PrimaryPart = part
 end
 
+local function resizePartToWallHeight(part, height)
+        if not (part and part:IsA("BasePart")) then
+                return
+        end
+        local cf = part.CFrame
+        part.Size = Vector3.new(part.Size.X, height, part.Size.Z)
+        part.CFrame = CFrame.fromMatrix(
+                Vector3.new(cf.Position.X, height / 2, cf.Position.Z),
+                cf.RightVector,
+                cf.UpVector,
+                cf.LookVector
+        )
+end
+
+local function applyWallHeight(newHeight)
+        if Config.WallHeight == newHeight then
+                return
+        end
+
+        Config.WallHeight = newHeight
+
+        local wallPrefab = prefabs:FindFirstChild("Wall")
+        if wallPrefab and wallPrefab:IsA("BasePart") then
+                wallPrefab.Size = Vector3.new(Config.CellSize, newHeight, 1)
+        end
+
+        local doorPrefab = prefabs:FindFirstChild("Door")
+        if doorPrefab then
+                resizePartToWallHeight(doorPrefab:FindFirstChild("Panel"), newHeight)
+                local primary = doorPrefab.PrimaryPart
+                if primary and primary:IsA("BasePart") then
+                        local cf = primary.CFrame
+                        doorPrefab:PivotTo(CFrame.fromMatrix(
+                                Vector3.new(cf.Position.X, newHeight / 2, cf.Position.Z),
+                                cf.RightVector,
+                                cf.UpVector,
+                                cf.LookVector
+                        ))
+                end
+        end
+
+        for _, descendant in ipairs(mazeFolder:GetDescendants()) do
+                if descendant:IsA("BasePart") and descendant.Name:match("^W_%d+_%d+_[NESW]$") then
+                        resizePartToWallHeight(descendant, newHeight)
+                end
+        end
+
+        if _G.KeyDoor_UpdateForWallHeight then
+                _G.KeyDoor_UpdateForWallHeight()
+        end
+end
+
+ToggleWallHeight.OnServerEvent:Connect(function()
+        local newHeight = Config.WallHeight > 8 and 8 or 24
+        applyWallHeight(newHeight)
+end)
+
+local MazeGen = require(Replicated.Modules.MazeGenerator)
+local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ANIM_DURATION = 12
 local POST_ENEMY_DELAY = 3
 
@@ -157,7 +221,6 @@ setupSkyLobby()
 
 local roundActive = false
 local phase = "IDLE"
-local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local PhaseValue = State:FindFirstChild("Phase") or Instance.new("StringValue", State); PhaseValue.Name = "Phase"; PhaseValue.Value = phase
 
 local playerStates = {}
