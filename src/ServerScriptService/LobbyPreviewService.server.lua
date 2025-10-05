@@ -86,10 +86,108 @@ local function computePreviewSlots()
     return slots
 end
 
-local previewSlots = computePreviewSlots()
+local previewSlots = {}
 
 local activePreviews = {}
 local activeAmbientSound = nil
+local trackedLobbyBase = nil
+local trackedBaseConnections = {}
+local monitorConnections = {}
+
+local function disconnectTrackedBase()
+    for _, conn in ipairs(trackedBaseConnections) do
+        conn:Disconnect()
+    end
+    table.clear(trackedBaseConnections)
+end
+
+local function updatePreviewSlot(record)
+    if not record or not record.model then
+        return
+    end
+    local slot = previewSlots[record.themeId]
+    if not slot then
+        return
+    end
+    local ok, err = pcall(function()
+        record.model:PivotTo(slot)
+    end)
+    if not ok then
+        warn(string.format("[LobbyPreviewService] Unable to pivot preview for '%s': %s", tostring(record.themeId), tostring(err)))
+    end
+end
+
+local function recomputePreviewSlots()
+    previewSlots = computePreviewSlots()
+    for _, record in pairs(activePreviews) do
+        updatePreviewSlot(record)
+    end
+end
+
+local function trackLobbyBase(base)
+    if base == trackedLobbyBase then
+        return
+    end
+    disconnectTrackedBase()
+    trackedLobbyBase = base
+    if base then
+        trackedBaseConnections[#trackedBaseConnections + 1] = base:GetPropertyChangedSignal("CFrame"):Connect(recomputePreviewSlots)
+        trackedBaseConnections[#trackedBaseConnections + 1] = base:GetPropertyChangedSignal("Size"):Connect(recomputePreviewSlots)
+        trackedBaseConnections[#trackedBaseConnections + 1] = base.AncestryChanged:Connect(function(_, parent)
+            if parent == nil and trackedLobbyBase == base then
+                trackLobbyBase(nil)
+            end
+        end)
+    end
+    recomputePreviewSlots()
+end
+
+local function monitorLobbyBase()
+    local function addMonitorConnection(conn)
+        monitorConnections[#monitorConnections + 1] = conn
+        return conn
+    end
+
+    local function tryFindBase()
+        local base = getLobbyBase()
+        if base then
+            trackLobbyBase(base)
+        end
+    end
+
+    tryFindBase()
+
+    local spawns = Workspace:FindFirstChild("Spawns")
+    if spawns then
+        addMonitorConnection(spawns.ChildAdded:Connect(function(child)
+            if child.Name == "LobbyBase" and child:IsA("BasePart") then
+                trackLobbyBase(child)
+            end
+        end))
+        addMonitorConnection(spawns.ChildRemoved:Connect(function(child)
+            if child == trackedLobbyBase then
+                trackLobbyBase(nil)
+            end
+        end))
+    end
+
+    addMonitorConnection(Workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Spawns" then
+            spawns = child
+            trackLobbyBase(getLobbyBase())
+            addMonitorConnection(child.ChildAdded:Connect(function(grandchild)
+                if grandchild.Name == "LobbyBase" and grandchild:IsA("BasePart") then
+                    trackLobbyBase(grandchild)
+                end
+            end))
+            addMonitorConnection(child.ChildRemoved:Connect(function(removed)
+                if removed == trackedLobbyBase then
+                    trackLobbyBase(nil)
+                end
+            end))
+        end
+    end))
+end
 
 local function createFallbackPreview(themeId)
     local theme = ThemeConfig.Get(themeId)
@@ -339,16 +437,6 @@ local function createPreviewRecord(themeId)
         end
     end
 
-    local slot = previewSlots[themeId]
-    if slot then
-        local ok, err = pcall(function()
-            container:PivotTo(slot)
-        end)
-        if not ok then
-            warn(string.format("[LobbyPreviewService] Unable to pivot preview for '%s': %s", tostring(themeId), tostring(err)))
-        end
-    end
-
     local ambient = cloneAmbientSound(themeAssets, assetFolder)
     if ambient then
         ambient.Name = string.format("%s_Ambient", tostring(themeId))
@@ -357,7 +445,7 @@ local function createPreviewRecord(themeId)
 
     local guiObjects = gatherGuiObjects(container)
 
-    return {
+    local record = {
         themeId = themeId,
         model = container,
         parts = parts,
@@ -366,6 +454,10 @@ local function createPreviewRecord(themeId)
         ambientVolume = ambient and ambient.Volume or nil,
         lighting = themeAssets and themeAssets.lighting or nil,
     }
+
+    updatePreviewSlot(record)
+
+    return record
 end
 
 local function ensurePreviewsExist()
@@ -379,6 +471,7 @@ local function ensurePreviewsExist()
             activePreviews[themeId] = createPreviewRecord(themeId)
         end
     end
+    recomputePreviewSlots()
 end
 
 local function setPreviewActive(record, isActive)
@@ -463,6 +556,7 @@ local function onThemeChanged()
     applyTheme(themeId)
 end
 
+monitorLobbyBase()
 ensurePreviewsExist()
 ThemeValue.Changed:Connect(onThemeChanged)
 onThemeChanged()
