@@ -190,6 +190,53 @@ local function ensureExitPadBarrier()
     return ensureBarrierPart(spawns, "ExitPadBarrier", size, cframe, exitPad)
 end
 
+local function resizePartToWallHeight(part)
+    if not (part and part:IsA("BasePart")) then
+        return
+    end
+    local cf = part.CFrame
+    part.Size = Vector3.new(part.Size.X, Config.WallHeight, part.Size.Z)
+    part.CFrame = CFrame.fromMatrix(
+        Vector3.new(cf.Position.X, Config.WallHeight / 2, cf.Position.Z),
+        cf.RightVector,
+        cf.UpVector,
+        cf.LookVector
+    )
+end
+
+local function updateExitDoorForWallHeight()
+    local maze = workspace:FindFirstChild("Maze")
+    if not maze then
+        return
+    end
+
+    local exitDoor = maze:FindFirstChild("ExitDoor")
+    if not exitDoor then
+        return
+    end
+
+    local panel = exitDoor:FindFirstChild("Panel")
+    resizePartToWallHeight(panel)
+
+    local primary = exitDoor.PrimaryPart or panel
+    if primary and primary:IsA("BasePart") then
+        local cf = primary.CFrame
+        exitDoor:PivotTo(CFrame.fromMatrix(
+            Vector3.new(cf.Position.X, Config.WallHeight / 2, cf.Position.Z),
+            cf.RightVector,
+            cf.UpVector,
+            cf.LookVector
+        ))
+    end
+
+    ensureExitBarrier(exitDoor, panel)
+end
+
+_G.KeyDoor_UpdateForWallHeight = function()
+    updateExitDoorForWallHeight()
+    ensureExitPadBarrier()
+end
+
 local function getInventoryOrWarn(context)
     local ok, inventory = pcall(InventoryProvider.getInventory)
     if not ok then

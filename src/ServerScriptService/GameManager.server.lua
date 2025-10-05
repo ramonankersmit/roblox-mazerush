@@ -14,6 +14,7 @@ local RoundState = ensureRemote("RoundState")
 local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
+local ToggleWallHeight = ensureRemote("ToggleWallHeight")
 
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
@@ -54,6 +55,63 @@ if not prefabs:FindFirstChild("Door") then
         local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
         door.PrimaryPart = part
 end
+
+local function resizePartToWallHeight(part, height)
+        if not (part and part:IsA("BasePart")) then
+                return
+        end
+        local cf = part.CFrame
+        part.Size = Vector3.new(part.Size.X, height, part.Size.Z)
+        part.CFrame = CFrame.fromMatrix(
+                Vector3.new(cf.Position.X, height / 2, cf.Position.Z),
+                cf.RightVector,
+                cf.UpVector,
+                cf.LookVector
+        )
+end
+
+local function applyWallHeight(newHeight)
+        if Config.WallHeight == newHeight then
+                return
+        end
+
+        Config.WallHeight = newHeight
+
+        local wallPrefab = prefabs:FindFirstChild("Wall")
+        if wallPrefab and wallPrefab:IsA("BasePart") then
+                wallPrefab.Size = Vector3.new(Config.CellSize, newHeight, 1)
+        end
+
+        local doorPrefab = prefabs:FindFirstChild("Door")
+        if doorPrefab then
+                resizePartToWallHeight(doorPrefab:FindFirstChild("Panel"), newHeight)
+                local primary = doorPrefab.PrimaryPart
+                if primary and primary:IsA("BasePart") then
+                        local cf = primary.CFrame
+                        doorPrefab:PivotTo(CFrame.fromMatrix(
+                                Vector3.new(cf.Position.X, newHeight / 2, cf.Position.Z),
+                                cf.RightVector,
+                                cf.UpVector,
+                                cf.LookVector
+                        ))
+                end
+        end
+
+        for _, descendant in ipairs(mazeFolder:GetDescendants()) do
+                if descendant:IsA("BasePart") and descendant.Name:match("^W_%d+_%d+_[NESW]$") then
+                        resizePartToWallHeight(descendant, newHeight)
+                end
+        end
+
+        if _G.KeyDoor_UpdateForWallHeight then
+                _G.KeyDoor_UpdateForWallHeight()
+        end
+end
+
+ToggleWallHeight.OnServerEvent:Connect(function()
+        local newHeight = Config.WallHeight > 8 and 8 or 24
+        applyWallHeight(newHeight)
+end)
 
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
