@@ -3,6 +3,10 @@ local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
+local Config = require(Replicated.Modules.RoundConfig)
+local MazeGen = require(Replicated.Modules.MazeGenerator)
+local MazeBuilder = require(Replicated.Modules.MazeBuilder)
+
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
 local function ensureRemote(name)
@@ -87,6 +91,8 @@ local function layoutExitRoom()
         local southRight = ensureExitRoomPart("WallSouthRight")
         southRight.Size = Vector3.new(sideWidth, wallHeight, 1)
         southRight.CFrame = CFrame.new(centerX + (opening / 2 + southRight.Size.X / 2), wallHeight / 2, mazeDepth)
+
+        exitPad.Position = Vector3.new(centerX, 1, mazeDepth + roomDepth - (Config.CellSize / 2))
 end
 
 -- Prefabs
@@ -111,9 +117,6 @@ if not prefabs:FindFirstChild("Door") then
 	door.PrimaryPart = part
 end
 
-local Config = require(Replicated.Modules.RoundConfig)
-local MazeGen = require(Replicated.Modules.MazeGenerator)
-local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ANIM_DURATION = 12
 local POST_ENEMY_DELAY = 3
 
@@ -191,15 +194,6 @@ local function placeExit()
         end
         layoutExitRoom()
 
-        local mazeWidth = Config.GridWidth * Config.CellSize
-        local mazeDepth = Config.GridHeight * Config.CellSize
-
-        local exitRoomDepth = Config.CellSize * EXIT_ROOM_DEPTH_CELLS
-        local exitPadZ = mazeDepth + exitRoomDepth - (Config.CellSize / 2)
-        local exitPadX = mazeWidth - (Config.CellSize / 2)
-
-        exitPad.Position = Vector3.new(exitPadX, 1, exitPadZ)
-
         local topWallName = string.format("W_%d_%d_S", Config.GridWidth, Config.GridHeight)
         local northWall = mazeFolder:FindFirstChild(topWallName)
         if northWall then
@@ -229,6 +223,7 @@ local function runRound()
         MazeBuilder.Clear(mazeFolder)
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        layoutExitRoom()
         MazeBuilder.AnimateRemoveWalls(grid, mazeFolder, math.max(Config.PrepTime, 1))
 
         for t = Config.PrepTime, 1, -1 do
