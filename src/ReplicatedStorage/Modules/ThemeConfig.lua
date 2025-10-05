@@ -147,7 +147,6 @@ local ThemeList = {
                         },
                 },
         },
-    },
 }
 
 local ThemeMap = {}
