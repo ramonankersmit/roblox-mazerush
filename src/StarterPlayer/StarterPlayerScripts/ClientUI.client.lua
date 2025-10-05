@@ -1,15 +1,42 @@
 local Players = game:GetService("Players")
 local Replicated = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
 local player = Players.LocalPlayer
 local Remotes = Replicated:WaitForChild("Remotes")
 local RoundState = Remotes:WaitForChild("RoundState")
 local Countdown = Remotes:WaitForChild("Countdown")
 local Pickup = Remotes:WaitForChild("Pickup")
+local DoorOpened = Remotes:WaitForChild("DoorOpened")
 local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local ThemeConfig = require(game.ReplicatedStorage.Modules.ThemeConfig)
+
+local SOUND_IDS = {
+        Pickup = "rbxassetid://138186576",
+        DoorOpened = "rbxassetid://138210320",
+        Victory = "rbxassetid://1845743407",
+}
+
+local function playUISound(soundId)
+        if not soundId then
+                return
+        end
+
+        local sound = Instance.new("Sound")
+        sound.Name = "MazeRushUISound"
+        sound.SoundId = soundId
+        sound.Volume = 1
+        sound.PlayOnRemove = false
+        sound.Parent = SoundService
+
+        SoundService:PlayLocalSound(sound)
+
+        sound.Ended:Connect(function()
+                sound:Destroy()
+        end)
+end
 
 local gui = Instance.new("ScreenGui"); gui.Name = "MazeUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
 local scoreboardFrame = Instance.new("Frame")
@@ -291,6 +318,49 @@ local inventoryState = {
         hasKeyFinder = false,
 }
 
+local exitPadTouchedConnection
+local exitVictoryTriggered = false
+
+local function disconnectExitPadListener()
+        if exitPadTouchedConnection then
+                exitPadTouchedConnection:Disconnect()
+                exitPadTouchedConnection = nil
+        end
+end
+
+local function connectExitPadListener()
+        disconnectExitPadListener()
+        exitVictoryTriggered = false
+
+        local spawns = workspace:FindFirstChild("Spawns")
+        if not spawns then
+                return
+        end
+
+        local exitPad = spawns:FindFirstChild("ExitPad")
+        if not (exitPad and exitPad:IsA("BasePart")) then
+                return
+        end
+
+        exitPadTouchedConnection = exitPad.Touched:Connect(function(hit)
+                if exitVictoryTriggered then
+                        return
+                end
+
+                local character = player.Character
+                if not character then
+                        return
+                end
+
+                if hit and hit:IsDescendantOf(character) then
+                        exitVictoryTriggered = true
+                        playUISound(SOUND_IDS.Victory)
+                end
+        end)
+end
+
+task.defer(connectExitPadListener)
+
 RoundState.OnClientEvent:Connect(function(state)
         currentRoundState = tostring(state)
         if currentRoundState ~= "ACTIVE" and eliminationCameraToken then
@@ -303,6 +373,14 @@ RoundState.OnClientEvent:Connect(function(state)
         if updateMinimapVisibility then
                 updateMinimapVisibility()
         end
+
+        if currentRoundState == "ACTIVE" then
+                exitVictoryTriggered = false
+                connectExitPadListener()
+        elseif currentRoundState == "IDLE" then
+                exitVictoryTriggered = false
+                disconnectExitPadListener()
+        end
 end)
 AliveStatus.OnClientEvent:Connect(updateScoreboard)
 PlayerEliminatedRemote.OnClientEvent:Connect(function(info)
@@ -314,12 +392,18 @@ PlayerEliminatedRemote.OnClientEvent:Connect(function(info)
         end
 end)
 Pickup.OnClientEvent:Connect(function(item)
+        playUISound(SOUND_IDS.Pickup)
+
         if item == "Key" then
                 -- The server immediately sends an authoritative inventory update
                 -- after awarding a key. Avoid updating the local count here so
                 -- we don't double-count when that update arrives.
                 return
         end
+end)
+
+DoorOpened.OnClientEvent:Connect(function()
+        playUISound(SOUND_IDS.DoorOpened)
 end)
 local InventoryUpdate = Replicated.Remotes:WaitForChild("InventoryUpdate")
 
