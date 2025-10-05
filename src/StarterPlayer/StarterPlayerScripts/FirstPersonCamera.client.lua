@@ -148,11 +148,43 @@ local function enableFirstPerson()
     setCameraSubject(player.Character)
 end
 
+local function snapCameraBehindCharacter()
+    local camera = workspace.CurrentCamera
+    if not camera then
+        return
+    end
+
+    local humanoid = getHumanoid()
+    local root = getHumanoidRootPart()
+    if not humanoid or not root then
+        return
+    end
+
+    local desiredDistance = (originalMinZoom + originalMaxZoom) * 0.5
+    if desiredDistance < originalMinZoom then
+        desiredDistance = originalMinZoom
+    elseif desiredDistance > originalMaxZoom then
+        desiredDistance = originalMaxZoom
+    end
+
+    local heightOffset = math.clamp(desiredDistance * 0.4, 2, 8)
+
+    local lookAtPosition = root.Position + Vector3.new(0, humanoid.HipHeight or 0, 0)
+    local cameraPosition = lookAtPosition - root.CFrame.LookVector * desiredDistance + Vector3.new(0, heightOffset, 0)
+
+    camera.CameraType = Enum.CameraType.Custom
+    camera.CameraSubject = humanoid
+    camera.CFrame = CFrame.new(cameraPosition, lookAtPosition)
+end
+
 local function disableFirstPerson()
     if not firstPersonActive then
         player.CameraMode = originalMode
         player.CameraMinZoomDistance = originalMinZoom
         player.CameraMaxZoomDistance = originalMaxZoom
+        if not shouldLockFirstPerson() then
+            snapCameraBehindCharacter()
+        end
         return
     end
 
@@ -160,6 +192,9 @@ local function disableFirstPerson()
     player.CameraMode = originalMode
     player.CameraMinZoomDistance = originalMinZoom
     player.CameraMaxZoomDistance = originalMaxZoom
+    if not shouldLockFirstPerson() then
+        snapCameraBehindCharacter()
+    end
 end
 
 local function disconnectCharacterConnections()
