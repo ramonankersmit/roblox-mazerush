@@ -412,26 +412,47 @@ local function getHRP()
 end
 
 local function findExitTarget()
+        local spawns = workspace:FindFirstChild("Spawns")
+        local exitPad = spawns and spawns:FindFirstChild("ExitPad")
+
         local maze = workspace:FindFirstChild("Maze")
         if maze then
                 local door = maze:FindFirstChild("ExitDoor")
                 if door then
                         local primary = door.PrimaryPart or door:FindFirstChild("Panel")
                         if primary and primary:IsA("BasePart") then
-                                return primary
+                                local offsetDir = primary.CFrame.LookVector
+
+                                if exitPad and exitPad:IsA("BasePart") then
+                                        local toPad = exitPad.Position - primary.Position
+                                        if toPad.Magnitude > 0 then
+                                                local look = primary.CFrame.LookVector
+                                                if look:Dot(toPad) > 0 then
+                                                        offsetDir = -look
+                                                else
+                                                        offsetDir = look
+                                                end
+                                        end
+                                end
+
+                                if offsetDir.Magnitude > 0 then
+                                        offsetDir = offsetDir.Unit
+                                else
+                                        offsetDir = Vector3.new(0, 0, 1)
+                                end
+
+                                local offsetDistance = math.max(primary.Size.Z, 4)
+                                local targetPosition = primary.Position + offsetDir * offsetDistance
+                                return primary, targetPosition
                         end
                 end
         end
 
-        local spawns = workspace:FindFirstChild("Spawns")
-        if spawns then
-                local exitPad = spawns:FindFirstChild("ExitPad")
-                if exitPad and exitPad:IsA("BasePart") then
-                        return exitPad
-                end
+        if exitPad and exitPad:IsA("BasePart") then
+                return exitPad, exitPad.Position
         end
 
-        return nil
+        return nil, nil
 end
 
 local function findNearestKeyTarget(fromPos)
@@ -577,9 +598,9 @@ local function startExitFinderLoop(token)
                                 continue
                         end
 
-                        local exitTarget = findExitTarget()
-                        if exitTarget then
-                                local points = computePathPoints(hrp.Position, exitTarget.Position)
+                        local exitTarget, exitPosition = findExitTarget()
+                        if exitTarget and exitPosition then
+                                local points = computePathPoints(hrp.Position, exitPosition)
                                 if exitFinderEnabled and exitUpdateToken == token and points and #points >= 2 then
                                         local key = trailKey(points)
                                         if exitDistanceLbl then
@@ -952,8 +973,8 @@ game:GetService("RunService").Heartbeat:Connect(function()
 	if not hrp then return end
 
         dotPlayer.Position = worldToMap(hrp.Position)
-        local exit = findExitTarget()
-        if exit then dotExit.Visible = true; dotExit.Position = worldToMap(exit.Position) else dotExit.Visible = false end
+        local exitTarget = select(1, findExitTarget())
+        if exitTarget then dotExit.Visible = true; dotExit.Position = worldToMap(exitTarget.Position) else dotExit.Visible = false end
 
 	for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
 	for i, h in ipairs(hunters()) do
