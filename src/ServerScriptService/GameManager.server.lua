@@ -3,6 +3,10 @@ local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
+local Config = require(Replicated.Modules.RoundConfig)
+local MazeGen = require(Replicated.Modules.MazeGenerator)
+local MazeBuilder = require(Replicated.Modules.MazeBuilder)
+
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
 local function ensureRemote(name)
@@ -29,6 +33,68 @@ local lobbyBase = spawns:FindFirstChild("LobbyBase") or Instance.new("Part", spa
 
 -- Exit pad
 local exitPad = spawns:FindFirstChild("ExitPad") or Instance.new("Part", spawns); exitPad.Name = "ExitPad"; exitPad.Anchored = true; exitPad.Size = Vector3.new(4,1,4)
+local exitRoom = spawns:FindFirstChild("ExitRoom") or Instance.new("Model", spawns); exitRoom.Name = "ExitRoom"
+
+local EXIT_ROOM_WIDTH_CELLS = 2
+local EXIT_ROOM_DEPTH_CELLS = 1.5
+local EXIT_DOOR_CLEARANCE = 6
+
+local function ensureExitRoomPart(name)
+        local part = exitRoom:FindFirstChild(name)
+        if not part then
+                part = Instance.new("Part")
+                part.Name = name
+                part.Anchored = true
+                part.CanCollide = true
+                part.Parent = exitRoom
+        end
+        part.Material = Enum.Material.Concrete
+        part.Color = Color3.fromRGB(60, 60, 60)
+        part.Transparency = 0
+        part.Reflectance = 0
+        return part
+end
+
+local function layoutExitRoom()
+        local mazeWidth = Config.GridWidth * Config.CellSize
+        local mazeDepth = Config.GridHeight * Config.CellSize
+        local roomWidth = Config.CellSize * EXIT_ROOM_WIDTH_CELLS
+        local roomDepth = Config.CellSize * EXIT_ROOM_DEPTH_CELLS
+        local wallHeight = Config.WallHeight
+
+        local centerX = mazeWidth - (Config.CellSize / 2)
+        local centerZ = mazeDepth + (roomDepth / 2)
+
+        local floor = ensureExitRoomPart("Floor")
+        floor.Size = Vector3.new(roomWidth, 1, roomDepth)
+        floor.Position = Vector3.new(centerX, 0, centerZ)
+
+        local northWall = ensureExitRoomPart("WallNorth")
+        northWall.Size = Vector3.new(roomWidth, wallHeight, 1)
+        northWall.CFrame = CFrame.new(centerX, wallHeight / 2, mazeDepth + roomDepth)
+
+        local eastWall = ensureExitRoomPart("WallEast")
+        eastWall.Size = Vector3.new(1, wallHeight, roomDepth)
+        eastWall.CFrame = CFrame.new(centerX + roomWidth / 2, wallHeight / 2, centerZ)
+
+        local westWall = ensureExitRoomPart("WallWest")
+        westWall.Size = Vector3.new(1, wallHeight, roomDepth)
+        westWall.CFrame = CFrame.new(centerX - roomWidth / 2, wallHeight / 2, centerZ)
+
+        local maxOpening = math.max(roomWidth - 2, 2)
+        local opening = math.clamp(EXIT_DOOR_CLEARANCE, 2, maxOpening)
+        local sideWidth = math.max((roomWidth - opening) / 2, 0.5)
+
+        local southLeft = ensureExitRoomPart("WallSouthLeft")
+        southLeft.Size = Vector3.new(sideWidth, wallHeight, 1)
+        southLeft.CFrame = CFrame.new(centerX - (opening / 2 + southLeft.Size.X / 2), wallHeight / 2, mazeDepth)
+
+        local southRight = ensureExitRoomPart("WallSouthRight")
+        southRight.Size = Vector3.new(sideWidth, wallHeight, 1)
+        southRight.CFrame = CFrame.new(centerX + (opening / 2 + southRight.Size.X / 2), wallHeight / 2, mazeDepth)
+
+        exitPad.Position = Vector3.new(centerX, 1, mazeDepth + roomDepth - (Config.CellSize / 2))
+end
 
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
@@ -189,7 +255,14 @@ local function placeExit()
                 exitTouchedConnection:Disconnect()
                 exitTouchedConnection = nil
         end
-        exitPad.Position = Vector3.new(Config.GridWidth * Config.CellSize - (Config.CellSize/2), 1, Config.GridHeight * Config.CellSize - (Config.CellSize/2))
+        layoutExitRoom()
+
+        local topWallName = string.format("W_%d_%d_S", Config.GridWidth, Config.GridHeight)
+        local northWall = mazeFolder:FindFirstChild(topWallName)
+        if northWall then
+                northWall:Destroy()
+        end
+
         exitTouchedConnection = exitPad.Touched:Connect(function(hit)
                 local humanoid = hit.Parent and hit.Parent:FindFirstChildOfClass("Humanoid")
                 if humanoid then
@@ -213,6 +286,7 @@ local function runRound()
         MazeBuilder.Clear(mazeFolder)
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        layoutExitRoom()
         MazeBuilder.AnimateRemoveWalls(grid, mazeFolder, math.max(Config.PrepTime, 1))
 
         for t = Config.PrepTime, 1, -1 do
