@@ -18,11 +18,9 @@ local ThemeList = {
         exitMaterial = Enum.Material.Neon,
         exitTransparency = 0,
         music = {
-            soundId = "rbxassetid://1846720915",
+            soundId = "rbxassetid://119338609842850",
             soundIds = {
-                "rbxassetid://1846720915",
-                "rbxassetid://9042621617",
-                "rbxassetid://183924111",
+                "rbxassetid://119338609842850",
             },
             volume = 0.4,
             playbackSpeed = 1,
@@ -45,11 +43,9 @@ local ThemeList = {
         exitMaterial = Enum.Material.Neon,
         exitTransparency = 0,
         music = {
-            soundId = "rbxassetid://1840616334",
+            soundId = "rbxassetid://89091061200191",
             soundIds = {
-                "rbxassetid://1840616334",
-                "rbxassetid://9126758128",
-                "rbxassetid://1846207246",
+                "rbxassetid://89091061200191",
             },
             volume = 0.35,
             playbackSpeed = 1,
@@ -72,11 +68,9 @@ local ThemeList = {
         exitMaterial = Enum.Material.Glass,
         exitTransparency = 0.1,
         music = {
-            soundId = "rbxassetid://1842651024",
+            soundId = "rbxassetid://78060248797702",
             soundIds = {
-                "rbxassetid://1842651024",
-                "rbxassetid://9042651293",
-                "rbxassetid://1847187560",
+                "rbxassetid://78060248797702",
             },
             volume = 0.32,
             playbackSpeed = 1,
@@ -97,11 +91,9 @@ local ThemeList = {
         exitMaterial = Enum.Material.Neon,
         exitTransparency = 0.25,
         music = {
-            soundId = "rbxassetid://9125582673",
+            soundId = "rbxassetid://138011222529058",
             soundIds = {
-                "rbxassetid://9125582673",
-                "rbxassetid://9042597367",
-                "rbxassetid://1840824792",
+                "rbxassetid://138011222529058",
             },
             volume = 0.28,
             playbackSpeed = 1,
