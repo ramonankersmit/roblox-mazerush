@@ -1,9 +1,11 @@
+local ThemeConfig = require(script.Parent.ThemeConfig)
+
 local Config = {
-	GridWidth = 20,
-	GridHeight = 20,
-	CellSize = 8,
-	WallHeight = 8,
-	Theme = "Spooky",
+        GridWidth = 20,
+        GridHeight = 20,
+        CellSize = 8,
+        WallHeight = 8,
+        Theme = ThemeConfig.Default,
 	RoundTime = 240,
 	PrepTime = 15, -- (used for UI only; actual build animation ~12s then delays)
         EnemyCount = 2,

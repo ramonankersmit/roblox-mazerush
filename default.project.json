@@ -36,6 +36,9 @@
         },
         "StartGameRequest": {
           "$className": "RemoteEvent"
+        },
+        "ThemeVote": {
+          "$className": "RemoteEvent"
         }
       },
       "State": {
@@ -50,6 +53,12 @@
           "$className": "StringValue",
           "$properties": {
             "Value": "IDLE"
+          }
+        },
+        "Theme": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "Spooky"
           }
         }
       }

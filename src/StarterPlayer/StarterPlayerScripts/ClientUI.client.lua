@@ -549,18 +549,252 @@ end)
 local LobbyState = Replicated.Remotes:WaitForChild("LobbyState")
 local ToggleReady = Replicated.Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Replicated.Remotes:WaitForChild("StartGameRequest")
+local ThemeVote = Replicated.Remotes:WaitForChild("ThemeVote")
 
-local lobby = Instance.new("Frame"); lobby.Name = "Lobby"; lobby.Size = UDim2.new(0, 360, 0, 120)
-lobby.Position = UDim2.new(0.5, -180, 0, 10); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
+local lobby = Instance.new("Frame"); lobby.Name = "Lobby"; lobby.Size = UDim2.new(0, 380, 0, 320)
+lobby.Position = UDim2.new(0.5, -190, 0, 10); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
 local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.Text = "Lobby"; title.BackgroundTransparency = 1; title.Parent = lobby
-local listLbl = Instance.new("TextLabel"); listLbl.Size = UDim2.new(1, -10, 0, 48); listLbl.Position = UDim2.new(0,5,0,28)
+local listLbl = Instance.new("TextLabel"); listLbl.Size = UDim2.new(1, -12, 0, 76); listLbl.Position = UDim2.new(0,6,0,32)
 listLbl.TextXAlignment = Enum.TextXAlignment.Left; listLbl.BackgroundTransparency = 0.6; listLbl.Text = ""; listLbl.Parent = lobby
 
-local btnReady = Instance.new("TextButton"); btnReady.Size = UDim2.new(0.5, -8, 0, 32); btnReady.Position = UDim2.new(0, 6, 0, 80); btnReady.Text = "Ready"; btnReady.Parent = lobby
-local btnStart = Instance.new("TextButton"); btnStart.Size = UDim2.new(0.5, -8, 0, 32); btnStart.Position = UDim2.new(0.5, 2, 0, 80); btnStart.Text = "Start Game"; btnStart.Parent = lobby
+local themePanel = Instance.new("Frame"); themePanel.Name = "ThemePanel"; themePanel.BackgroundTransparency = 0.35
+themePanel.BackgroundColor3 = Color3.fromRGB(20, 20, 24); themePanel.BorderSizePixel = 0
+themePanel.Position = UDim2.new(0,6,0,116); themePanel.Size = UDim2.new(1,-12,1,-152); themePanel.Parent = lobby
+themePanel.Visible = false; themePanel.ClipsDescendants = true
+
+local themeHeader = Instance.new("TextLabel"); themeHeader.BackgroundTransparency = 1; themeHeader.Text = "Kies een thema"
+themeHeader.Font = Enum.Font.GothamBold; themeHeader.TextSize = 20
+themeHeader.TextXAlignment = Enum.TextXAlignment.Left; themeHeader.Position = UDim2.new(0,8,0,6)
+themeHeader.Size = UDim2.new(1,-16,0,26); themeHeader.TextColor3 = Color3.fromRGB(255,255,255); themeHeader.Parent = themePanel
+
+local winningLabel = Instance.new("TextLabel"); winningLabel.BackgroundTransparency = 1
+winningLabel.TextXAlignment = Enum.TextXAlignment.Left; winningLabel.Font = Enum.Font.Gotham
+winningLabel.TextSize = 16; winningLabel.Position = UDim2.new(0,8,0,34)
+winningLabel.Size = UDim2.new(1,-16,0,20); winningLabel.TextColor3 = Color3.fromRGB(220,220,220)
+winningLabel.Text = "Volgende ronde: ?"; winningLabel.Parent = themePanel
+
+local themeCountdown = Instance.new("TextLabel"); themeCountdown.BackgroundTransparency = 1
+themeCountdown.TextXAlignment = Enum.TextXAlignment.Right; themeCountdown.Font = Enum.Font.Gotham
+themeCountdown.TextSize = 16; themeCountdown.Position = UDim2.new(0,8,0,34)
+themeCountdown.Size = UDim2.new(1,-16,0,20); themeCountdown.TextColor3 = Color3.fromRGB(220,220,220)
+themeCountdown.Text = "Stemmen..."; themeCountdown.Parent = themePanel
+
+local themeOptions = Instance.new("Frame"); themeOptions.BackgroundTransparency = 1
+themeOptions.Position = UDim2.new(0,6,0,60); themeOptions.Size = UDim2.new(1,-12,1,-70)
+themeOptions.Parent = themePanel
+
+local themeLayout = Instance.new("UIListLayout"); themeLayout.Parent = themeOptions
+themeLayout.SortOrder = Enum.SortOrder.LayoutOrder; themeLayout.Padding = UDim.new(0,4)
+
+local btnReady = Instance.new("TextButton"); btnReady.Size = UDim2.new(0.5, -12, 0, 36); btnReady.AnchorPoint = Vector2.new(0,1)
+btnReady.Position = UDim2.new(0, 6, 1, -8); btnReady.Text = "Ready"; btnReady.Parent = lobby
+local btnStart = Instance.new("TextButton"); btnStart.Size = UDim2.new(0.5, -12, 0, 36); btnStart.AnchorPoint = Vector2.new(1,1)
+btnStart.Position = UDim2.new(1, -6, 1, -8); btnStart.Text = "Start Game"; btnStart.Parent = lobby
+
+local themeButtons = {}
+local activeThemeVote = false
+
+local function ensureThemeButton(themeId)
+        local entry = themeButtons[themeId]
+        if entry then return entry end
+
+        local btn = Instance.new("TextButton")
+        btn.Name = themeId
+        btn.Size = UDim2.new(1, 0, 0, 54)
+        btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+        btn.AutoButtonColor = false
+        btn.BorderSizePixel = 0
+        btn.Text = ""
+        btn.Parent = themeOptions
+        btn.ClipsDescendants = true
+        btn.ZIndex = 2
+
+        local fill = Instance.new("Frame")
+        fill.Name = "Fill"
+        fill.BorderSizePixel = 0
+        fill.BackgroundTransparency = 0.7
+        fill.AnchorPoint = Vector2.new(0,0.5)
+        fill.Position = UDim2.new(0,0,0.5,0)
+        fill.Size = UDim2.new(0,0,1,0)
+        fill.Parent = btn
+        fill.ZIndex = 1
+
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.BackgroundTransparency = 1
+        label.Position = UDim2.new(0,8,0,4)
+        label.Size = UDim2.new(1,-16,0,22)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 18
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextColor3 = Color3.fromRGB(255,255,255)
+        label.Text = ""
+        label.Parent = btn
+        label.ZIndex = 3
+
+        local desc = Instance.new("TextLabel")
+        desc.Name = "Desc"
+        desc.BackgroundTransparency = 1
+        desc.Position = UDim2.new(0,8,0,28)
+        desc.Size = UDim2.new(1,-16,0,18)
+        desc.Font = Enum.Font.Gotham
+        desc.TextSize = 14
+        desc.TextXAlignment = Enum.TextXAlignment.Left
+        desc.TextColor3 = Color3.fromRGB(210,210,210)
+        desc.TextWrapped = true
+        desc.Text = ""
+        desc.Parent = btn
+        desc.ZIndex = 3
+
+        local leader = Instance.new("TextLabel")
+        leader.Name = "Leader"
+        leader.BackgroundTransparency = 1
+        leader.AnchorPoint = Vector2.new(1,0)
+        leader.Position = UDim2.new(1,-8,0,6)
+        leader.Size = UDim2.new(0,100,0,18)
+        leader.Font = Enum.Font.GothamBold
+        leader.TextSize = 14
+        leader.TextColor3 = Color3.fromRGB(255, 220, 130)
+        leader.TextXAlignment = Enum.TextXAlignment.Right
+        leader.Text = "Volgende"
+        leader.Visible = false
+        leader.Parent = btn
+        leader.ZIndex = 4
+
+        local stroke = Instance.new("UIStroke")
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Thickness = 1
+        stroke.Transparency = 0.6
+        stroke.Color = Color3.fromRGB(255,255,255)
+        stroke.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+                if not activeThemeVote then return end
+                ThemeVote:FireServer(themeId)
+        end)
+
+        entry = {
+                button = btn,
+                fill = fill,
+                label = label,
+                desc = desc,
+                leader = leader,
+                stroke = stroke,
+        }
+        themeButtons[themeId] = entry
+        return entry
+end
+
+local function renderThemeState(themeState)
+        if not themeState or not themeState.options then
+                themePanel.Visible = false
+                activeThemeVote = false
+                return
+        end
+
+        if not lobby.Visible then
+                themePanel.Visible = false
+                activeThemeVote = themeState.active == true
+                return
+        end
+
+	themePanel.Visible = true
+	activeThemeVote = themeState.active == true
+
+	local totalVotes = themeState.totalVotes or 0
+	local votesByPlayer = themeState.votesByPlayer or {}
+	local myVote = votesByPlayer[tostring(player.UserId)] or votesByPlayer[player.UserId]
+	local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
+
+	if activeThemeVote then
+		themeCountdown.Text = string.format("Stem nog %ds", endsIn)
+		themeCountdown.TextColor3 = endsIn <= 5 and Color3.fromRGB(255, 120, 120) or Color3.fromRGB(220, 220, 220)
+	else
+		themeCountdown.Text = "Stemming afgerond"
+		themeCountdown.TextColor3 = Color3.fromRGB(180, 180, 180)
+	end
+
+	local votesLookup = {}
+	local optionColors = {}
+	local optionNames = {}
+	for _, option in ipairs(themeState.options) do
+		local color = option.color or Color3.fromRGB(160,160,160)
+		votesLookup[option.id] = option.votes or 0
+		optionColors[option.id] = color
+		optionNames[option.id] = option.name or option.id
+	end
+
+	local leaderId = themeState.current
+	local leaderVotes = leaderId and votesLookup[leaderId] or -1
+	if leaderVotes == nil then leaderVotes = -1 end
+	for _, option in ipairs(themeState.options) do
+		local votes = votesLookup[option.id] or 0
+		if votes > leaderVotes then
+			leaderId = option.id
+			leaderVotes = votes
+		end
+	end
+	if not leaderId and #themeState.options > 0 then
+		leaderId = themeState.options[1].id
+	end
+	local highlightId = activeThemeVote and leaderId or (themeState.current or leaderId)
+
+	local seen = {}
+	for index, option in ipairs(themeState.options) do
+		local entry = ensureThemeButton(option.id)
+		entry.button.LayoutOrder = index
+
+		local votes = votesLookup[option.id] or 0
+		local color = optionColors[option.id] or Color3.fromRGB(160,160,160)
+		local ratio = (totalVotes > 0) and math.clamp(votes / totalVotes, 0, 1) or 0
+
+		entry.fill.BackgroundColor3 = color
+		entry.fill.Size = UDim2.new(ratio, 0, 1, 0)
+		entry.fill.BackgroundTransparency = ratio > 0 and 0.4 or 0.7
+
+		entry.label.Text = string.format("%s (%d)", optionNames[option.id] or option.id, votes)
+		entry.desc.Text = option.description or ""
+
+		entry.button.AutoButtonColor = activeThemeVote
+		entry.button.Active = activeThemeVote
+		entry.button.Selectable = activeThemeVote
+		entry.button.BackgroundColor3 = myVote == option.id and Color3.fromRGB(55, 65, 110) or Color3.fromRGB(28, 28, 34)
+		entry.stroke.Color = myVote == option.id and color or Color3.fromRGB(255,255,255)
+		entry.stroke.Transparency = myVote == option.id and 0.2 or 0.6
+
+		entry.leader.Visible = highlightId == option.id
+		entry.leader.Text = activeThemeVote and "Leidt" or "Gekozen"
+
+		seen[option.id] = true
+	end
+
+	local labelId = highlightId
+	if activeThemeVote then
+		labelId = leaderId or labelId
+	else
+		labelId = themeState.current or labelId
+	end
+	if not labelId and #themeState.options > 0 then
+		labelId = themeState.options[1].id
+	end
+        local labelName = optionNames[labelId] or labelId or "?"
+        if not activeThemeVote and themeState.currentName then
+                labelName = themeState.currentName
+        end
+
+        winningLabel.Text = activeThemeVote and string.format("Voorlopige leider: %s", labelName) or string.format("Volgende ronde: %s", labelName)
+	winningLabel.TextColor3 = optionColors[labelId] or Color3.fromRGB(220,220,220)
+
+	for themeId, entry in pairs(themeButtons) do
+		if not seen[themeId] then
+			entry.button:Destroy()
+			themeButtons[themeId] = nil
+		end
+	end
+end
 
 btnReady.MouseButton1Click:Connect(function()
-	ToggleReady:FireServer()
+        ToggleReady:FireServer()
 end)
 
 btnStart.MouseButton1Click:Connect(function()
@@ -568,7 +802,10 @@ btnStart.MouseButton1Click:Connect(function()
 end)
 
 local function renderLobby(state)
-	if not state then return end
+	if not state then
+		renderThemeState(nil)
+		return
+	end
 	local lines = {}
 	table.insert(lines, ("Phase: %s  |  Ready: %d/%d"):format(state.phase, state.readyCount or 0, state.total or 0))
 	table.insert(lines, "Players:")
@@ -578,10 +815,16 @@ local function renderLobby(state)
 	listLbl.Text = table.concat(lines, "\n")
 
 	-- Show/hide panel based on phase: visible in IDLE/PREP
-	lobby.Visible = (state.phase == "IDLE" or state.phase == "PREP")
+	local showLobby = (state.phase == "IDLE" or state.phase == "PREP")
+	lobby.Visible = showLobby
+
 	-- Buttons disabled during ACTIVE/END
-	btnReady.AutoButtonColor = (state.phase == "IDLE" or state.phase == "PREP")
+	btnReady.AutoButtonColor = showLobby
+	btnReady.Active = showLobby
 	btnStart.AutoButtonColor = (state.phase == "IDLE")
+	btnStart.Active = (state.phase == "IDLE")
+
+	renderThemeState(state.themes)
 end
 
 LobbyState.OnClientEvent:Connect(renderLobby)

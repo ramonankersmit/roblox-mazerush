@@ -14,10 +14,20 @@ local RoundState = ensureRemote("RoundState")
 local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
+ensureRemote("ThemeVote")
+
+local ThemeConfig = require(Replicated.Modules.ThemeConfig)
+local Config = require(Replicated.Modules.RoundConfig)
 
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
 algoValue.Name = "MazeAlgorithm"; algoValue.Value = "DFS"
+local themeValue = State:FindFirstChild("Theme") or Instance.new("StringValue", State)
+themeValue.Name = "Theme"
+if themeValue.Value == "" then
+        themeValue.Value = ThemeConfig.Default
+end
+Config.Theme = themeValue.Value ~= "" and themeValue.Value or ThemeConfig.Default
 
 local mazeFolder = Workspace:FindFirstChild("Maze") or Instance.new("Folder", Workspace); mazeFolder.Name = "Maze"
 local spawns = Workspace:FindFirstChild("Spawns") or Instance.new("Folder", Workspace); spawns.Name = "Spawns"
@@ -45,13 +55,11 @@ if not prefabs:FindFirstChild("Key") then
 	keyModel.PrimaryPart = part
 end
 if not prefabs:FindFirstChild("Door") then
-	local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
+        local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
 	local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
 	local locked = Instance.new("BoolValue"); locked.Name = "Locked"; locked.Value = true; locked.Parent = door
 	door.PrimaryPart = part
 end
-
-local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ANIM_DURATION = 12
@@ -87,6 +95,58 @@ local function setupSkyLobby()
 	playerSpawn.Enabled = true
 end
 setupSkyLobby()
+
+
+local function applyTheme(themeId)
+        local data = ThemeConfig.Themes[themeId] or ThemeConfig.Themes[ThemeConfig.Default]
+        if not data then return end
+
+        Config.Theme = data.id or themeId
+
+        local wallPrefab = prefabs:FindFirstChild("Wall")
+        if wallPrefab then
+                if data.wallColor then wallPrefab.Color = data.wallColor end
+                if data.wallMaterial then wallPrefab.Material = data.wallMaterial end
+        end
+
+        local floorPrefab = prefabs:FindFirstChild("Floor")
+        if floorPrefab then
+                if data.floorColor then floorPrefab.Color = data.floorColor end
+                if data.floorMaterial then floorPrefab.Material = data.floorMaterial end
+        end
+
+        if lobbyBase then
+                if data.lobbyColor then lobbyBase.Color = data.lobbyColor end
+                lobbyBase.Material = data.lobbyMaterial or Enum.Material.SmoothPlastic
+        end
+
+        if exitPad then
+                if data.exitColor then exitPad.Color = data.exitColor end
+                exitPad.Material = data.exitMaterial or Enum.Material.Neon
+        end
+
+        for _, part in ipairs(mazeFolder:GetChildren()) do
+                if part:IsA("BasePart") then
+                        if part.Name:match("^W_") then
+                                if data.wallColor then part.Color = data.wallColor end
+                                if data.wallMaterial then part.Material = data.wallMaterial end
+                        else
+                                if data.floorColor then part.Color = data.floorColor end
+                                if data.floorMaterial then part.Material = data.floorMaterial end
+                        end
+                end
+        end
+end
+
+local function resolvedThemeValue()
+        return themeValue.Value ~= "" and themeValue.Value or ThemeConfig.Default
+end
+
+applyTheme(resolvedThemeValue())
+
+themeValue:GetPropertyChangedSignal("Value"):Connect(function()
+        applyTheme(resolvedThemeValue())
+end)
 
 
 local roundActive = false
@@ -144,8 +204,9 @@ local function placeExit()
 end
 
 local function runRound()
-	if roundActive then return end
-	roundActive = true
+        if roundActive then return end
+        roundActive = true
+        applyTheme(resolvedThemeValue())
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
         teleportToLobby()
 
