@@ -43,6 +43,21 @@ end
 Config.Theme = themeValue.Value ~= "" and themeValue.Value or ThemeConfig.Default
 local loopChanceValue = State:FindFirstChild("LoopChance") or Instance.new("NumberValue", State)
 loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance or 0.05
+local difficultyValue = State:FindFirstChild("Difficulty") or Instance.new("StringValue", State)
+difficultyValue.Name = "Difficulty"; difficultyValue.Value = Config.DefaultDifficulty or "Gemiddeld"
+local difficultyPresets = Config.DifficultyPresets or {}
+
+local function selectRandomDifficulty()
+        if type(difficultyPresets) ~= "table" or #difficultyPresets == 0 then
+                return nil
+        end
+        local index = math.random(1, #difficultyPresets)
+        local preset = difficultyPresets[index]
+        if type(preset) ~= "table" then
+                return nil
+        end
+        return preset
+end
 
 local mazeFolder = Workspace:FindFirstChild("Maze") or Instance.new("Folder", Workspace); mazeFolder.Name = "Maze"
 local spawns = Workspace:FindFirstChild("Spawns") or Instance.new("Folder", Workspace); spawns.Name = "Spawns"
@@ -591,6 +606,19 @@ end
 
 local function runRound()
         if roundActive then return end
+        local selectedDifficulty = selectRandomDifficulty()
+        if selectedDifficulty then
+                local loopChance = math.clamp(selectedDifficulty.loopChance or Config.LoopChance or 0, 0, 1)
+                Config.LoopChance = loopChance
+                loopChanceValue.Value = loopChance
+                difficultyValue.Value = selectedDifficulty.name or difficultyValue.Value
+                print(string.format("[GameManager] Moeilijkheid gekozen: %s (carveLoops %.0f%%)", difficultyValue.Value, loopChance * 100))
+        else
+                difficultyValue.Value = Config.DefaultDifficulty or difficultyValue.Value
+                loopChanceValue.Value = Config.LoopChance or loopChanceValue.Value
+                Config.LoopChance = loopChanceValue.Value
+                print(string.format("[GameManager] Moeilijkheid presets ontbreken, gebruik standaard: %s (carveLoops %.0f%%)", difficultyValue.Value, (loopChanceValue.Value or 0) * 100))
+        end
         roundActive = true
         applyTheme(resolvedThemeValue())
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
