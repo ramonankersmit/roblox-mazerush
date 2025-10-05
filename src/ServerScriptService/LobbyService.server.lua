@@ -30,6 +30,18 @@ local ThemeVotes = {}
 local Ready = {} -- [userid] = boolean
 local HostUserId = nil
 
+local function getThemeOrder()
+        local order = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds() or ThemeConfig.Order
+        if not order or #order == 0 then
+                order = {}
+                for themeId in pairs(ThemeConfig.Themes) do
+                        table.insert(order, themeId)
+                end
+                table.sort(order)
+        end
+        return order
+end
+
 local function tallyVotes()
         local counts = {}
         local total = 0
@@ -46,7 +58,7 @@ end
 local function determineLeader(counts)
         local best = currentTheme
         local bestCount = counts[best] or 0
-        for _, themeId in ipairs(ThemeConfig.Order) do
+        for _, themeId in ipairs(getThemeOrder()) do
                 local count = counts[themeId] or 0
                 if count > bestCount then
                         best = themeId
@@ -77,7 +89,7 @@ local function broadcast(precomputedCounts)
 
         local counts = precomputedCounts or tallyVotes()
         local options = {}
-        for _, themeId in ipairs(ThemeConfig.Order) do
+        for _, themeId in ipairs(getThemeOrder()) do
                 local info = ThemeConfig.Themes[themeId]
                 table.insert(options, {
                         id = themeId,

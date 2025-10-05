@@ -76,4 +76,34 @@ function ThemeConfig.Get(themeId)
         return ThemeConfig.Themes[themeId]
 end
 
+local function buildOrderedIds()
+        local ordered = {}
+        local seen = {}
+        for _, themeId in ipairs(ThemeConfig.Order) do
+                if ThemeConfig.Themes[themeId] and not seen[themeId] then
+                        table.insert(ordered, themeId)
+                        seen[themeId] = true
+                end
+        end
+        for themeId in pairs(ThemeConfig.Themes) do
+                if not seen[themeId] then
+                        table.insert(ordered, themeId)
+                end
+        end
+        return ordered
+end
+
+function ThemeConfig.GetOrderedIds()
+        return buildOrderedIds()
+end
+
+function ThemeConfig.GetOrderedThemes()
+        local ids = buildOrderedIds()
+        local list = {}
+        for _, themeId in ipairs(ids) do
+                table.insert(list, ThemeConfig.Themes[themeId])
+        end
+        return list
+end
+
 return ThemeConfig
