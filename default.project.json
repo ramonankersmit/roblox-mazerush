@@ -132,6 +132,387 @@
             ]
           }
         }
+      },
+      "Lobby": {
+        "$className": "Folder",
+        "LobbyStatusBoard": {
+          "$className": "Model",
+          "$properties": {
+            "PrimaryPart": {
+              "$path": "Workspace.Lobby.LobbyStatusBoard.BoardStand"
+            }
+          },
+          "BoardStand": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "Size": [
+                8,
+                6,
+                1
+              ],
+              "Position": [
+                -40,
+                3,
+                -20
+              ],
+              "Material": "SmoothPlastic",
+              "Color": [
+                0.12549,
+                0.14902,
+                0.25098
+              ],
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth"
+            },
+            "PlayerSurface": {
+              "$className": "SurfaceGui",
+              "$properties": {
+                "Name": "PlayerSurface",
+                "Face": "Front",
+                "LightInfluence": 0,
+                "ClipsDescendants": true,
+                "CanvasSize": [
+                  1024,
+                  768
+                ],
+                "ZIndexBehavior": "Sibling"
+              },
+              "PlayerBoard": {
+                "$className": "Frame",
+                "$properties": {
+                  "Name": "PlayerBoard",
+                  "BackgroundColor3": [
+                    0.07843,
+                    0.09412,
+                    0.14118
+                  ],
+                  "BackgroundTransparency": 0.25,
+                  "Size": [
+                    1,
+                    0,
+                    1,
+                    0
+                  ]
+                },
+                "UICorner": {
+                  "$className": "UICorner",
+                  "$properties": {
+                    "CornerRadius": [
+                      0,
+                      18
+                    ]
+                  }
+                },
+                "UIStroke": {
+                  "$className": "UIStroke",
+                  "$properties": {
+                    "Thickness": 2,
+                    "Transparency": 0.6,
+                    "ApplyStrokeMode": "Contextual"
+                  }
+                },
+                "Header": {
+                  "$className": "TextLabel",
+                  "$properties": {
+                    "Name": "Header",
+                    "BackgroundTransparency": 1,
+                    "Font": "GothamBold",
+                    "Text": "Lobby Status",
+                    "TextColor3": [
+                      0.92157,
+                      0.94118,
+                      1
+                    ],
+                    "TextScaled": false,
+                    "TextSize": 44,
+                    "TextXAlignment": "Left",
+                    "Size": [
+                      1,
+                      -60,
+                      0,
+                      80
+                    ],
+                    "Position": [
+                      0,
+                      30,
+                      0,
+                      24
+                    ]
+                  }
+                },
+                "ReadySummary": {
+                  "$className": "TextLabel",
+                  "$properties": {
+                    "BackgroundTransparency": 1,
+                    "Font": "Gotham",
+                    "Name": "ReadySummary",
+                    "Text": "0/0 klaar",
+                    "TextColor3": [
+                      0.4902,
+                      0.92157,
+                      0.7451
+                    ],
+                    "TextSize": 32,
+                    "TextXAlignment": "Left",
+                    "Size": [
+                      1,
+                      -60,
+                      0,
+                      40
+                    ],
+                    "Position": [
+                      0,
+                      30,
+                      0,
+                      100
+                    ]
+                  }
+                },
+                "PlayerList": {
+                  "$className": "Frame",
+                  "$properties": {
+                    "BackgroundTransparency": 1,
+                    "Name": "PlayerList",
+                    "Position": [
+                      0,
+                      30,
+                      0,
+                      160
+                    ],
+                    "Size": [
+                      1,
+                      -60,
+                      1,
+                      -220
+                    ],
+                    "ClipsDescendants": true
+                  ],
+                  "UIListLayout": {
+                    "$className": "UIListLayout",
+                    "$properties": {
+                      "Padding": [
+                        0,
+                        12
+                      ],
+                      "FillDirection": "Vertical",
+                      "HorizontalAlignment": "Left",
+                      "SortOrder": "LayoutOrder"
+                    }
+                  }
+                },
+                "ActionHint": {
+                  "$className": "TextLabel",
+                  "$properties": {
+                    "Name": "ActionHint",
+                    "BackgroundTransparency": 1,
+                    "Font": "Gotham",
+                    "Text": "Gebruik de prompt om je status te toggelen.",
+                    "TextColor3": [
+                      0.70588,
+                      0.7451,
+                      0.82353
+                    ],
+                    "TextSize": 24,
+                    "TextWrapped": true,
+                    "TextXAlignment": "Left",
+                    "Position": [
+                      0,
+                      30,
+                      1,
+                      -96
+                    ],
+                    "Size": [
+                      1,
+                      -60,
+                      0,
+                      80
+                    ]
+                  }
+                }
+              }
+            },
+            "ReadyPrompt": {
+              "$className": "ProximityPrompt",
+              "$properties": {
+                "ActionText": "Klaar",
+                "ObjectText": "Statusconsole",
+                "RequiresLineOfSight": false,
+                "HoldDuration": 0,
+                "KeyboardKeyCode": "Enum.KeyCode.E"
+              }
+            },
+            "StartPrompt": {
+              "$className": "ProximityPrompt",
+              "$properties": {
+                "ActionText": "Start Maze",
+                "ObjectText": "Alleen host",
+                "RequiresLineOfSight": false,
+                "HoldDuration": 0.75,
+                "KeyboardKeyCode": "Enum.KeyCode.R"
+              }
+            },
+            "BillboardAttachment": {
+              "$className": "Attachment",
+              "$properties": {
+                "Position": [
+                  0,
+                  3.5,
+                  -0.2
+                ]
+              },
+              "PlayerBillboard": {
+                "$className": "BillboardGui",
+                "$properties": {
+                  "Name": "PlayerBillboard",
+                  "AlwaysOnTop": true,
+                  "LightInfluence": 0,
+                  "Size": [
+                    0,
+                    420,
+                    0,
+                    340
+                  ],
+                  "StudsOffsetWorldSpace": [
+                    0,
+                    1.5,
+                    0
+                  ],
+                  "MaxDistance": 250,
+                  "ZIndexBehavior": "Sibling"
+                },
+                "BillboardFrame": {
+                  "$className": "Frame",
+                  "$properties": {
+                    "Name": "BillboardFrame",
+                  "BackgroundColor3": [
+                    0.07059,
+                    0.07843,
+                    0.11765
+                  ],
+                    "BackgroundTransparency": 0.3,
+                    "Size": [
+                      1,
+                      -20,
+                      1,
+                      -20
+                    ],
+                    "Position": [
+                      0,
+                      10,
+                      0,
+                      10
+                    ]
+                  },
+                  "UICorner": {
+                    "$className": "UICorner",
+                    "$properties": {
+                      "CornerRadius": [
+                        0,
+                        12
+                      ]
+                    }
+                  },
+                  "UIStroke": {
+                    "$className": "UIStroke",
+                    "$properties": {
+                      "Transparency": 0.45,
+                      "ApplyStrokeMode": "Border"
+                    }
+                  },
+                  "Title": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "Name": "Title",
+                      "BackgroundTransparency": 1,
+                      "Font": "GothamBold",
+                      "Text": "Spelers",
+                      "TextColor3": [
+                        0.90196,
+                        0.92549,
+                        1
+                      ],
+                      "TextSize": 32,
+                      "TextXAlignment": "Left",
+                      "Size": [
+                        1,
+                        -40,
+                        0,
+                        54
+                      ],
+                      "Position": [
+                        0,
+                        20,
+                        0,
+                        16
+                      ]
+                    }
+                  },
+                  "ReadySummary": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "Name": "ReadySummary",
+                      "BackgroundTransparency": 1,
+                      "Font": "Gotham",
+                      "Text": "0/0 klaar",
+                      "TextColor3": [
+                        0.4902,
+                        0.92157,
+                        0.7451
+                      ],
+                      "TextSize": 24,
+                      "TextXAlignment": "Left",
+                      "Size": [
+                        1,
+                        -40,
+                        0,
+                        36
+                      ],
+                      "Position": [
+                        0,
+                        20,
+                        0,
+                        62
+                      ]
+                    }
+                  },
+                  "PlayerEntries": {
+                    "$className": "Frame",
+                    "$properties": {
+                      "Name": "PlayerEntries",
+                      "BackgroundTransparency": 1,
+                      "ClipsDescendants": true,
+                      "Position": [
+                        0,
+                        20,
+                        0,
+                        110
+                      ],
+                      "Size": [
+                        1,
+                        -40,
+                        1,
+                        -140
+                      ]
+                    },
+                    "UIListLayout": {
+                      "$className": "UIListLayout",
+                      "$properties": {
+                        "Padding": [
+                          0,
+                          8
+                        ],
+                        "FillDirection": "Vertical",
+                        "HorizontalAlignment": "Left",
+                        "SortOrder": "LayoutOrder"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

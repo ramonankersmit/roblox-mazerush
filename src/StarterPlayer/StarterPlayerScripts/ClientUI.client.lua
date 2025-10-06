@@ -1210,6 +1210,71 @@ btnReady.Position = UDim2.new(0, 6, 1, -8); btnReady.Text = "Ready"; btnReady.Pa
 local btnStart = Instance.new("TextButton"); btnStart.Size = UDim2.new(0.5, -12, 0, 36); btnStart.AnchorPoint = Vector2.new(1,1)
 btnStart.Position = UDim2.new(1, -6, 1, -8); btnStart.Text = "Start Game"; btnStart.Parent = lobby
 
+local function hasLobbyStatusBoard()
+        local lobbyFolder = workspace:FindFirstChild("Lobby")
+        if not lobbyFolder then
+                return false
+        end
+        return lobbyFolder:FindFirstChild("LobbyStatusBoard") ~= nil
+end
+
+local lobbyBoardActive = hasLobbyStatusBoard()
+local renderLobby
+local lastLobbyState = nil
+
+local function applyLobbyBoardVisibility()
+        local hideLegacy = lobbyBoardActive
+        listLbl.Visible = not hideLegacy
+        btnReady.Visible = not hideLegacy
+        btnStart.Visible = not hideLegacy
+        if hideLegacy then
+                btnReady.Active = false
+                btnReady.AutoButtonColor = false
+                btnStart.Active = false
+                btnStart.AutoButtonColor = false
+        else
+                btnReady.AutoButtonColor = true
+                btnStart.AutoButtonColor = true
+        end
+end
+
+applyLobbyBoardVisibility()
+
+local function refreshLobbyBoardVisibility()
+        local detected = hasLobbyStatusBoard()
+        if detected == lobbyBoardActive then
+                return
+        end
+        lobbyBoardActive = detected
+        applyLobbyBoardVisibility()
+        if renderLobby and lastLobbyState then
+                task.defer(renderLobby, lastLobbyState)
+        end
+end
+
+local function monitorLobbyFolder(folder)
+        if not folder then
+                return
+        end
+        folder.ChildAdded:Connect(refreshLobbyBoardVisibility)
+        folder.ChildRemoved:Connect(refreshLobbyBoardVisibility)
+end
+
+monitorLobbyFolder(workspace:FindFirstChild("Lobby"))
+
+workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Lobby" then
+                monitorLobbyFolder(child)
+                refreshLobbyBoardVisibility()
+        end
+end)
+
+workspace.ChildRemoved:Connect(function(child)
+        if child.Name == "Lobby" then
+                refreshLobbyBoardVisibility()
+        end
+end)
+
 local themeButtons = {}
 local activeThemeVote = false
 
@@ -1429,28 +1494,40 @@ btnStart.MouseButton1Click:Connect(function()
 	StartGameRequest:FireServer()
 end)
 
-local function renderLobby(state)
-	if not state then
-		renderThemeState(nil)
-		return
-	end
+renderLobby = function(state)
+        lastLobbyState = state
+        if not state then
+                renderThemeState(nil)
+                return
+        end
 	local lines = {}
 	table.insert(lines, ("Phase: %s  |  Ready: %d/%d"):format(state.phase, state.readyCount or 0, state.total or 0))
 	table.insert(lines, "Players:")
 	for _, p in ipairs(state.players or {}) do
 		table.insert(lines, string.format(" - %s %s", p.name, p.ready and "[READY]" or ""))
 	end
-	listLbl.Text = table.concat(lines, "\n")
+        if lobbyBoardActive then
+                listLbl.Text = ""
+        else
+                listLbl.Text = table.concat(lines, "\n")
+        end
 
 	-- Show/hide panel based on phase: visible in IDLE/PREP
 	local showLobby = (state.phase == "IDLE" or state.phase == "PREP")
 	lobby.Visible = showLobby
 
 	-- Buttons disabled during ACTIVE/END
-	btnReady.AutoButtonColor = showLobby
-	btnReady.Active = showLobby
-	btnStart.AutoButtonColor = (state.phase == "IDLE")
-	btnStart.Active = (state.phase == "IDLE")
+        if lobbyBoardActive then
+                btnReady.AutoButtonColor = false
+                btnReady.Active = false
+                btnStart.AutoButtonColor = false
+                btnStart.Active = false
+        else
+                btnReady.AutoButtonColor = showLobby
+                btnReady.Active = showLobby
+                btnStart.AutoButtonColor = (state.phase == "IDLE")
+                btnStart.Active = (state.phase == "IDLE")
+        end
 
 	renderThemeState(state.themes)
 end
