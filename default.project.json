@@ -338,13 +338,14 @@
                     ],
                     "ClipsDescendants": true
                   },
-                  "UIListLayout": {
-                    "$className": "UIListLayout",
-                    "$properties": {
-                      "Padding": [
-                        0,
-                        12
-                      ],
+                      "UIListLayout": {
+                        "$className": "UIListLayout",
+                        "$properties": {
+                          "Padding": {
+                            "$type": "UDim",
+                            "Scale": 0,
+                            "Offset": 12
+                          },
                     "FillDirection": {
                       "$enum": [
                         "FillDirection",
@@ -610,13 +611,14 @@
                         -140
                       ]
                     },
-                    "UIListLayout": {
-                      "$className": "UIListLayout",
-                      "$properties": {
-                        "Padding": [
-                          0,
-                          8
-                        ],
+                      "UIListLayout": {
+                        "$className": "UIListLayout",
+                        "$properties": {
+                          "Padding": {
+                            "$type": "UDim",
+                            "Scale": 0,
+                            "Offset": 8
+                          },
                         "FillDirection": {
                           "$enum": [
                             "FillDirection",
