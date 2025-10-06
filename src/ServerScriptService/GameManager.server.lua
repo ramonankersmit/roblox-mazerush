@@ -187,6 +187,43 @@ ensureFinderPrefab("ExitFinder", Color3.fromRGB(0, 170, 255))
 ensureFinderPrefab("HunterFinder", Color3.fromRGB(255, 85, 85))
 ensureFinderPrefab("KeyFinder", Color3.fromRGB(255, 221, 79))
 
+local function ensureBasicEnemyPrefab(name)
+        if prefabs:FindFirstChild(name) then
+                return
+        end
+
+        local model = Instance.new("Model")
+        model.Name = name
+
+        local humanoid = Instance.new("Humanoid")
+        humanoid.RigType = Enum.HumanoidRigType.R15
+        humanoid.Parent = model
+
+        local root = Instance.new("Part")
+        root.Name = "HumanoidRootPart"
+        root.Size = Vector3.new(2, 2, 1)
+        root.Anchored = false
+        root.CanCollide = false
+        root.Parent = model
+
+        local head = Instance.new("Part")
+        head.Name = "Head"
+        head.Size = Vector3.new(2, 1, 2)
+        head.Anchored = false
+        head.CanCollide = false
+        head.Parent = model
+
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = root
+        weld.Part1 = head
+        weld.Parent = model
+
+        model.PrimaryPart = root
+        model.Parent = prefabs
+end
+
+ensureBasicEnemyPrefab("Hunter")
+
 ExitDoorBuilder.EnsureDoorPrefab(prefabs, Config)
 
 local function resizePartToWallHeight(part, height)
@@ -666,13 +703,10 @@ local function runRound()
         placeExit()
 
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
-        for _, existing in ipairs(Workspace:GetChildren()) do
-                if existing:IsA("Model") and existing.Name == "Hunter" then
-                        existing:Destroy()
-                end
-        end
-        if _G.SpawnHunters then
-                task.spawn(_G.SpawnHunters)
+        if _G.SpawnEnemies then
+                task.spawn(_G.SpawnEnemies, Config.Enemies)
+        else
+                warn("[GameManager] _G.SpawnEnemies niet beschikbaar")
         end
 
         if overviewSeconds > 0 then
