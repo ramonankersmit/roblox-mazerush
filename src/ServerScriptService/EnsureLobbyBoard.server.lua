@@ -118,14 +118,19 @@ local function computeDefaultPivot(lobby, boardStand)
     local lobbyBase = spawns and spawns:FindFirstChild("LobbyBase")
     if lobbyBase and lobbyBase:IsA("BasePart") then
         local baseCenter = lobbyBase.CFrame.Position + Vector3.new(0, lobbyBase.Size.Y * 0.5, 0)
-        local forward = -lobbyBase.CFrame.LookVector
+        local forward = lobbyBase.CFrame.LookVector
         if forward.Magnitude < 0.05 then
             forward = Vector3.new(0, 0, -1)
         else
             forward = forward.Unit
         end
-        local clearance = (lobbyBase.Size.Z * 0.5) + (boardStand.Size.Z * 0.5) + 4
-        local position = baseCenter + Vector3.new(0, boardStand.Size.Y * 0.5, 0) + forward * clearance
+
+        local interiorClearance = (lobbyBase.Size.Z * 0.5) - (boardStand.Size.Z * 0.5) - 0.5
+        interiorClearance = math.max(interiorClearance, boardStand.Size.Z * 0.5 + 1)
+
+        local position = baseCenter
+            + Vector3.new(0, boardStand.Size.Y * 0.5, 0)
+            + forward * interiorClearance
         local lookAt = baseCenter + Vector3.new(0, boardStand.Size.Y * 0.25, 0)
         return CFrame.lookAt(position, lookAt)
     end
