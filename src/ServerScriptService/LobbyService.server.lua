@@ -11,6 +11,11 @@ local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
 
+local RANDOM_THEME_ID = "__random__"
+local RANDOM_THEME_NAME = "Kies willekeurig"
+local RANDOM_THEME_DESCRIPTION = "Laat Maze Rush een willekeurig thema kiezen."
+local RANDOM_THEME_COLOR = Color3.fromRGB(200, 215, 255)
+
 local State = Replicated:WaitForChild("State")
 local Phase = State:WaitForChild("Phase")
 local ThemeValue = State:FindFirstChild("Theme") or Instance.new("StringValue", State)
@@ -74,13 +79,17 @@ end
 local function tallyVotes()
         local counts = {}
         local total = 0
+        local randomCount = 0
         for _, themeId in pairs(ThemeVotes) do
-                if ThemeConfig.Themes[themeId] then
+                if themeId == RANDOM_THEME_ID then
+                        randomCount += 1
+                elseif ThemeConfig.Themes[themeId] then
                         counts[themeId] = (counts[themeId] or 0) + 1
                         total += 1
                 end
         end
         counts._total = total
+        counts._random = randomCount
         return counts
 end
 
@@ -143,9 +152,21 @@ local function broadcast(precomputedCounts)
                 end
         end
 
+        table.insert(options, {
+                id = RANDOM_THEME_ID,
+                name = RANDOM_THEME_NAME,
+                description = RANDOM_THEME_DESCRIPTION,
+                votes = counts._random or 0,
+                color = RANDOM_THEME_COLOR,
+        })
+
         local votesByPlayer = {}
         for userId, themeId in pairs(ThemeVotes) do
-                votesByPlayer[tostring(userId)] = themeId
+                local voteValue = themeId
+                if voteValue == RANDOM_THEME_ID or voteValue == "random" then
+                        voteValue = RANDOM_THEME_ID
+                end
+                votesByPlayer[tostring(userId)] = voteValue
         end
 
         local currentInfo = ThemeConfig.Themes[currentTheme]
@@ -169,6 +190,7 @@ local function broadcast(precomputedCounts)
                 themes = {
                         options = options,
                         totalVotes = counts._total or 0,
+                        randomVotes = counts._random or 0,
                         active = voteActive,
                         countdownActive = countdownActive,
                         endsIn = endsInValue,
@@ -285,6 +307,11 @@ ThemeVote.OnServerEvent:Connect(function(plr, themeId)
                 return
         end
         if typeof(themeId) ~= "string" then return end
+        if themeId == RANDOM_THEME_ID or themeId:lower() == "random" then
+                ThemeVotes[plr.UserId] = RANDOM_THEME_ID
+                broadcast()
+                return
+        end
         if not ThemeConfig.Themes[themeId] then return end
         ThemeVotes[plr.UserId] = themeId
         broadcast()

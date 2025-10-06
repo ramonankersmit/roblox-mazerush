@@ -1405,6 +1405,8 @@ local function renderThemeState(themeState, lobbyState)
         themePanel.Visible = lobby.Visible and #themeState.options > 0
 
         local totalVotes = themeState.totalVotes or 0
+        local randomVotes = themeState.randomVotes or 0
+        local votePool = totalVotes + randomVotes
         local votesByPlayer = themeState.votesByPlayer or {}
         local myVote = votesByPlayer[tostring(player.UserId)] or votesByPlayer[player.UserId]
         local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
@@ -1459,7 +1461,7 @@ local function renderThemeState(themeState, lobbyState)
 
                 local votes = votesLookup[option.id] or 0
                 local color = optionColors[option.id] or Color3.fromRGB(160,160,160)
-                local ratio = (totalVotes > 0) and math.clamp(votes / totalVotes, 0, 1) or 0
+                local ratio = (votePool > 0) and math.clamp(votes / votePool, 0, 1) or 0
 
                 entry.fill.BackgroundColor3 = color
                 entry.fill.Size = UDim2.new(ratio, 0, 1, 0)

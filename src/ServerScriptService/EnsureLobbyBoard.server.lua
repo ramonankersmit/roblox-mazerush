@@ -44,6 +44,37 @@ local function createTextLabel(parent, name, text, size, position, props)
     return label
 end
 
+local function createSurface(stand, name)
+    local gui = Instance.new("SurfaceGui")
+    gui.Name = name
+    gui.Face = Enum.NormalId.Front
+    gui.LightInfluence = 0
+    gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    gui.PixelsPerStud = 60
+    gui.ResetOnSpawn = false
+    gui.AlwaysOnTop = false
+    gui.Active = true
+    gui.Adornee = stand
+    gui.Parent = stand
+    return gui
+end
+
+local function createPrompt(parent, name, actionText, objectText, keyCode, holdDuration, uiOffset)
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.Name = name
+    prompt.ActionText = actionText
+    prompt.ObjectText = objectText
+    prompt.KeyboardKeyCode = keyCode or Enum.KeyCode.E
+    prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+    prompt.HoldDuration = holdDuration or 0
+    prompt.RequiresLineOfSight = false
+    prompt.MaxActivationDistance = 12
+    prompt.Style = Enum.ProximityPromptStyle.Default
+    prompt.UIOffset = uiOffset or Vector2.new(0, -12)
+    prompt.Parent = parent
+    return prompt
+end
+
 local function findBoardAnchor(lobby)
     if not lobby then
         return nil
@@ -79,14 +110,39 @@ local function findBoardAnchor(lobby)
     return nil
 end
 
-local function applyAnchorAttributes(anchor, pivot, boardStand)
-    local adjusted = pivot
+local function getWallHeight(lobby, anchor)
+    if anchor then
+        local attr = anchor:GetAttribute("WallHeight")
+            or anchor:GetAttribute("LobbyWallHeight")
+            or anchor:GetAttribute("BoardWallHeight")
+        if typeof(attr) == "number" and attr > 0 then
+            return attr
+        end
+        if anchor:IsA("BasePart") and anchor.Size.Y > 0 then
+            return anchor.Size.Y
+        end
+    end
+
+    if lobby then
+        local attr = lobby:GetAttribute("WallHeight")
+            or lobby:GetAttribute("LobbyWallHeight")
+        if typeof(attr) == "number" and attr > 0 then
+            return attr
+        end
+    end
+
+    return 12
+end
+
+local function applyAnchorAttributes(anchor, boardStand, wallHeight)
+    local adjusted = anchor:GetPivot()
 
     if anchor:IsA("BasePart") then
         local anchorCF = anchor.CFrame
-        local yOffset = (boardStand.Size.Y * 0.5) - (anchor.Size.Y * 0.5)
-        local depthOffset = -(anchor.Size.Z * 0.5 + boardStand.Size.Z * 0.5)
-        adjusted = anchorCF * CFrame.new(0, yOffset, depthOffset)
+        local anchorHeight = anchor.Size.Y
+        local targetCenterOffset = -anchorHeight * 0.5 + wallHeight * 0.5
+        local depthOffset = -(anchor.Size.Z * 0.5 + boardStand.Size.Z * 0.5 + 0.1)
+        adjusted = anchorCF * CFrame.new(0, targetCenterOffset, depthOffset)
     end
 
     local offset = anchor:GetAttribute("LobbyBoardOffset") or anchor:GetAttribute("BoardOffset")
@@ -107,35 +163,34 @@ local function applyAnchorAttributes(anchor, pivot, boardStand)
     return adjusted
 end
 
-local function computeDefaultPivot(lobby, boardStand)
-    local anchor = findBoardAnchor(lobby)
-    if anchor then
-        local pivot = anchor:GetPivot()
-        return applyAnchorAttributes(anchor, pivot, boardStand)
-    end
-
+local function computeDefaultPivot(lobby, boardStand, wallHeight)
     local spawns = Workspace:FindFirstChild("Spawns")
     local lobbyBase = spawns and spawns:FindFirstChild("LobbyBase")
+    local floorY = 0
+    local forward = Vector3.new(0, 0, -1)
+
     if lobbyBase and lobbyBase:IsA("BasePart") then
-        local baseCenter = lobbyBase.CFrame.Position + Vector3.new(0, lobbyBase.Size.Y * 0.5, 0)
-        local forward = lobbyBase.CFrame.LookVector
-        if forward.Magnitude < 0.05 then
-            forward = Vector3.new(0, 0, -1)
-        else
-            forward = forward.Unit
+        local baseCFrame = lobbyBase.CFrame
+        floorY = baseCFrame.Position.Y + lobbyBase.Size.Y * 0.5
+        if baseCFrame.LookVector.Magnitude >= 0.05 then
+            forward = baseCFrame.LookVector.Unit
         end
-
-        local interiorClearance = (lobbyBase.Size.Z * 0.5) - (boardStand.Size.Z * 0.5) - 0.5
-        interiorClearance = math.max(interiorClearance, boardStand.Size.Z * 0.5 + 1)
-
-        local position = baseCenter
-            + Vector3.new(0, boardStand.Size.Y * 0.5, 0)
-            + forward * interiorClearance
-        local lookAt = baseCenter + Vector3.new(0, boardStand.Size.Y * 0.25, 0)
-        return CFrame.lookAt(position, lookAt)
+    else
+        floorY = boardStand.Size.Y * 0.25
     end
 
-    return CFrame.new(0, boardStand.Size.Y * 0.5, 0)
+    local interiorClearance = 8
+    if lobbyBase and lobbyBase:IsA("BasePart") then
+        interiorClearance = (lobbyBase.Size.Z * 0.5) - (boardStand.Size.Z * 0.5) - 0.75
+        interiorClearance = math.max(interiorClearance, boardStand.Size.Z * 0.5 + 1.25)
+    end
+
+    local centerY = floorY + wallHeight * 0.5
+    local basePosition = lobbyBase and lobbyBase.Position or Vector3.new()
+    local position = Vector3.new(basePosition.X, centerY, basePosition.Z) + forward * interiorClearance
+    local lookAt = Vector3.new(basePosition.X, centerY, basePosition.Z)
+
+    return CFrame.lookAt(position, lookAt)
 end
 
 local function ensureLobbyBoard()
@@ -154,29 +209,54 @@ local function ensureLobbyBoard()
     boardModel.Name = "LobbyStatusBoard"
     boardModel.Parent = lobby
 
-    local boardStand = Instance.new("Part")
-    boardStand.Name = "BoardStand"
-    boardStand.Size = Vector3.new(10, 7, 1)
-    boardStand.Anchored = true
-    boardStand.CanCollide = false
-    boardStand.Material = Enum.Material.SmoothPlastic
-    boardStand.Color = Color3.fromRGB(18, 22, 34)
-    boardStand.CFrame = CFrame.new(0, 3.5, 0)
-    boardStand.Parent = boardModel
+    local anchor = findBoardAnchor(lobby)
+    local wallHeight = getWallHeight(lobby, anchor)
+    local boardHeight = math.max(4, wallHeight * 0.5)
+    local boardThickness = 0.8
+    local playerWidth = 6.5
+    local themeWidth = 6.25
+    local boardSpacing = 0.8
 
-    local surfaceGui = Instance.new("SurfaceGui")
-    surfaceGui.Name = "PlayerSurface"
-    surfaceGui.Face = Enum.NormalId.Front
-    surfaceGui.LightInfluence = 0
-    surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    surfaceGui.PixelsPerStud = 60
-    surfaceGui.ResetOnSpawn = false
-    surfaceGui.AlwaysOnTop = false
-    surfaceGui.Active = true
-    surfaceGui.Adornee = boardStand
-    surfaceGui.Parent = boardStand
+    local playerStand = Instance.new("Part")
+    playerStand.Name = "PlayerStand"
+    playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
+    playerStand.Anchored = true
+    playerStand.CanCollide = false
+    playerStand.Material = Enum.Material.SmoothPlastic
+    playerStand.Color = Color3.fromRGB(18, 22, 34)
+    playerStand.Parent = boardModel
 
-    local playerBoard = createFrame(surfaceGui, "PlayerBoard", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), {
+    local themeStand = Instance.new("Part")
+    themeStand.Name = "ThemeStand"
+    themeStand.Size = Vector3.new(themeWidth, boardHeight, boardThickness)
+    themeStand.Anchored = true
+    themeStand.CanCollide = false
+    themeStand.Material = Enum.Material.SmoothPlastic
+    themeStand.Color = Color3.fromRGB(20, 26, 44)
+    themeStand.Parent = boardModel
+
+    local startPanel = Instance.new("Part")
+    startPanel.Name = "StartPanel"
+    startPanel.Anchored = true
+    startPanel.CanCollide = false
+    startPanel.CastShadow = false
+    startPanel.Material = Enum.Material.SmoothPlastic
+    startPanel.Color = Color3.fromRGB(34, 38, 54)
+    startPanel.Size = Vector3.new(1.4, math.max(1.6, boardHeight * 0.22), 0.35)
+    startPanel.Parent = boardModel
+
+    local startButton = Instance.new("Part")
+    startButton.Name = "StartButton"
+    startButton.Anchored = true
+    startButton.CanCollide = false
+    startButton.CastShadow = false
+    startButton.Size = Vector3.new(0.7, 0.7, 0.24)
+    startButton.Material = Enum.Material.Neon
+    startButton.Color = Color3.fromRGB(255, 183, 72)
+    startButton.Parent = boardModel
+
+    local playerSurface = createSurface(playerStand, "PlayerSurface")
+    local playerBoard = createFrame(playerSurface, "PlayerBoard", UDim2.new(1, 0, 1, 0), UDim2.new(), {
         BackgroundTransparency = 0.2,
         BackgroundColor3 = Color3.fromRGB(34, 38, 54),
         ClipsDescendants = false,
@@ -192,59 +272,79 @@ local function ensureLobbyBoard()
     boardStroke.Color = Color3.fromRGB(80, 90, 120)
     boardStroke.Parent = playerBoard
 
-    local title = createTextLabel(playerBoard, "Title", "MAZE RUSH", UDim2.new(1, -40, 0, 48), UDim2.new(0, 20, 0, 12), {
+    createTextLabel(playerBoard, "Title", "MAZE RUSH", UDim2.new(1, -40, 0, 48), UDim2.new(0, 20, 0, 12), {
         Font = Enum.Font.GothamBlack,
         TextSize = 36,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local readySummary = createTextLabel(playerBoard, "ReadySummary", "Players ready: 0/0", UDim2.new(1, -40, 0, 28), UDim2.new(0, 20, 0, 72), {
+    createTextLabel(playerBoard, "ReadySummary", "Gereed: 0/0", UDim2.new(1, -40, 0, 28), UDim2.new(0, 20, 0, 72), {
         Font = Enum.Font.Gotham,
         TextColor3 = Color3.fromRGB(170, 178, 204),
         TextSize = 22,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local themePanel = createFrame(playerBoard, "ThemePanel", UDim2.new(1, -40, 0, 168), UDim2.new(0, 20, 0, 110), {
-        BackgroundTransparency = 0.25,
-        BackgroundColor3 = Color3.fromRGB(38, 44, 68),
-        ClipsDescendants = true,
+    local actionHint = createTextLabel(playerBoard, "ActionHint", "Gebruik [E] bij de console om klaar te melden en een thema te kiezen.", UDim2.new(1, -40, 0, 44), UDim2.new(0, 20, 0, 108), {
+        Font = Enum.Font.Gotham,
+        TextSize = 18,
+        TextWrapped = true,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        TextColor3 = Color3.fromRGB(140, 210, 255),
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -188), UDim2.new(0, 20, 0, 156), {
+        BackgroundTransparency = 1,
+    })
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 12)
+    listLayout.Parent = playerList
+
+    local themeSurface = createSurface(themeStand, "ThemeSurface")
+    local themePanel = createFrame(themeSurface, "ThemePanel", UDim2.new(1, 0, 1, 0), UDim2.new(), {
+        BackgroundTransparency = 0.2,
+        BackgroundColor3 = Color3.fromRGB(30, 36, 56),
+        ClipsDescendants = false,
     })
 
     local themeCorner = Instance.new("UICorner")
-    themeCorner.CornerRadius = UDim.new(0, 18)
+    themeCorner.CornerRadius = UDim.new(0, 24)
     themeCorner.Parent = themePanel
 
     local themeStroke = Instance.new("UIStroke")
-    themeStroke.Thickness = 1.5
-    themeStroke.Transparency = 0.45
+    themeStroke.Thickness = 3
+    themeStroke.Transparency = 0.35
     themeStroke.Color = Color3.fromRGB(90, 110, 160)
     themeStroke.Parent = themePanel
 
-    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(1, -24, 0, 24), UDim2.new(0, 12, 0, 12), {
+    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(1, -40, 0, 32), UDim2.new(0, 20, 0, 16), {
         Font = Enum.Font.GothamSemibold,
-        TextSize = 20,
+        TextSize = 24,
         TextColor3 = Color3.fromRGB(220, 226, 255),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeName", "Nog niet gekozen", UDim2.new(1, -24, 0, 28), UDim2.new(0, 12, 0, 40), {
+    createTextLabel(themePanel, "ThemeName", "Nog niet gekozen", UDim2.new(1, -40, 0, 34), UDim2.new(0, 20, 0, 60), {
         Font = Enum.Font.GothamBold,
-        TextSize = 24,
+        TextSize = 26,
         TextColor3 = Color3.fromRGB(240, 244, 255),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeCountdown", "Wacht op spelers", UDim2.new(0.5, -12, 0, 22), UDim2.new(0, 12, 0, 74), {
+    createTextLabel(themePanel, "ThemeCountdown", "Wacht op spelers", UDim2.new(0.5, -24, 0, 24), UDim2.new(0, 20, 0, 104), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextColor3 = Color3.fromRGB(200, 210, 240),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(0.5, -12, 0, 22), UDim2.new(0.5, 0, 0, 74), {
+    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(0.5, -24, 0, 24), UDim2.new(0.5, 0, 0, 104), {
         Font = Enum.Font.Gotham,
-        TextSize = 16,
+        TextSize = 18,
         TextColor3 = Color3.fromRGB(170, 180, 210),
         TextXAlignment = Enum.TextXAlignment.Right,
     })
@@ -257,18 +357,18 @@ local function ensureLobbyBoard()
     themeOptions.BorderSizePixel = 0
     themeOptions.ScrollBarThickness = 4
     themeOptions.ScrollingDirection = Enum.ScrollingDirection.Y
-    themeOptions.Size = UDim2.new(1, -24, 0, 72)
-    themeOptions.Position = UDim2.new(0, 12, 0, 96)
+    themeOptions.Size = UDim2.new(1, -40, 1, -188)
+    themeOptions.Position = UDim2.new(0, 20, 0, 140)
     themeOptions.CanvasSize = UDim2.new()
     themeOptions.Parent = themePanel
 
     local themeOptionsLayout = Instance.new("UIListLayout")
     themeOptionsLayout.FillDirection = Enum.FillDirection.Vertical
     themeOptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    themeOptionsLayout.Padding = UDim.new(0, 6)
+    themeOptionsLayout.Padding = UDim.new(0, 8)
     themeOptionsLayout.Parent = themeOptions
 
-    createTextLabel(themePanel, "ThemeHint", "Tik op een thema om te stemmen.", UDim2.new(1, -24, 0, 20), UDim2.new(0, 12, 1, -24), {
+    createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -40, 0, 40), UDim2.new(0, 20, 1, -52), {
         Font = Enum.Font.Gotham,
         TextSize = 16,
         TextColor3 = Color3.fromRGB(170, 180, 210),
@@ -276,67 +376,21 @@ local function ensureLobbyBoard()
         TextWrapped = true,
     })
 
-    local actionHint = createTextLabel(playerBoard, "ActionHint", "Ga naar de console om klaar te melden en stem op het bord.", UDim2.new(1, -40, 0, 40), UDim2.new(0, 20, 1, -72), {
-        Font = Enum.Font.Gotham,
-        TextSize = 18,
-        TextWrapped = true,
-        TextYAlignment = Enum.TextYAlignment.Top,
-        TextColor3 = Color3.fromRGB(140, 210, 255),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    })
-
-    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -320), UDim2.new(0, 20, 0, 300), {
-        BackgroundTransparency = 1,
-    })
-
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.FillDirection = Enum.FillDirection.Vertical
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 12)
-    listLayout.Parent = playerList
-
-    local readyPrompt = Instance.new("ProximityPrompt")
-    readyPrompt.Name = "ReadyPrompt"
-    readyPrompt.ObjectText = "Statusconsole"
-    readyPrompt.ActionText = "Meld je klaar"
-    readyPrompt.KeyboardKeyCode = Enum.KeyCode.E
-    readyPrompt.HoldDuration = 0
-    readyPrompt.RequiresLineOfSight = false
-    readyPrompt.Style = Enum.ProximityPromptStyle.Default
-    readyPrompt.MaxActivationDistance = 12
-    readyPrompt.GamepadKeyCode = Enum.KeyCode.ButtonX
-    readyPrompt.UIOffset = Vector2.new(0, -24)
-    readyPrompt.Parent = boardStand
-
-    local startPrompt = Instance.new("ProximityPrompt")
-    startPrompt.Name = "StartPrompt"
-    startPrompt.ObjectText = "Startconsole"
-    startPrompt.ActionText = "Start Maze"
-    startPrompt.KeyboardKeyCode = Enum.KeyCode.F
-    startPrompt.HoldDuration = 0.5
-    startPrompt.Style = Enum.ProximityPromptStyle.Default
-    startPrompt.RequiresLineOfSight = false
-    startPrompt.MaxActivationDistance = 12
-    startPrompt.GamepadKeyCode = Enum.KeyCode.ButtonY
-    startPrompt.UIOffset = Vector2.new(0, 32)
-    startPrompt.Parent = boardStand
-
     local attachment = Instance.new("Attachment")
     attachment.Name = "BillboardAttachment"
-    attachment.Position = Vector3.new(0, 3.5, -0.5)
-    attachment.Parent = boardStand
+    attachment.Position = Vector3.new(0, playerStand.Size.Y * 0.45, -(playerStand.Size.Z * 0.5) - 0.05)
+    attachment.Parent = playerStand
 
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "PlayerBillboard"
     billboard.Adornee = attachment
     billboard.Size = UDim2.new(0, 360, 0, 240)
-    billboard.ExtentsOffsetWorldSpace = Vector3.new(0, 0.5, 0)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.ExtentsOffsetWorldSpace = Vector3.new(0, 0.25, 0)
     billboard.LightInfluence = 0
     billboard.AlwaysOnTop = true
     billboard.Parent = attachment
 
-    local billboardFrame = createFrame(billboard, "BillboardFrame", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), {
+    local billboardFrame = createFrame(billboard, "BillboardFrame", UDim2.new(1, 0, 1, 0), UDim2.new(), {
         BackgroundTransparency = 0.35,
         BackgroundColor3 = Color3.fromRGB(24, 28, 40),
     })
@@ -351,20 +405,20 @@ local function ensureLobbyBoard()
     billboardStroke.Color = Color3.fromRGB(70, 85, 120)
     billboardStroke.Parent = billboardFrame
 
-    local billboardTitle = createTextLabel(billboardFrame, "BillboardTitle", "Lobby Status", UDim2.new(1, -30, 0, 28), UDim2.new(0, 15, 0, 12), {
+    createTextLabel(billboardFrame, "BillboardTitle", "Lobby status", UDim2.new(1, -30, 0, 28), UDim2.new(0, 15, 0, 12), {
         Font = Enum.Font.GothamBold,
         TextSize = 26,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local billboardSummary = createTextLabel(billboardFrame, "ReadySummary", "Players ready: 0/0", UDim2.new(1, -30, 0, 22), UDim2.new(0, 15, 0, 52), {
+    createTextLabel(billboardFrame, "ReadySummary", "Gereed: 0/0", UDim2.new(1, -30, 0, 22), UDim2.new(0, 15, 0, 52), {
         Font = Enum.Font.Gotham,
         TextSize = 20,
         TextColor3 = Color3.fromRGB(170, 178, 204),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local billboardList = createFrame(billboardFrame, "PlayerEntries", UDim2.new(1, -30, 1, -100), UDim2.new(0, 15, 0, 86), {
+    local billboardList = createFrame(billboardFrame, "PlayerEntries", UDim2.new(1, -30, 1, -96), UDim2.new(0, 15, 0, 84), {
         BackgroundTransparency = 1,
     })
 
@@ -374,17 +428,59 @@ local function ensureLobbyBoard()
     billboardLayout.Padding = UDim.new(0, 6)
     billboardLayout.Parent = billboardList
 
-    createTextLabel(billboardFrame, "Hint", "Use the console to ready up!", UDim2.new(1, -30, 0, 20), UDim2.new(0, 15, 1, -32), {
+    createTextLabel(billboardFrame, "Hint", "Gebruik de console voor klaarstatus en stemming.", UDim2.new(1, -30, 0, 20), UDim2.new(0, 15, 1, -32), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextColor3 = Color3.fromRGB(140, 210, 255),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    boardModel.PrimaryPart = boardStand
+    local consolePrompt = createPrompt(playerStand, "ConsolePrompt", "Open console", "Lobbyconsole", Enum.KeyCode.E, 0, Vector2.new(0, -28))
+    consolePrompt.GamepadKeyCode = Enum.KeyCode.ButtonX
 
-    local pivot = computeDefaultPivot(lobby, boardStand)
+    local startPrompt = createPrompt(startButton, "StartPrompt", "Start Maze", "Startknop", Enum.KeyCode.F, 0, Vector2.new(0, -4))
+    startPrompt.GamepadKeyCode = Enum.KeyCode.ButtonY
+
+    local startClickDetector = Instance.new("ClickDetector")
+    startClickDetector.Name = "StartClick"
+    startClickDetector.MaxActivationDistance = 14
+    startClickDetector.Parent = startButton
+
+    local pivot
+    if anchor then
+        pivot = applyAnchorAttributes(anchor, playerStand, wallHeight)
+    else
+        pivot = computeDefaultPivot(lobby, playerStand, wallHeight)
+    end
+
+    playerStand.CFrame = pivot
+    local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
+    themeStand.CFrame = pivot * CFrame.new(-leftOffset, 0, 0)
+
+    local buttonOffsetX = playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + 0.55
+    local buttonDepth = -(playerStand.Size.Z * 0.5 - startPanel.Size.Z * 0.5 - 0.02)
+    local buttonHeightOffset = -boardHeight * 0.12
+    startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
+    startButton.CFrame = startPanel.CFrame * CFrame.new(0, 0, -(startPanel.Size.Z * 0.5 + startButton.Size.Z * 0.5 - 0.01))
+
+    boardModel.PrimaryPart = playerStand
     boardModel:PivotTo(pivot)
+
+    local buttonGui = Instance.new("SurfaceGui")
+    buttonGui.Name = "ButtonLabel"
+    buttonGui.Face = Enum.NormalId.Front
+    buttonGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    buttonGui.PixelsPerStud = 80
+    buttonGui.LightInfluence = 0
+    buttonGui.Adornee = startButton
+    buttonGui.ResetOnSpawn = false
+    buttonGui.Parent = startButton
+
+    local buttonLabel = createTextLabel(buttonGui, "Label", "START", UDim2.new(1, 0, 1, 0), UDim2.new(), {
+        Font = Enum.Font.GothamBlack,
+        TextColor3 = Color3.fromRGB(30, 30, 34),
+        TextScaled = true,
+    })
 
     -- Apply the default theme accent to the theme name when possible
     if ThemeConfig then
