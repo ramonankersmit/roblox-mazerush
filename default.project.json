@@ -156,27 +156,52 @@
                 3,
                 -20
               ],
-              "Material": "SmoothPlastic",
+              "Material": {
+                "$enum": [
+                  "Material",
+                  "SmoothPlastic"
+                ]
+              },
               "Color": [
                 0.12549,
                 0.14902,
                 0.25098
               ],
-              "TopSurface": "Smooth",
-              "BottomSurface": "Smooth"
+              "TopSurface": {
+                "$enum": [
+                  "SurfaceType",
+                  "Smooth"
+                ]
+              },
+              "BottomSurface": {
+                "$enum": [
+                  "SurfaceType",
+                  "Smooth"
+                ]
+              }
             },
             "PlayerSurface": {
               "$className": "SurfaceGui",
               "$properties": {
                 "Name": "PlayerSurface",
-                "Face": "Front",
+                "Face": {
+                  "$enum": [
+                    "NormalId",
+                    "Front"
+                  ]
+                },
                 "LightInfluence": 0,
                 "ClipsDescendants": true,
                 "CanvasSize": [
                   1024,
                   768
                 ],
-                "ZIndexBehavior": "Sibling"
+                "ZIndexBehavior": {
+                  "$enum": [
+                    "ZIndexBehavior",
+                    "Sibling"
+                  ]
+                }
               },
               "PlayerBoard": {
                 "$className": "Frame",
@@ -204,20 +229,30 @@
                     ]
                   }
                 },
-                "UIStroke": {
-                  "$className": "UIStroke",
-                  "$properties": {
-                    "Thickness": 2,
-                    "Transparency": 0.6,
-                    "ApplyStrokeMode": "Contextual"
-                  }
-                },
-                "Header": {
-                  "$className": "TextLabel",
-                  "$properties": {
-                    "Name": "Header",
-                    "BackgroundTransparency": 1,
-                    "Font": "GothamBold",
+                  "UIStroke": {
+                    "$className": "UIStroke",
+                    "$properties": {
+                      "Thickness": 2,
+                      "Transparency": 0.6,
+                      "ApplyStrokeMode": {
+                        "$enum": [
+                          "ApplyStrokeMode",
+                          "Contextual"
+                        ]
+                      }
+                    }
+                  },
+                  "Header": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "Name": "Header",
+                      "BackgroundTransparency": 1,
+                      "Font": {
+                        "$enum": [
+                          "Font",
+                          "GothamBold"
+                        ]
+                      },
                     "Text": "Lobby Status",
                     "TextColor3": [
                       0.92157,
@@ -226,7 +261,12 @@
                     ],
                     "TextScaled": false,
                     "TextSize": 44,
-                    "TextXAlignment": "Left",
+                    "TextXAlignment": {
+                      "$enum": [
+                        "TextXAlignment",
+                        "Left"
+                      ]
+                    },
                     "Size": [
                       1,
                       -60,
@@ -241,11 +281,16 @@
                     ]
                   }
                 },
-                "ReadySummary": {
-                  "$className": "TextLabel",
-                  "$properties": {
-                    "BackgroundTransparency": 1,
-                    "Font": "Gotham",
+                  "ReadySummary": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "BackgroundTransparency": 1,
+                      "Font": {
+                        "$enum": [
+                          "Font",
+                          "Gotham"
+                        ]
+                      },
                     "Name": "ReadySummary",
                     "Text": "0/0 klaar",
                     "TextColor3": [
@@ -254,7 +299,12 @@
                       0.7451
                     ],
                     "TextSize": 32,
-                    "TextXAlignment": "Left",
+                    "TextXAlignment": {
+                      "$enum": [
+                        "TextXAlignment",
+                        "Left"
+                      ]
+                    },
                     "Size": [
                       1,
                       -60,
@@ -295,18 +345,38 @@
                         0,
                         12
                       ],
-                      "FillDirection": "Vertical",
-                      "HorizontalAlignment": "Left",
-                      "SortOrder": "LayoutOrder"
+                    "FillDirection": {
+                      "$enum": [
+                        "FillDirection",
+                        "Vertical"
+                      ]
+                    },
+                    "HorizontalAlignment": {
+                      "$enum": [
+                        "HorizontalAlignment",
+                        "Left"
+                      ]
+                    },
+                    "SortOrder": {
+                      "$enum": [
+                        "SortOrder",
+                        "LayoutOrder"
+                      ]
+                    }
                     }
                   }
                 },
-                "ActionHint": {
-                  "$className": "TextLabel",
-                  "$properties": {
-                    "Name": "ActionHint",
-                    "BackgroundTransparency": 1,
-                    "Font": "Gotham",
+                  "ActionHint": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "Name": "ActionHint",
+                      "BackgroundTransparency": 1,
+                      "Font": {
+                        "$enum": [
+                          "Font",
+                          "Gotham"
+                        ]
+                      },
                     "Text": "Gebruik de prompt om je status te toggelen.",
                     "TextColor3": [
                       0.70588,
@@ -315,7 +385,12 @@
                     ],
                     "TextSize": 24,
                     "TextWrapped": true,
-                    "TextXAlignment": "Left",
+                    "TextXAlignment": {
+                      "$enum": [
+                        "TextXAlignment",
+                        "Left"
+                      ]
+                    },
                     "Position": [
                       0,
                       30,
@@ -389,7 +464,12 @@
                     0
                   ],
                   "MaxDistance": 250,
-                  "ZIndexBehavior": "Sibling"
+                  "ZIndexBehavior": {
+                    "$enum": [
+                      "ZIndexBehavior",
+                      "Sibling"
+                    ]
+                  }
                 },
                 "BillboardFrame": {
                   "$className": "Frame",
@@ -423,27 +503,42 @@
                       ]
                     }
                   },
-                  "UIStroke": {
-                    "$className": "UIStroke",
-                    "$properties": {
-                      "Transparency": 0.45,
-                      "ApplyStrokeMode": "Border"
-                    }
-                  },
-                  "Title": {
-                    "$className": "TextLabel",
-                    "$properties": {
-                      "Name": "Title",
-                      "BackgroundTransparency": 1,
-                      "Font": "GothamBold",
-                      "Text": "Spelers",
-                      "TextColor3": [
+                    "UIStroke": {
+                      "$className": "UIStroke",
+                      "$properties": {
+                        "Transparency": 0.45,
+                        "ApplyStrokeMode": {
+                          "$enum": [
+                            "ApplyStrokeMode",
+                            "Border"
+                          ]
+                        }
+                      }
+                    },
+                    "Title": {
+                      "$className": "TextLabel",
+                      "$properties": {
+                        "Name": "Title",
+                        "BackgroundTransparency": 1,
+                        "Font": {
+                          "$enum": [
+                            "Font",
+                            "GothamBold"
+                          ]
+                        },
+                        "Text": "Spelers",
+                        "TextColor3": [
                         0.90196,
                         0.92549,
                         1
                       ],
                       "TextSize": 32,
-                      "TextXAlignment": "Left",
+                      "TextXAlignment": {
+                        "$enum": [
+                          "TextXAlignment",
+                          "Left"
+                        ]
+                      },
                       "Size": [
                         1,
                         -40,
@@ -458,20 +553,30 @@
                       ]
                     }
                   },
-                  "ReadySummary": {
-                    "$className": "TextLabel",
-                    "$properties": {
-                      "Name": "ReadySummary",
-                      "BackgroundTransparency": 1,
-                      "Font": "Gotham",
-                      "Text": "0/0 klaar",
-                      "TextColor3": [
+                    "ReadySummary": {
+                      "$className": "TextLabel",
+                      "$properties": {
+                        "Name": "ReadySummary",
+                        "BackgroundTransparency": 1,
+                        "Font": {
+                          "$enum": [
+                            "Font",
+                            "Gotham"
+                          ]
+                        },
+                        "Text": "0/0 klaar",
+                        "TextColor3": [
                         0.4902,
                         0.92157,
                         0.7451
                       ],
                       "TextSize": 24,
-                      "TextXAlignment": "Left",
+                      "TextXAlignment": {
+                        "$enum": [
+                          "TextXAlignment",
+                          "Left"
+                        ]
+                      },
                       "Size": [
                         1,
                         -40,
@@ -512,9 +617,24 @@
                           0,
                           8
                         ],
-                        "FillDirection": "Vertical",
-                        "HorizontalAlignment": "Left",
-                        "SortOrder": "LayoutOrder"
+                        "FillDirection": {
+                          "$enum": [
+                            "FillDirection",
+                            "Vertical"
+                          ]
+                        },
+                        "HorizontalAlignment": {
+                          "$enum": [
+                            "HorizontalAlignment",
+                            "Left"
+                          ]
+                        },
+                        "SortOrder": {
+                          "$enum": [
+                            "SortOrder",
+                            "LayoutOrder"
+                          ]
+                        }
                       }
                     }
                   }
