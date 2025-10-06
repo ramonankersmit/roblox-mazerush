@@ -11,6 +11,65 @@ local prefabsFolder = ServerStorage:FindFirstChild("Prefabs") or ServerStorage:W
 
 local defaultEnemyConfig = Config.Enemies or {}
 
+local function ensureModelPrimaryPart(model)
+        if not model then
+                return nil
+        end
+        local primary = model.PrimaryPart
+        if primary and primary:IsA("BasePart") then
+                return primary
+        end
+        local hrp = model:FindFirstChild("HumanoidRootPart", true)
+        if hrp and hrp:IsA("BasePart") then
+                model.PrimaryPart = hrp
+                return hrp
+        end
+        local firstPart = model:FindFirstChildWhichIsA("BasePart")
+        if firstPart then
+                model.PrimaryPart = firstPart
+                return firstPart
+        end
+        return nil
+end
+
+local function randomCellPosition(globalConfig)
+        local cellSize = globalConfig.CellSize or 16
+        local width = math.max(globalConfig.GridWidth or 1, 1)
+        local height = math.max(globalConfig.GridHeight or 1, 1)
+        local x = math.random(1, width)
+        local z = math.random(1, height)
+        return Vector3.new((x - 0.5) * cellSize, 3, (z - 0.5) * cellSize)
+end
+
+local function spawnBasicClones(typeName, resolvedConfig, context, prefab)
+        local count = resolvedConfig.Count or 0
+        if count <= 0 then
+                return
+        end
+        if not prefab then
+                warn(string.format("[EnemySpawner] Basis spawn mislukt: prefab ontbreekt voor type \"%s\"", tostring(typeName)))
+                return
+        end
+
+        local globalConfig = context.GlobalConfig or {}
+        for _ = 1, count do
+                local clone = prefab:Clone()
+                clone:SetAttribute("EnemyType", typeName)
+                clone.Name = resolvedConfig.InstanceName or clone.Name or typeName
+                clone.Parent = context.Workspace
+
+                local primary = ensureModelPrimaryPart(clone)
+                if primary then
+                        clone:PivotTo(CFrame.new(randomCellPosition(globalConfig)))
+                end
+
+                local humanoid = clone:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                        humanoid.WalkSpeed = resolvedConfig.PatrolSpeed or humanoid.WalkSpeed
+                end
+        end
+end
+
 local function shallowCopy(source)
 	local result = {}
 	if type(source) ~= "table" then
@@ -77,53 +136,74 @@ local function spawnType(typeName, entry)
 		return
 	end
 
-	if not controllersFolder then
-		warn("[EnemySpawner] Map ReplicatedStorage.Modules.Enemies ontbreekt; geen vijanden gespawned")
-		return
-	end
+        if not prefabsFolder then
+                warn("[EnemySpawner] Prefabs-map ontbreekt in ServerStorage")
+                return
+        end
 
-	local controllerModule = controllersFolder:FindFirstChild(resolved.Controller)
-	if not controllerModule then
-		warn(string.format("[EnemySpawner] Controller-module \"%s\" niet gevonden voor type \"%s\"", tostring(resolved.Controller), tostring(typeName)))
-		return
-	end
+        local prefab = prefabsFolder:FindFirstChild(resolved.PrefabName)
+        if not prefab then
+                warn(string.format("[EnemySpawner] Prefab \"%s\" ontbreekt voor vijandtype \"%s\"", tostring(resolved.PrefabName), tostring(typeName)))
+                return
+        end
 
-	if not prefabsFolder then
-		warn("[EnemySpawner] Prefabs-map ontbreekt in ServerStorage")
-		return
-	end
+        clearExisting(typeName, resolved)
 
-	local prefab = prefabsFolder:FindFirstChild(resolved.PrefabName)
-	if not prefab then
-		warn(string.format("[EnemySpawner] Prefab \"%s\" ontbreekt voor vijandtype \"%s\"", tostring(resolved.PrefabName), tostring(typeName)))
-		return
-	end
+        if not controllersFolder then
+                warn("[EnemySpawner] Map ReplicatedStorage.Modules.Enemies ontbreekt; val terug op basis spawn")
+                spawnBasicClones(typeName, resolved, sharedContext, prefab)
+                return
+        end
 
-	clearExisting(typeName, resolved)
+        local controllerModule = controllersFolder:FindFirstChild(resolved.Controller)
+        if not controllerModule then
+                warn(string.format("[EnemySpawner] Controller-module \"%s\" niet gevonden voor type \"%s\"", tostring(resolved.Controller), tostring(typeName)))
+                spawnBasicClones(typeName, resolved, sharedContext, prefab)
+                return
+        end
 
-	local controller = require(controllerModule)
-	local spawnFunc = controller.SpawnEnemies or controller.spawnEnemies or controller.Spawn or controller.spawn
-	if typeof(spawnFunc) ~= "function" then
-		warn(string.format("[EnemySpawner] Controller-module \"%s\" mist een SpawnEnemies-functie", tostring(resolved.Controller)))
-		return
-	end
+        local okController, controller = pcall(require, controllerModule)
+        if not okController then
+                warn(string.format("[EnemySpawner] Laden van controller \"%s\" mislukt: %s", tostring(resolved.Controller), tostring(controller)))
+                spawnBasicClones(typeName, resolved, sharedContext, prefab)
+                return
+        end
+        local spawnFunc = controller.SpawnEnemies or controller.spawnEnemies or controller.Spawn or controller.spawn
+        if typeof(spawnFunc) ~= "function" then
+                warn(string.format("[EnemySpawner] Controller-module \"%s\" mist een SpawnEnemies-functie", tostring(resolved.Controller)))
+                spawnBasicClones(typeName, resolved, sharedContext, prefab)
+                return
+        end
 
-	local ok, err = pcall(function()
-		spawnFunc(typeName, resolved, sharedContext, prefab)
-	end)
-	if not ok then
-		warn(string.format("[EnemySpawner] Spawnen van type \"%s\" is mislukt: %s", tostring(typeName), tostring(err)))
-	end
+        local ok, err = pcall(function()
+                spawnFunc(typeName, resolved, sharedContext, prefab)
+        end)
+        if not ok then
+                warn(string.format("[EnemySpawner] Spawnen van type \"%s\" is mislukt: %s", tostring(typeName), tostring(err)))
+                spawnBasicClones(typeName, resolved, sharedContext, prefab)
+        end
 end
 
 _G.SpawnEnemies = function(enemyManifest)
-	enemyManifest = enemyManifest or defaultEnemyConfig
+        enemyManifest = enemyManifest or defaultEnemyConfig
 	if typeof(enemyManifest) ~= "table" then
 		warn("[EnemySpawner] Ongeldig enemy manifest; verwacht tabel")
 		return
 	end
 
-	for typeName, entry in pairs(enemyManifest) do
-		spawnType(typeName, entry)
-	end
+        for typeName, entry in pairs(enemyManifest) do
+                spawnType(typeName, entry)
+        end
+end
+
+_G.SpawnHunters = function()
+        local manifest = {
+                Hunter = {
+                        Count = (Config.Enemies and Config.Enemies.Hunter and Config.Enemies.Hunter.Count)
+                                or Config.EnemyCount or 0,
+                        PrefabName = (Config.Enemies and Config.Enemies.Hunter and Config.Enemies.Hunter.PrefabName) or "Hunter",
+                        Controller = (Config.Enemies and Config.Enemies.Hunter and Config.Enemies.Hunter.Controller) or "Hunter",
+                },
+        }
+        _G.SpawnEnemies(manifest)
 end

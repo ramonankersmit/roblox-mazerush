@@ -10,7 +10,8 @@ local Config = {
 	PrepBuildDuration = 7,
 	PrepOverviewDuration = 3,
 	PrepTime = 10, -- total prep time exposed to legacy consumers
-	KeyCount = 3,
+        EnemyCount = 2, -- backwards compatibility alias for legacy systems
+        KeyCount = 3,
 
 	DifficultyPresets = {
 		{ name = "Zeer makkelijk", loopChance = 0.90 },
@@ -23,8 +24,8 @@ local Config = {
 	DefaultDifficulty = "Gemiddeld",
 
 	Enemies = {
-		Hunter = {
-			Count = 2,
+                Hunter = {
+                        Count = 2,
 			PrefabName = "Hunter",
 			Controller = "Hunter",
 			PatrolSpeed = 12,
@@ -55,8 +56,10 @@ local Config = {
 	},
 
 	-- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
-	MazeAlgorithm = "DFS", -- "DFS" of "PRIM"
-	-- Kans (0-1) dat een bestaande muur na generatie alsnog wordt verwijderd om lussen te maken.
-	LoopChance = 0.05,
+        MazeAlgorithm = "DFS", -- "DFS" of "PRIM"
+        -- Kans (0-1) dat een bestaande muur na generatie alsnog wordt verwijderd om lussen te maken.
+        LoopChance = 0.05,
 }
+
+Config.EnemyCount = Config.Enemies.Hunter and Config.Enemies.Hunter.Count or Config.EnemyCount
 return Config
