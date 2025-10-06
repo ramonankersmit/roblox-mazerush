@@ -156,52 +156,27 @@
                 3,
                 -20
               ],
-              "Material": {
-                "$enum": [
-                  "Material",
-                  "SmoothPlastic"
-                ]
-              },
+              "Material": "SmoothPlastic",
               "Color": [
                 0.12549,
                 0.14902,
                 0.25098
               ],
-              "TopSurface": {
-                "$enum": [
-                  "SurfaceType",
-                  "Smooth"
-                ]
-              },
-              "BottomSurface": {
-                "$enum": [
-                  "SurfaceType",
-                  "Smooth"
-                ]
-              }
+              "TopSurface": "Smooth",
+              "BottomSurface": "Smooth"
             },
             "PlayerSurface": {
               "$className": "SurfaceGui",
               "$properties": {
                 "Name": "PlayerSurface",
-                "Face": {
-                  "$enum": [
-                    "NormalId",
-                    "Front"
-                  ]
-                },
+                "Face": "Front",
                 "LightInfluence": 0,
                 "ClipsDescendants": true,
                 "CanvasSize": [
                   1024,
                   768
                 ],
-                "ZIndexBehavior": {
-                  "$enum": [
-                    "ZIndexBehavior",
-                    "Sibling"
-                  ]
-                }
+                "ZIndexBehavior": "Sibling"
               },
               "PlayerBoard": {
                 "$className": "Frame",
@@ -213,46 +188,44 @@
                     0.14118
                   ],
                   "BackgroundTransparency": 0.25,
-                  "Size": [
-                    1,
-                    0,
-                    1,
-                    0
-                  ]
+                  "Size": {
+                    "UDim2": [
+                      [
+                        1,
+                        0
+                      ],
+                      [
+                        1,
+                        0
+                      ]
+                    ]
+                  }
                 },
                 "UICorner": {
                   "$className": "UICorner",
                   "$properties": {
-                    "CornerRadius": [
-                      0,
-                      18
-                    ]
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        18
+                      ]
+                    }
                   }
                 },
-                  "UIStroke": {
-                    "$className": "UIStroke",
-                    "$properties": {
-                      "Thickness": 2,
-                      "Transparency": 0.6,
-                      "ApplyStrokeMode": {
-                        "$enum": [
-                          "ApplyStrokeMode",
-                          "Contextual"
-                        ]
-                      }
-                    }
-                  },
-                  "Header": {
-                    "$className": "TextLabel",
-                    "$properties": {
-                      "Name": "Header",
-                      "BackgroundTransparency": 1,
-                      "Font": {
-                        "$enum": [
-                          "Font",
-                          "GothamBold"
-                        ]
-                      },
+                "UIStroke": {
+                  "$className": "UIStroke",
+                  "$properties": {
+                    "Thickness": 2,
+                    "Transparency": 0.6,
+                    "ApplyStrokeMode": "Contextual"
+                  }
+                },
+                "Header": {
+                  "$className": "TextLabel",
+                  "$properties": {
+                    "Name": "Header",
+                    "BackgroundTransparency": 1,
+                    "Font": "GothamBold",
                     "Text": "Lobby Status",
                     "TextColor3": [
                       0.92157,
@@ -261,36 +234,38 @@
                     ],
                     "TextScaled": false,
                     "TextSize": 44,
-                    "TextXAlignment": {
-                      "$enum": [
-                        "TextXAlignment",
-                        "Left"
+                    "TextXAlignment": "Left",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -60
+                        ],
+                        [
+                          0,
+                          80
+                        ]
                       ]
                     },
-                    "Size": [
-                      1,
-                      -60,
-                      0,
-                      80
-                    ],
-                    "Position": [
-                      0,
-                      30,
-                      0,
-                      24
-                    ]
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          30
+                        ],
+                        [
+                          0,
+                          24
+                        ]
+                      ]
+                    }
                   }
                 },
-                  "ReadySummary": {
-                    "$className": "TextLabel",
-                    "$properties": {
-                      "BackgroundTransparency": 1,
-                      "Font": {
-                        "$enum": [
-                          "Font",
-                          "Gotham"
-                        ]
-                      },
+                "ReadySummary": {
+                  "$className": "TextLabel",
+                  "$properties": {
+                    "BackgroundTransparency": 1,
+                    "Font": "Gotham",
                     "Name": "ReadySummary",
                     "Text": "0/0 klaar",
                     "TextColor3": [
@@ -299,24 +274,31 @@
                       0.7451
                     ],
                     "TextSize": 32,
-                    "TextXAlignment": {
-                      "$enum": [
-                        "TextXAlignment",
-                        "Left"
+                    "TextXAlignment": "Left",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -60
+                        ],
+                        [
+                          0,
+                          40
+                        ]
                       ]
                     },
-                    "Size": [
-                      1,
-                      -60,
-                      0,
-                      40
-                    ],
-                    "Position": [
-                      0,
-                      30,
-                      0,
-                      100
-                    ]
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          30
+                        ],
+                        [
+                          0,
+                          100
+                        ]
+                      ]
+                    }
                   }
                 },
                 "PlayerList": {
@@ -324,60 +306,53 @@
                   "$properties": {
                     "BackgroundTransparency": 1,
                     "Name": "PlayerList",
-                    "Position": [
-                      0,
-                      30,
-                      0,
-                      160
-                    ],
-                    "Size": [
-                      1,
-                      -60,
-                      1,
-                      -220
-                    ],
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          30
+                        ],
+                        [
+                          0,
+                          160
+                        ]
+                      ]
+                    },
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -60
+                        ],
+                        [
+                          1,
+                          -220
+                        ]
+                      ]
+                    },
                     "ClipsDescendants": true
                   },
-                      "UIListLayout": {
-                        "$className": "UIListLayout",
-                        "$properties": {
-                          "Padding": {
-                            "$type": "UDim",
-                            "Scale": 0,
-                            "Offset": 12
-                          },
-                    "FillDirection": {
-                      "$enum": [
-                        "FillDirection",
-                        "Vertical"
-                      ]
-                    },
-                    "HorizontalAlignment": {
-                      "$enum": [
-                        "HorizontalAlignment",
-                        "Left"
-                      ]
-                    },
-                    "SortOrder": {
-                      "$enum": [
-                        "SortOrder",
-                        "LayoutOrder"
-                      ]
-                    }
+                  "UIListLayout": {
+                    "$className": "UIListLayout",
+                    "$properties": {
+                      "Padding": {
+                        "UDim": [
+                          0,
+                          12
+                        ]
+                      },
+                      "FillDirection": "Vertical",
+                      "HorizontalAlignment": "Left",
+                      "SortOrder": "LayoutOrder"
                     }
                   }
                 },
-                  "ActionHint": {
-                    "$className": "TextLabel",
-                    "$properties": {
-                      "Name": "ActionHint",
-                      "BackgroundTransparency": 1,
-                      "Font": {
-                        "$enum": [
-                          "Font",
-                          "Gotham"
-                        ]
-                      },
+                "ActionHint": {
+                  "$className": "TextLabel",
+                  "$properties": {
+                    "Name": "ActionHint",
+                    "BackgroundTransparency": 1,
+                    "Font": "Gotham",
                     "Text": "Gebruik de prompt om je status te toggelen.",
                     "TextColor3": [
                       0.70588,
@@ -386,24 +361,31 @@
                     ],
                     "TextSize": 24,
                     "TextWrapped": true,
-                    "TextXAlignment": {
-                      "$enum": [
-                        "TextXAlignment",
-                        "Left"
+                    "TextXAlignment": "Left",
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          30
+                        ],
+                        [
+                          1,
+                          -96
+                        ]
                       ]
                     },
-                    "Position": [
-                      0,
-                      30,
-                      1,
-                      -96
-                    ],
-                    "Size": [
-                      1,
-                      -60,
-                      0,
-                      80
-                    ]
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -60
+                        ],
+                        [
+                          0,
+                          80
+                        ]
+                      ]
+                    }
                   }
                 }
               }
@@ -415,12 +397,7 @@
                 "ObjectText": "Statusconsole",
                 "RequiresLineOfSight": false,
                 "HoldDuration": 0,
-                "KeyboardKeyCode": {
-                  "$enum": [
-                    "KeyCode",
-                    "E"
-                  ]
-                }
+                "KeyboardKeyCode": "E"
               }
             },
             "StartPrompt": {
@@ -430,12 +407,7 @@
                 "ObjectText": "Alleen host",
                 "RequiresLineOfSight": false,
                 "HoldDuration": 0.75,
-                "KeyboardKeyCode": {
-                  "$enum": [
-                    "KeyCode",
-                    "R"
-                  ]
-                }
+                "KeyboardKeyCode": "R"
               }
             },
             "BillboardAttachment": {
@@ -453,143 +425,157 @@
                   "Name": "PlayerBillboard",
                   "AlwaysOnTop": true,
                   "LightInfluence": 0,
-                  "Size": [
-                    0,
-                    420,
-                    0,
-                    340
-                  ],
+                  "Size": {
+                    "UDim2": [
+                      [
+                        0,
+                        420
+                      ],
+                      [
+                        0,
+                        340
+                      ]
+                    ]
+                  },
                   "StudsOffsetWorldSpace": [
                     0,
                     1.5,
                     0
                   ],
                   "MaxDistance": 250,
-                  "ZIndexBehavior": {
-                    "$enum": [
-                      "ZIndexBehavior",
-                      "Sibling"
-                    ]
-                  }
+                  "ZIndexBehavior": "Sibling"
                 },
                 "BillboardFrame": {
                   "$className": "Frame",
                   "$properties": {
                     "Name": "BillboardFrame",
-                  "BackgroundColor3": [
-                    0.07059,
-                    0.07843,
-                    0.11765
-                  ],
-                    "BackgroundTransparency": 0.3,
-                    "Size": [
-                      1,
-                      -20,
-                      1,
-                      -20
+                    "BackgroundColor3": [
+                      0.07059,
+                      0.07843,
+                      0.11765
                     ],
-                    "Position": [
-                      0,
-                      10,
-                      0,
-                      10
-                    ]
+                    "BackgroundTransparency": 0.3,
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -20
+                        ],
+                        [
+                          1,
+                          -20
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
                   },
                   "UICorner": {
                     "$className": "UICorner",
                     "$properties": {
-                      "CornerRadius": [
-                        0,
-                        12
-                      ]
+                      "CornerRadius": {
+                        "UDim": [
+                          0,
+                          12
+                        ]
+                      }
                     }
                   },
-                    "UIStroke": {
-                      "$className": "UIStroke",
-                      "$properties": {
-                        "Transparency": 0.45,
-                        "ApplyStrokeMode": {
-                          "$enum": [
-                            "ApplyStrokeMode",
-                            "Border"
-                          ]
-                        }
-                      }
-                    },
-                    "Title": {
-                      "$className": "TextLabel",
-                      "$properties": {
-                        "Name": "Title",
-                        "BackgroundTransparency": 1,
-                        "Font": {
-                          "$enum": [
-                            "Font",
-                            "GothamBold"
-                          ]
-                        },
-                        "Text": "Spelers",
-                        "TextColor3": [
+                  "UIStroke": {
+                    "$className": "UIStroke",
+                    "$properties": {
+                      "Transparency": 0.45,
+                      "ApplyStrokeMode": "Border"
+                    }
+                  },
+                  "Title": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "Name": "Title",
+                      "BackgroundTransparency": 1,
+                      "Font": "GothamBold",
+                      "Text": "Spelers",
+                      "TextColor3": [
                         0.90196,
                         0.92549,
                         1
                       ],
                       "TextSize": 32,
-                      "TextXAlignment": {
-                        "$enum": [
-                          "TextXAlignment",
-                          "Left"
+                      "TextXAlignment": "Left",
+                      "Size": {
+                        "UDim2": [
+                          [
+                            1,
+                            -40
+                          ],
+                          [
+                            0,
+                            54
+                          ]
                         ]
                       },
-                      "Size": [
-                        1,
-                        -40,
-                        0,
-                        54
-                      ],
-                      "Position": [
-                        0,
-                        20,
-                        0,
-                        16
-                      ]
+                      "Position": {
+                        "UDim2": [
+                          [
+                            0,
+                            20
+                          ],
+                          [
+                            0,
+                            16
+                          ]
+                        ]
+                      }
                     }
                   },
-                    "ReadySummary": {
-                      "$className": "TextLabel",
-                      "$properties": {
-                        "Name": "ReadySummary",
-                        "BackgroundTransparency": 1,
-                        "Font": {
-                          "$enum": [
-                            "Font",
-                            "Gotham"
-                          ]
-                        },
-                        "Text": "0/0 klaar",
-                        "TextColor3": [
+                  "ReadySummary": {
+                    "$className": "TextLabel",
+                    "$properties": {
+                      "Name": "ReadySummary",
+                      "BackgroundTransparency": 1,
+                      "Font": "Gotham",
+                      "Text": "0/0 klaar",
+                      "TextColor3": [
                         0.4902,
                         0.92157,
                         0.7451
                       ],
                       "TextSize": 24,
-                      "TextXAlignment": {
-                        "$enum": [
-                          "TextXAlignment",
-                          "Left"
+                      "TextXAlignment": "Left",
+                      "Size": {
+                        "UDim2": [
+                          [
+                            1,
+                            -40
+                          ],
+                          [
+                            0,
+                            36
+                          ]
                         ]
                       },
-                      "Size": [
-                        1,
-                        -40,
-                        0,
-                        36
-                      ],
-                      "Position": [
-                        0,
-                        20,
-                        0,
-                        62
-                      ]
+                      "Position": {
+                        "UDim2": [
+                          [
+                            0,
+                            20
+                          ],
+                          [
+                            0,
+                            62
+                          ]
+                        ]
+                      }
                     }
                   },
                   "PlayerEntries": {
@@ -598,45 +584,43 @@
                       "Name": "PlayerEntries",
                       "BackgroundTransparency": 1,
                       "ClipsDescendants": true,
-                      "Position": [
-                        0,
-                        20,
-                        0,
-                        110
-                      ],
-                      "Size": [
-                        1,
-                        -40,
-                        1,
-                        -140
-                      ]
+                      "Position": {
+                        "UDim2": [
+                          [
+                            0,
+                            20
+                          ],
+                          [
+                            0,
+                            110
+                          ]
+                        ]
+                      },
+                      "Size": {
+                        "UDim2": [
+                          [
+                            1,
+                            -40
+                          ],
+                          [
+                            1,
+                            -140
+                          ]
+                        ]
+                      }
                     },
-                      "UIListLayout": {
-                        "$className": "UIListLayout",
-                        "$properties": {
-                          "Padding": {
-                            "$type": "UDim",
-                            "Scale": 0,
-                            "Offset": 8
-                          },
-                        "FillDirection": {
-                          "$enum": [
-                            "FillDirection",
-                            "Vertical"
+                    "UIListLayout": {
+                      "$className": "UIListLayout",
+                      "$properties": {
+                        "Padding": {
+                          "UDim": [
+                            0,
+                            8
                           ]
                         },
-                        "HorizontalAlignment": {
-                          "$enum": [
-                            "HorizontalAlignment",
-                            "Left"
-                          ]
-                        },
-                        "SortOrder": {
-                          "$enum": [
-                            "SortOrder",
-                            "LayoutOrder"
-                          ]
-                        }
+                        "FillDirection": "Vertical",
+                        "HorizontalAlignment": "Left",
+                        "SortOrder": "LayoutOrder"
                       }
                     }
                   }
