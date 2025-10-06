@@ -339,7 +339,12 @@
                 "ObjectText": "Statusconsole",
                 "RequiresLineOfSight": false,
                 "HoldDuration": 0,
-                "KeyboardKeyCode": "Enum.KeyCode.E"
+                "KeyboardKeyCode": {
+                  "$enum": [
+                    "KeyCode",
+                    "E"
+                  ]
+                }
               }
             },
             "StartPrompt": {
@@ -349,7 +354,12 @@
                 "ObjectText": "Alleen host",
                 "RequiresLineOfSight": false,
                 "HoldDuration": 0.75,
-                "KeyboardKeyCode": "Enum.KeyCode.R"
+                "KeyboardKeyCode": {
+                  "$enum": [
+                    "KeyCode",
+                    "R"
+                  ]
+                }
               }
             },
             "BillboardAttachment": {
