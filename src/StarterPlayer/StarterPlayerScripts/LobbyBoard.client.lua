@@ -9,6 +9,9 @@ local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
 
+local ThemeModule = ReplicatedStorage:FindFirstChild("Modules")
+local ThemeConfig = ThemeModule and require(ThemeModule:WaitForChild("ThemeConfig"))
+
 local localPlayer = Players.LocalPlayer
 local lobbyFolder = workspace:WaitForChild("Lobby", 15)
 if not lobbyFolder then
@@ -50,6 +53,12 @@ local readySummary = playerBoard:FindFirstChild("ReadySummary")
 local actionHint = playerBoard:FindFirstChild("ActionHint")
 local boardBaseColor = playerBoard.BackgroundColor3
 
+local themePanel = playerBoard:FindFirstChild("ThemePanel")
+local themeNameLabel = themePanel and themePanel:FindFirstChild("ThemeName")
+local themeCountdownLabel = themePanel and themePanel:FindFirstChild("ThemeCountdown")
+local themeStatusLabel = themePanel and themePanel:FindFirstChild("ThemeStatus")
+local themeHeaderLabel = themePanel and themePanel:FindFirstChild("ThemeHeader")
+
 local billboardAttachment = boardStand:FindFirstChild("BillboardAttachment")
 local billboardGui = billboardAttachment and billboardAttachment:FindFirstChild("PlayerBillboard")
 local billboardFrame = billboardGui and billboardGui:FindFirstChild("BillboardFrame")
@@ -65,6 +74,16 @@ local notReadyColor = Color3.fromRGB(255, 110, 130)
 local surfaceIdleColor = Color3.fromRGB(34, 38, 54)
 local surfaceReadyHighlight = Color3.fromRGB(42, 70, 64)
 local billboardHighlight = Color3.fromRGB(54, 90, 110)
+
+local function resolveThemeColor(themeId)
+    if ThemeConfig and ThemeConfig.Get then
+        local data = ThemeConfig.Get(themeId)
+        if data and data.primaryColor then
+            return data.primaryColor
+        end
+    end
+    return Color3.fromRGB(210, 220, 255)
+end
 
 local function createSurfaceTemplate()
     local frame = Instance.new("Frame")
@@ -227,6 +246,103 @@ local billboardTemplate = billboardList and createBillboardTemplate() or nil
 local entries = {}
 local readyStates = {}
 local lastPhase = nil
+
+local function applyThemePanelVisibility(themeState)
+    if not themePanel then
+        return
+    end
+    if not themeState or not themeState.options or #themeState.options == 0 then
+        themePanel.Visible = false
+    else
+        themePanel.Visible = true
+    end
+end
+
+local function updateThemePanel(themeState, state)
+    if not themePanel then
+        return
+    end
+
+    applyThemePanelVisibility(themeState)
+
+    if not themePanel.Visible then
+        return
+    end
+
+    state = state or {}
+    themeState = themeState or {}
+
+    local readyCount = state.readyCount or 0
+    local totalPlayers = state.total or 0
+    local totalVotes = themeState.totalVotes or 0
+    local countdownActive = themeState.countdownActive == true
+    local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
+    local activeVote = themeState.active == true
+
+    local leaderId = themeState.current
+    local leaderVotes = -1
+    if themeState.options then
+        for index, option in ipairs(themeState.options) do
+            local votes = option.votes or 0
+            if leaderId == option.id and leaderVotes < votes then
+                leaderVotes = votes
+            end
+            if votes > leaderVotes then
+                leaderId = option.id
+                leaderVotes = votes
+            elseif leaderId == nil and index == 1 then
+                leaderId = option.id
+                leaderVotes = votes
+            end
+        end
+    end
+
+    local leaderName = themeState.currentName
+    if not leaderName then
+        if leaderId and themeState.options then
+            for _, option in ipairs(themeState.options) do
+                if option.id == leaderId then
+                    leaderName = option.name or leaderId
+                    break
+                end
+            end
+        end
+    end
+    leaderName = leaderName or leaderId or "?"
+
+    local highlightColor = resolveThemeColor(leaderId)
+
+    if themeNameLabel and themeNameLabel:IsA("TextLabel") then
+        themeNameLabel.Text = leaderName
+        themeNameLabel.TextColor3 = highlightColor
+    end
+
+    if themeHeaderLabel and themeHeaderLabel:IsA("TextLabel") then
+        themeHeaderLabel.TextColor3 = highlightColor:Lerp(Color3.fromRGB(220, 226, 255), 0.6)
+    end
+
+    if themeCountdownLabel and themeCountdownLabel:IsA("TextLabel") then
+        if activeVote then
+            if countdownActive then
+                if endsIn > 0 then
+                    themeCountdownLabel.Text = string.format("Stemmen sluiten over %ds", endsIn)
+                else
+                    themeCountdownLabel.Text = "Stemmen sluiten nu"
+                end
+            else
+                themeCountdownLabel.Text = readyCount > 0 and "Stemming geopend" or "Wachten op spelers"
+            end
+            themeCountdownLabel.TextColor3 = Color3.fromRGB(200, 210, 240)
+        else
+            themeCountdownLabel.Text = "Thema bevestigd"
+            themeCountdownLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
+        end
+    end
+
+    if themeStatusLabel and themeStatusLabel:IsA("TextLabel") then
+        themeStatusLabel.Text = string.format("Stemmen: %d · Gereed: %d/%d", totalVotes, readyCount, totalPlayers)
+    end
+end
 
 local function loadAvatar(imageLabel, userId)
     local success, result = pcall(function()
@@ -525,6 +641,7 @@ local function renderState(state)
     end
 
     updatePrompts(state)
+    updateThemePanel(state.themes, state)
 
     if lastPhase == "IDLE" and state.phase ~= "IDLE" then
         playStartAnimation()

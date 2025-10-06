@@ -23,12 +23,39 @@ local currentTheme = ThemeValue.Value ~= "" and ThemeValue.Value or ThemeConfig.
 RoundConfig.Theme = currentTheme
 
 local VOTE_DURATION = 30
-local voteDeadline = 0
+local voteDeadline = nil
 local voteActive = false
+local voteCountdownActive = false
 local ThemeVotes = {}
 
 local Ready = {} -- [userid] = boolean
 local HostUserId = nil
+
+local function anyPlayersReady()
+        for _, isReady in pairs(Ready) do
+                if isReady then
+                        return true
+                end
+        end
+        return false
+end
+
+local function clearVoteCountdown()
+        voteCountdownActive = false
+        voteDeadline = nil
+end
+
+local function tryActivateVoteCountdown()
+        if not voteActive or voteCountdownActive then
+                return false
+        end
+        if not anyPlayersReady() then
+                return false
+        end
+        voteCountdownActive = true
+        voteDeadline = os.clock() + VOTE_DURATION
+        return true
+end
 
 local function getThemeOrder()
         local order = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds()
@@ -123,6 +150,12 @@ local function broadcast(precomputedCounts)
 
         local currentInfo = ThemeConfig.Themes[currentTheme]
 
+        local countdownActive = voteActive and voteCountdownActive and voteDeadline ~= nil
+        local endsInValue = 0
+        if countdownActive then
+                endsInValue = math.max(0, math.ceil(voteDeadline - os.clock()))
+        end
+
         LobbyState:FireAllClients({
                 host = HostUserId,
                 players = list,
@@ -137,7 +170,8 @@ local function broadcast(precomputedCounts)
                         options = options,
                         totalVotes = counts._total or 0,
                         active = voteActive,
-                        endsIn = voteActive and math.max(0, math.ceil(voteDeadline - os.clock())) or 0,
+                        countdownActive = countdownActive,
+                        endsIn = endsInValue,
                         current = currentTheme,
                         currentName = currentInfo and currentInfo.displayName or currentTheme,
                         votesByPlayer = votesByPlayer,
@@ -148,13 +182,33 @@ end
 local function startVoteCycle()
         ThemeVotes = {}
         voteActive = true
-        voteDeadline = os.clock() + VOTE_DURATION
+        clearVoteCountdown()
         broadcast()
+        if tryActivateVoteCountdown() then
+                broadcast()
+        end
+end
+
+local function tryStartVoteCycle()
+        if voteActive then
+                return
+        end
+        if Phase.Value ~= "IDLE" then
+                return
+        end
+        if #Players:GetPlayers() == 0 then
+                ThemeVotes = {}
+                clearVoteCountdown()
+                broadcast()
+                return
+        end
+        startVoteCycle()
 end
 
 local function finalizeVote()
         local counts = tallyVotes()
         voteActive = false
+        clearVoteCountdown()
         voteDeadline = os.clock()
         local winner = determineLeader(counts)
         local changed = applyThemeSelection(winner)
@@ -171,7 +225,7 @@ ThemeValue:GetPropertyChangedSignal("Value"):Connect(function()
 end)
 
 if Phase.Value == "IDLE" then
-        startVoteCycle()
+        tryStartVoteCycle()
 else
         broadcast()
 end
@@ -180,8 +234,12 @@ task.spawn(function()
         while true do
                 task.wait(1)
                 if voteActive then
-                        if os.clock() >= voteDeadline then
-                                finalizeVote()
+                        if voteCountdownActive and voteDeadline then
+                                if os.clock() >= voteDeadline then
+                                        finalizeVote()
+                                else
+                                        broadcast()
+                                end
                         else
                                 broadcast()
                         end
@@ -194,6 +252,9 @@ Players.PlayerAdded:Connect(function(plr)
         Ready[plr.UserId] = false
         ThemeVotes[plr.UserId] = nil
         broadcast()
+        if Phase.Value == "IDLE" then
+                tryStartVoteCycle()
+        end
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
@@ -204,6 +265,16 @@ Players.PlayerRemoving:Connect(function(plr)
                 HostUserId = (#others>0) and others[1].UserId or nil
         end
         broadcast()
+        task.defer(function()
+                if #Players:GetPlayers() == 0 then
+                        voteActive = false
+                        ThemeVotes = {}
+                        clearVoteCountdown()
+                elseif voteActive and voteCountdownActive and not anyPlayersReady() then
+                        clearVoteCountdown()
+                        broadcast()
+                end
+        end)
 end)
 
 ThemeVote.OnServerEvent:Connect(function(plr, themeId)
@@ -222,6 +293,11 @@ end)
 ToggleReady.OnServerEvent:Connect(function(plr)
         if Phase.Value ~= "IDLE" and Phase.Value ~= "PREP" then return end
         Ready[plr.UserId] = not Ready[plr.UserId]
+        if anyPlayersReady() then
+                tryActivateVoteCountdown()
+        else
+                clearVoteCountdown()
+        end
         broadcast()
 end)
 
@@ -247,7 +323,10 @@ Phase:GetPropertyChangedSignal("Value"):Connect(function()
                 for _, plr in ipairs(Players:GetPlayers()) do
                         Ready[plr.UserId] = false
                 end
-                startVoteCycle()
+                ThemeVotes = {}
+                voteActive = false
+                clearVoteCountdown()
+                tryStartVoteCycle()
         else
                 if voteActive then
                         finalizeVote()

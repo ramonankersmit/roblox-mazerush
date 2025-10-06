@@ -1,4 +1,11 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local ThemeConfig = nil
+
+pcall(function()
+    ThemeConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ThemeConfig"))
+end)
 
 local function createFrame(parent, name, size, position, props)
     local frame = Instance.new("Frame")
@@ -35,6 +42,66 @@ local function createTextLabel(parent, name, text, size, position, props)
         end
     end
     return label
+end
+
+local function findBoardAnchor(lobby)
+    if not lobby then
+        return nil
+    end
+
+    local function isAnchor(instance)
+        if not instance then
+            return false
+        end
+        if instance:IsA("BasePart") then
+            if instance.Name == "LobbyBoardAnchor" or instance.Name == "BoardAnchor" then
+                return true
+            end
+            if instance:GetAttribute("LobbyBoardAnchor") or instance:GetAttribute("BoardAnchor") then
+                return true
+            end
+        end
+        return false
+    end
+
+    for _, child in ipairs(lobby:GetChildren()) do
+        if isAnchor(child) then
+            return child
+        end
+    end
+
+    for _, descendant in ipairs(lobby:GetDescendants()) do
+        if isAnchor(descendant) then
+            return descendant
+        end
+    end
+
+    return nil
+end
+
+local function computeDefaultPivot(lobby, boardStand)
+    local anchor = findBoardAnchor(lobby)
+    if anchor then
+        return anchor:GetPivot()
+    end
+
+    local spawns = Workspace:FindFirstChild("Spawns")
+    local lobbyBase = spawns and spawns:FindFirstChild("LobbyBase")
+    if lobbyBase and lobbyBase:IsA("BasePart") then
+        local baseCenter = lobbyBase.CFrame.Position + Vector3.new(0, lobbyBase.Size.Y * 0.5, 0)
+        local forward = -lobbyBase.CFrame.LookVector
+        if forward.Magnitude < 0.05 then
+            forward = Vector3.new(0, 0, -1)
+        else
+            forward = forward.Unit
+        end
+        local clearance = (lobbyBase.Size.Z * 0.5) + (boardStand.Size.Z * 0.5) + 4
+        local position = baseCenter + Vector3.new(0, boardStand.Size.Y * 0.5, 0) + forward * clearance
+        local lookAt = baseCenter + Vector3.new(0, boardStand.Size.Y * 0.25, 0)
+        return CFrame.lookAt(position, lookAt)
+    end
+
+    return CFrame.new(0, boardStand.Size.Y * 0.5, 0)
 end
 
 local function ensureLobbyBoard()
@@ -102,6 +169,49 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
+    local themePanel = createFrame(playerBoard, "ThemePanel", UDim2.new(1, -40, 0, 112), UDim2.new(0, 20, 0, 110), {
+        BackgroundTransparency = 0.25,
+        BackgroundColor3 = Color3.fromRGB(38, 44, 68),
+    })
+
+    local themeCorner = Instance.new("UICorner")
+    themeCorner.CornerRadius = UDim.new(0, 18)
+    themeCorner.Parent = themePanel
+
+    local themeStroke = Instance.new("UIStroke")
+    themeStroke.Thickness = 1.5
+    themeStroke.Transparency = 0.45
+    themeStroke.Color = Color3.fromRGB(90, 110, 160)
+    themeStroke.Parent = themePanel
+
+    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(1, -24, 0, 24), UDim2.new(0, 12, 0, 12), {
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 20,
+        TextColor3 = Color3.fromRGB(220, 226, 255),
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    createTextLabel(themePanel, "ThemeName", "Nog niet gekozen", UDim2.new(1, -24, 0, 28), UDim2.new(0, 12, 0, 40), {
+        Font = Enum.Font.GothamBold,
+        TextSize = 24,
+        TextColor3 = Color3.fromRGB(240, 244, 255),
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    createTextLabel(themePanel, "ThemeCountdown", "Wacht op spelers", UDim2.new(0.5, -12, 0, 22), UDim2.new(0, 12, 0, 74), {
+        Font = Enum.Font.Gotham,
+        TextSize = 18,
+        TextColor3 = Color3.fromRGB(200, 210, 240),
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(0.5, -12, 0, 22), UDim2.new(0.5, 0, 0, 74), {
+        Font = Enum.Font.Gotham,
+        TextSize = 16,
+        TextColor3 = Color3.fromRGB(170, 180, 210),
+        TextXAlignment = Enum.TextXAlignment.Right,
+    })
+
     local actionHint = createTextLabel(playerBoard, "ActionHint", "Approach the console to ready up", UDim2.new(1, -40, 0, 24), UDim2.new(0, 20, 1, -60), {
         Font = Enum.Font.Gotham,
         TextSize = 20,
@@ -109,7 +219,7 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -180), UDim2.new(0, 20, 0, 108), {
+    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -300), UDim2.new(0, 20, 0, 230), {
         BackgroundTransparency = 1,
     })
 
@@ -206,8 +316,20 @@ local function ensureLobbyBoard()
     })
 
     boardModel.PrimaryPart = boardStand
+
+    local pivot = computeDefaultPivot(lobby, boardStand)
+    boardModel:PivotTo(pivot)
+
+    -- Apply the default theme accent to the theme name when possible
+    if ThemeConfig then
+        local defaultTheme = ThemeConfig.Default and ThemeConfig.Get and ThemeConfig.Get(ThemeConfig.Default)
+        if defaultTheme then
+            local themeNameLabel = themePanel:FindFirstChild("ThemeName")
+            if themeNameLabel and themeNameLabel:IsA("TextLabel") then
+                themeNameLabel.TextColor3 = defaultTheme.primaryColor or themeNameLabel.TextColor3
+            end
+        end
+    end
 end
 
 ensureLobbyBoard()
-
-return true
