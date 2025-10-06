@@ -79,10 +79,39 @@ local function findBoardAnchor(lobby)
     return nil
 end
 
+local function applyAnchorAttributes(anchor, pivot, boardStand)
+    local adjusted = pivot
+
+    if anchor:IsA("BasePart") then
+        local anchorCF = anchor.CFrame
+        local yOffset = (boardStand.Size.Y * 0.5) - (anchor.Size.Y * 0.5)
+        local depthOffset = -(anchor.Size.Z * 0.5 + boardStand.Size.Z * 0.5)
+        adjusted = anchorCF * CFrame.new(0, yOffset, depthOffset)
+    end
+
+    local offset = anchor:GetAttribute("LobbyBoardOffset") or anchor:GetAttribute("BoardOffset")
+    if typeof(offset) == "Vector3" then
+        adjusted = adjusted * CFrame.new(offset)
+    end
+
+    local rotation = anchor:GetAttribute("LobbyBoardRotation") or anchor:GetAttribute("BoardRotation")
+    if typeof(rotation) == "Vector3" then
+        adjusted = adjusted * CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
+    end
+
+    local flip = anchor:GetAttribute("LobbyBoardFlip") or anchor:GetAttribute("BoardFlip")
+    if flip then
+        adjusted = adjusted * CFrame.Angles(0, math.pi, 0)
+    end
+
+    return adjusted
+end
+
 local function computeDefaultPivot(lobby, boardStand)
     local anchor = findBoardAnchor(lobby)
     if anchor then
-        return anchor:GetPivot()
+        local pivot = anchor:GetPivot()
+        return applyAnchorAttributes(anchor, pivot, boardStand)
     end
 
     local spawns = Workspace:FindFirstChild("Spawns")
@@ -138,12 +167,14 @@ local function ensureLobbyBoard()
     surfaceGui.PixelsPerStud = 60
     surfaceGui.ResetOnSpawn = false
     surfaceGui.AlwaysOnTop = false
+    surfaceGui.Active = true
     surfaceGui.Adornee = boardStand
     surfaceGui.Parent = boardStand
 
     local playerBoard = createFrame(surfaceGui, "PlayerBoard", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), {
         BackgroundTransparency = 0.2,
         BackgroundColor3 = Color3.fromRGB(34, 38, 54),
+        ClipsDescendants = false,
     })
 
     local boardCorner = Instance.new("UICorner")
@@ -169,9 +200,10 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local themePanel = createFrame(playerBoard, "ThemePanel", UDim2.new(1, -40, 0, 112), UDim2.new(0, 20, 0, 110), {
+    local themePanel = createFrame(playerBoard, "ThemePanel", UDim2.new(1, -40, 0, 168), UDim2.new(0, 20, 0, 110), {
         BackgroundTransparency = 0.25,
         BackgroundColor3 = Color3.fromRGB(38, 44, 68),
+        ClipsDescendants = true,
     })
 
     local themeCorner = Instance.new("UICorner")
@@ -212,14 +244,43 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Right,
     })
 
-    local actionHint = createTextLabel(playerBoard, "ActionHint", "Approach the console to ready up", UDim2.new(1, -40, 0, 24), UDim2.new(0, 20, 1, -60), {
+    local themeOptions = Instance.new("ScrollingFrame")
+    themeOptions.Name = "ThemeOptions"
+    themeOptions.Active = true
+    themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    themeOptions.BackgroundTransparency = 1
+    themeOptions.BorderSizePixel = 0
+    themeOptions.ScrollBarThickness = 4
+    themeOptions.ScrollingDirection = Enum.ScrollingDirection.Y
+    themeOptions.Size = UDim2.new(1, -24, 0, 72)
+    themeOptions.Position = UDim2.new(0, 12, 0, 96)
+    themeOptions.CanvasSize = UDim2.new()
+    themeOptions.Parent = themePanel
+
+    local themeOptionsLayout = Instance.new("UIListLayout")
+    themeOptionsLayout.FillDirection = Enum.FillDirection.Vertical
+    themeOptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    themeOptionsLayout.Padding = UDim.new(0, 6)
+    themeOptionsLayout.Parent = themeOptions
+
+    createTextLabel(themePanel, "ThemeHint", "Tik op een thema om te stemmen.", UDim2.new(1, -24, 0, 20), UDim2.new(0, 12, 1, -24), {
         Font = Enum.Font.Gotham,
-        TextSize = 20,
+        TextSize = 16,
+        TextColor3 = Color3.fromRGB(170, 180, 210),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+    })
+
+    local actionHint = createTextLabel(playerBoard, "ActionHint", "Ga naar de console om klaar te melden en stem op het bord.", UDim2.new(1, -40, 0, 40), UDim2.new(0, 20, 1, -72), {
+        Font = Enum.Font.Gotham,
+        TextSize = 18,
+        TextWrapped = true,
+        TextYAlignment = Enum.TextYAlignment.Top,
         TextColor3 = Color3.fromRGB(140, 210, 255),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -300), UDim2.new(0, 20, 0, 230), {
+    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -320), UDim2.new(0, 20, 0, 300), {
         BackgroundTransparency = 1,
     })
 
@@ -231,12 +292,12 @@ local function ensureLobbyBoard()
 
     local readyPrompt = Instance.new("ProximityPrompt")
     readyPrompt.Name = "ReadyPrompt"
-    readyPrompt.ObjectText = "Ready Up"
-    readyPrompt.ActionText = "Toggle Ready"
+    readyPrompt.ObjectText = "Statusconsole"
+    readyPrompt.ActionText = "Meld je klaar"
     readyPrompt.KeyboardKeyCode = Enum.KeyCode.E
     readyPrompt.HoldDuration = 0
     readyPrompt.RequiresLineOfSight = false
-    readyPrompt.Style = Enum.ProximityPromptStyle.Custom
+    readyPrompt.Style = Enum.ProximityPromptStyle.Default
     readyPrompt.MaxActivationDistance = 12
     readyPrompt.GamepadKeyCode = Enum.KeyCode.ButtonX
     readyPrompt.UIOffset = Vector2.new(0, -24)
@@ -244,11 +305,11 @@ local function ensureLobbyBoard()
 
     local startPrompt = Instance.new("ProximityPrompt")
     startPrompt.Name = "StartPrompt"
-    startPrompt.ObjectText = "Console"
-    startPrompt.ActionText = "Start Game"
+    startPrompt.ObjectText = "Startconsole"
+    startPrompt.ActionText = "Start Maze"
     startPrompt.KeyboardKeyCode = Enum.KeyCode.F
     startPrompt.HoldDuration = 0.5
-    startPrompt.Style = Enum.ProximityPromptStyle.Custom
+    startPrompt.Style = Enum.ProximityPromptStyle.Default
     startPrompt.RequiresLineOfSight = false
     startPrompt.MaxActivationDistance = 12
     startPrompt.GamepadKeyCode = Enum.KeyCode.ButtonY

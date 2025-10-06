@@ -8,6 +8,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
+local ThemeVote = Remotes:WaitForChild("ThemeVote")
 
 local ThemeModule = ReplicatedStorage:FindFirstChild("Modules")
 local ThemeConfig = ThemeModule and require(ThemeModule:WaitForChild("ThemeConfig"))
@@ -58,6 +59,8 @@ local themeNameLabel = themePanel and themePanel:FindFirstChild("ThemeName")
 local themeCountdownLabel = themePanel and themePanel:FindFirstChild("ThemeCountdown")
 local themeStatusLabel = themePanel and themePanel:FindFirstChild("ThemeStatus")
 local themeHeaderLabel = themePanel and themePanel:FindFirstChild("ThemeHeader")
+local themeOptionsFrame = themePanel and themePanel:FindFirstChild("ThemeOptions")
+local themeHintLabel = themePanel and themePanel:FindFirstChild("ThemeHint")
 
 local billboardAttachment = boardStand:FindFirstChild("BillboardAttachment")
 local billboardGui = billboardAttachment and billboardAttachment:FindFirstChild("PlayerBillboard")
@@ -83,6 +86,30 @@ local function resolveThemeColor(themeId)
         end
     end
     return Color3.fromRGB(210, 220, 255)
+end
+
+local function resolveThemeName(themeId, themeState)
+    if not themeId or themeId == "" then
+        return nil, nil
+    end
+
+    if themeState and themeState.options then
+        for _, option in ipairs(themeState.options) do
+            if option.id == themeId then
+                local color = option.color or resolveThemeColor(themeId)
+                return option.name or themeId, color
+            end
+        end
+    end
+
+    if ThemeConfig and ThemeConfig.Get then
+        local data = ThemeConfig.Get(themeId)
+        if data then
+            return data.displayName or themeId, data.primaryColor or resolveThemeColor(themeId)
+        end
+    end
+
+    return themeId, resolveThemeColor(themeId)
 end
 
 local function createSurfaceTemplate()
@@ -208,7 +235,7 @@ local function createBillboardTemplate()
     nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Position = UDim2.new(0, 52, 0, 0)
-    nameLabel.Size = UDim2.new(1, -140, 1, 0)
+    nameLabel.Size = UDim2.new(1, -140, 0, 22)
     nameLabel.Parent = frame
 
     local hostTag = Instance.new("TextLabel")
@@ -223,6 +250,18 @@ local function createBillboardTemplate()
     hostTag.Size = UDim2.new(0, 72, 1, 0)
     hostTag.TextXAlignment = Enum.TextXAlignment.Right
     hostTag.Parent = frame
+
+    local voteTag = Instance.new("TextLabel")
+    voteTag.Name = "VoteTag"
+    voteTag.BackgroundTransparency = 1
+    voteTag.Font = Enum.Font.Gotham
+    voteTag.TextSize = 16
+    voteTag.TextColor3 = Color3.fromRGB(200, 210, 240)
+    voteTag.TextXAlignment = Enum.TextXAlignment.Left
+    voteTag.Position = UDim2.new(0, 52, 0, 22)
+    voteTag.Size = UDim2.new(1, -140, 0, 20)
+    voteTag.Visible = false
+    voteTag.Parent = frame
 
     local readyIndicator = Instance.new("Frame")
     readyIndicator.Name = "ReadyIndicator"
@@ -243,9 +282,119 @@ end
 local surfaceTemplate = createSurfaceTemplate()
 local billboardTemplate = billboardList and createBillboardTemplate() or nil
 
+local themeOptionEntries = {}
 local entries = {}
 local readyStates = {}
 local lastPhase = nil
+
+local function ensureThemeOptionEntry(themeId)
+    if not themeOptionsFrame then
+        return nil
+    end
+
+    local existing = themeOptionEntries[themeId]
+    if existing then
+        return existing
+    end
+
+    local button = Instance.new("TextButton")
+    button.Name = themeId
+    button.AutoButtonColor = false
+    button.BackgroundTransparency = 0.25
+    button.BackgroundColor3 = Color3.fromRGB(28, 32, 48)
+    button.Size = UDim2.new(1, 0, 0, 48)
+    button.Text = ""
+    button.Active = true
+    button.ClipsDescendants = true
+    button.Parent = themeOptionsFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = button
+
+    local stroke = Instance.new("UIStroke")
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Thickness = 1.5
+    stroke.Transparency = 0.6
+    stroke.Color = Color3.fromRGB(110, 120, 160)
+    stroke.Parent = button
+
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.BackgroundTransparency = 0.75
+    fill.BackgroundColor3 = Color3.fromRGB(70, 90, 140)
+    fill.BorderSizePixel = 0
+    fill.Size = UDim2.new(0, 0, 1, 0)
+    fill.Parent = button
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 12)
+    fillCorner.Parent = fill
+
+    local tagLabel = Instance.new("TextLabel")
+    tagLabel.Name = "Tag"
+    tagLabel.BackgroundTransparency = 1
+    tagLabel.Font = Enum.Font.GothamSemibold
+    tagLabel.TextSize = 14
+    tagLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
+    tagLabel.TextXAlignment = Enum.TextXAlignment.Left
+    tagLabel.Position = UDim2.new(0, 12, 0, -12)
+    tagLabel.Size = UDim2.new(1, -24, 0, 18)
+    tagLabel.Visible = false
+    tagLabel.Parent = button
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "Name"
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font = Enum.Font.GothamSemibold
+    nameLabel.TextSize = 20
+    nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Position = UDim2.new(0, 12, 0, 6)
+    nameLabel.Size = UDim2.new(1, -24, 0, 24)
+    nameLabel.Parent = button
+
+    local descriptionLabel = Instance.new("TextLabel")
+    descriptionLabel.Name = "Description"
+    descriptionLabel.BackgroundTransparency = 1
+    descriptionLabel.Font = Enum.Font.Gotham
+    descriptionLabel.TextSize = 16
+    descriptionLabel.TextColor3 = Color3.fromRGB(182, 190, 212)
+    descriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descriptionLabel.TextYAlignment = Enum.TextYAlignment.Top
+    descriptionLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    descriptionLabel.Position = UDim2.new(0, 12, 0, 30)
+    descriptionLabel.Size = UDim2.new(0.6, 0, 0, 16)
+    descriptionLabel.Parent = button
+
+    local votesLabel = Instance.new("TextLabel")
+    votesLabel.Name = "Votes"
+    votesLabel.BackgroundTransparency = 1
+    votesLabel.Font = Enum.Font.GothamSemibold
+    votesLabel.TextSize = 18
+    votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
+    votesLabel.TextXAlignment = Enum.TextXAlignment.Right
+    votesLabel.Position = UDim2.new(0.5, 0, 0, 30)
+    votesLabel.Size = UDim2.new(0.5, -12, 0, 16)
+    votesLabel.Parent = button
+
+    button.MouseButton1Click:Connect(function()
+        ThemeVote:FireServer(themeId)
+    end)
+
+    local entry = {
+        button = button,
+        fill = fill,
+        stroke = stroke,
+        tag = tagLabel,
+        name = nameLabel,
+        desc = descriptionLabel,
+        votes = votesLabel,
+    }
+
+    themeOptionEntries[themeId] = entry
+    return entry
+end
 
 local function applyThemePanelVisibility(themeState)
     if not themePanel then
@@ -255,6 +404,13 @@ local function applyThemePanelVisibility(themeState)
         themePanel.Visible = false
     else
         themePanel.Visible = true
+    end
+
+    if themeOptionsFrame then
+        themeOptionsFrame.Visible = themePanel.Visible
+    end
+    if themeHintLabel then
+        themeHintLabel.Visible = themePanel.Visible
     end
 end
 
@@ -279,6 +435,14 @@ local function updateThemePanel(themeState, state)
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
     local activeVote = themeState.active == true
 
+    local votesByPlayer = {}
+    if themeState.votesByPlayer then
+        for userId, themeId in pairs(themeState.votesByPlayer) do
+            votesByPlayer[tostring(userId)] = themeId
+        end
+    end
+    local myVote = votesByPlayer[tostring(localPlayer.UserId)]
+
     local leaderId = themeState.current
     local leaderVotes = -1
     if themeState.options then
@@ -297,20 +461,52 @@ local function updateThemePanel(themeState, state)
         end
     end
 
-    local leaderName = themeState.currentName
-    if not leaderName then
-        if leaderId and themeState.options then
-            for _, option in ipairs(themeState.options) do
-                if option.id == leaderId then
-                    leaderName = option.name or leaderId
-                    break
+    local resolvedLeaderName, leaderColor = resolveThemeName(leaderId, themeState)
+    local leaderName = themeState.currentName or resolvedLeaderName or leaderId or "?"
+    local highlightColor = leaderColor or resolveThemeColor(leaderId)
+
+    if themeOptionsFrame then
+        local seen = {}
+        for index, option in ipairs(themeState.options or {}) do
+            local entry = ensureThemeOptionEntry(option.id)
+            if entry then
+                entry.button.LayoutOrder = index
+                entry.name.Text = option.name or option.id
+                entry.desc.Text = option.description or ""
+                local votes = option.votes or 0
+                entry.votes.Text = string.format("%d stem%s", votes, votes == 1 and "" or "men")
+                local ratio = totalVotes > 0 and math.clamp(votes / totalVotes, 0, 1) or 0
+                entry.fill.Size = UDim2.new(ratio, 0, 1, 0)
+                local color = option.color or resolveThemeColor(option.id)
+                entry.fill.BackgroundColor3 = color
+                entry.fill.BackgroundTransparency = ratio > 0 and 0.4 or 0.75
+                entry.button.BackgroundColor3 = myVote == option.id and Color3.fromRGB(36, 46, 68) or Color3.fromRGB(28, 32, 48)
+                entry.stroke.Color = myVote == option.id and color or Color3.fromRGB(110, 120, 160)
+                entry.stroke.Transparency = (myVote == option.id or option.id == leaderId) and 0.25 or 0.6
+                if entry.tag then
+                    if myVote == option.id then
+                        entry.tag.Visible = true
+                        entry.tag.Text = "Jouw stem"
+                        entry.tag.TextColor3 = color
+                    elseif option.id == leaderId then
+                        entry.tag.Visible = votes > 0 or not activeVote
+                        entry.tag.Text = activeVote and "Aan kop" or "Gekozen"
+                        entry.tag.TextColor3 = color
+                    else
+                        entry.tag.Visible = false
+                    end
                 end
+                seen[option.id] = true
+            end
+        end
+
+        for themeId, entry in pairs(themeOptionEntries) do
+            if not seen[themeId] then
+                entry.button:Destroy()
+                themeOptionEntries[themeId] = nil
             end
         end
     end
-    leaderName = leaderName or leaderId or "?"
-
-    local highlightColor = resolveThemeColor(leaderId)
 
     if themeNameLabel and themeNameLabel:IsA("TextLabel") then
         themeNameLabel.Text = leaderName
@@ -318,6 +514,7 @@ local function updateThemePanel(themeState, state)
     end
 
     if themeHeaderLabel and themeHeaderLabel:IsA("TextLabel") then
+        themeHeaderLabel.Text = string.format("Thema stemming · Gereed: %d/%d", readyCount, totalPlayers)
         themeHeaderLabel.TextColor3 = highlightColor:Lerp(Color3.fromRGB(220, 226, 255), 0.6)
     end
 
@@ -341,6 +538,23 @@ local function updateThemePanel(themeState, state)
 
     if themeStatusLabel and themeStatusLabel:IsA("TextLabel") then
         themeStatusLabel.Text = string.format("Stemmen: %d · Gereed: %d/%d", totalVotes, readyCount, totalPlayers)
+    end
+
+    if themeHintLabel and themeHintLabel:IsA("TextLabel") then
+        if activeVote then
+            themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
+            if readyCount == 0 then
+                themeHintLabel.Text = "Meld je klaar om de stemming te starten."
+            elseif myVote then
+                local myName = resolveThemeName(myVote, themeState)
+                themeHintLabel.Text = string.format("Je stem: %s · tik om te wijzigen.", myName or myVote)
+            else
+                themeHintLabel.Text = "Tik op een thema om je stem uit te brengen."
+            end
+        else
+            themeHintLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
+            themeHintLabel.Text = string.format("Thema vastgezet: %s", leaderName)
+        end
     end
 end
 
@@ -565,16 +779,21 @@ local function updatePrompts(state)
 
     if actionHint then
         if not showPrompts then
-            actionHint.Text = "Maze bezig - klaarstatus is vergrendeld."
+            actionHint.Text = "Maze bezig - klaarstatus en stemming zijn vergrendeld."
         elseif myReady then
-            actionHint.Text = "Je staat als klaar. Gebruik [E] om te annuleren."
+            actionHint.Text = "Je staat als klaar. Tik op een thema om te stemmen of gebruik [E] om te annuleren."
         else
-            actionHint.Text = "Gebruik [E] bij de console om jezelf klaar te melden."
+            actionHint.Text = "Gebruik [E] bij de console om jezelf klaar te melden en stem op een thema."
         end
     end
 end
 
 local function updateEntry(entry, info, order, state)
+    local themeState = state.themes or {}
+    local votesByPlayer = themeState.votesByPlayer or {}
+    local voteId = votesByPlayer[tostring(info.userId)]
+    local voteName, voteColor = resolveThemeName(voteId, themeState)
+
     if entry.surface then
         entry.surface.LayoutOrder = order
         local nameLabel = entry.surface:FindFirstChild("Name")
@@ -584,7 +803,19 @@ local function updateEntry(entry, info, order, state)
             nameLabel.Text = info.name
         end
         if statusLabel then
-            statusLabel.Text = info.ready and "Gereed voor start" or "Nog bezig"
+            local readyText = info.ready and "Gereed" or "Nog bezig"
+            if voteId and voteName then
+                statusLabel.Text = string.format("%s · Stem: %s", readyText, voteName)
+            elseif themeState.active then
+                statusLabel.Text = string.format("%s · Nog geen stem", readyText)
+            else
+                statusLabel.Text = readyText
+            end
+            if voteColor then
+                statusLabel.TextColor3 = voteColor:Lerp(Color3.fromRGB(182, 188, 210), info.ready and 0.25 or 0.6)
+            else
+                statusLabel.TextColor3 = Color3.fromRGB(182, 188, 210)
+            end
         end
         if hostTag then
             hostTag.Visible = state.host == info.userId
@@ -595,11 +826,23 @@ local function updateEntry(entry, info, order, state)
         entry.billboard.LayoutOrder = order
         local nameLabel = entry.billboard:FindFirstChild("Name")
         local hostTag = entry.billboard:FindFirstChild("HostTag")
+        local voteTag = entry.billboard:FindFirstChild("VoteTag")
         if nameLabel then
             nameLabel.Text = info.name
         end
         if hostTag then
             hostTag.Visible = state.host == info.userId
+        end
+        if voteTag then
+            if voteId and voteName then
+                voteTag.Visible = true
+                voteTag.Text = voteName
+                voteTag.TextColor3 = voteColor or Color3.fromRGB(210, 220, 240)
+            elseif themeState.active then
+                voteTag.Visible = false
+            else
+                voteTag.Visible = false
+            end
         end
     end
 

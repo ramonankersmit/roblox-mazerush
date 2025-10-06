@@ -237,7 +237,7 @@ local function refreshScoreboardVisibility()
                 scoreboardFrame.Visible = false
                 return
         end
-        if currentRoundState == "ACTIVE" or currentRoundState == "PREP" then
+        if isGameplayState() then
                 scoreboardFrame.Visible = true
         else
                 scoreboardFrame.Visible = false
