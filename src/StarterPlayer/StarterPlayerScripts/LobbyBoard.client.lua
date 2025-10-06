@@ -1450,9 +1450,16 @@ if startClickDetector then
             attemptStart()
         end
     end)
-    startClickDetector.TouchTap:Connect(function(player)
-        if player == localPlayer then
-            attemptStart()
-        end
+
+    local ok, touchTapSignal = pcall(function()
+        return startClickDetector.TouchTap
     end)
+
+    if ok and touchTapSignal then
+        touchTapSignal:Connect(function(player)
+            if player == localPlayer then
+                attemptStart()
+            end
+        end)
+    end
 end
