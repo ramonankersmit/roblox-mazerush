@@ -127,6 +127,7 @@ end
 
 local lastVoteActive = false
 local lastCountdownActive = false
+local lastCountdownWasRunning = false
 local lastCountdownSeconds = nil
 
 local function ensureConsoleGui()
@@ -763,18 +764,35 @@ local function handleCountdownState(activeVote, countdownActive, endsIn)
         end
     end
 
-    if lastCountdownActive and activeVote and countdownActive and (lastCountdownSeconds or 0) > 0 and endsIn <= 0 then
+    local newCountdownActive = activeVote and countdownActive
+    local newCountdownWasRunning = newCountdownActive and endsIn > 0
+
+    local countdownEnded = false
+    if lastCountdownActive and lastCountdownWasRunning then
+        if newCountdownActive then
+            countdownEnded = endsIn <= 0
+        else
+            countdownEnded = endsIn <= 0 or (lastCountdownSeconds or 0) <= 0
+        end
+    end
+
+    if countdownEnded then
         if consoleOpen and setConsoleOpen then
             setConsoleOpen(false)
         end
         if not isLocalReady() then
             ensureReadyAfterVote()
         end
+        lastCountdownActive = newCountdownActive
+        lastCountdownWasRunning = false
+        lastCountdownSeconds = newCountdownActive and endsIn or nil
+    else
+        lastCountdownActive = newCountdownActive
+        lastCountdownWasRunning = newCountdownWasRunning
+        lastCountdownSeconds = endsIn
     end
 
     lastVoteActive = activeVote
-    lastCountdownActive = activeVote and countdownActive
-    lastCountdownSeconds = endsIn
 end
 
 local function updateConsoleDisplay(state, themeState)
