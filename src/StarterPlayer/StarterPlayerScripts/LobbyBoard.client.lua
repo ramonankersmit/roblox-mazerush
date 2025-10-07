@@ -340,7 +340,7 @@ local function ensureConsoleThemeEntry(themeId)
     descLabel.TextWrapped = true
     descLabel.TextTruncate = Enum.TextTruncate.AtEnd
     descLabel.Position = UDim2.new(0, 16, 0, 34)
-    descLabel.Size = UDim2.new(0.65, 0, 0, 24)
+    descLabel.Size = UDim2.new(0.65, 0, 0, 48)
     descLabel.Parent = button
 
     local votesLabel = Instance.new("TextLabel")
@@ -350,8 +350,8 @@ local function ensureConsoleThemeEntry(themeId)
     votesLabel.TextSize = 18
     votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
     votesLabel.TextXAlignment = Enum.TextXAlignment.Right
-    votesLabel.Position = UDim2.new(0.65, -8, 0, 34)
-    votesLabel.Size = UDim2.new(0.35, -16, 0, 24)
+    votesLabel.Position = UDim2.new(0.65, -8, 0, 44)
+    votesLabel.Size = UDim2.new(0.35, -16, 0, 28)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
@@ -926,7 +926,7 @@ local function ensureThemeOptionEntry(themeId)
     descriptionLabel.TextYAlignment = Enum.TextYAlignment.Top
     descriptionLabel.TextTruncate = Enum.TextTruncate.AtEnd
     descriptionLabel.Position = UDim2.new(0, 12, 0, 30)
-    descriptionLabel.Size = UDim2.new(0.6, 0, 0, 16)
+    descriptionLabel.Size = UDim2.new(0.6, 0, 0, 36)
     descriptionLabel.Parent = button
 
     local votesLabel = Instance.new("TextLabel")
@@ -936,8 +936,8 @@ local function ensureThemeOptionEntry(themeId)
     votesLabel.TextSize = 18
     votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
     votesLabel.TextXAlignment = Enum.TextXAlignment.Right
-    votesLabel.Position = UDim2.new(0.5, 0, 0, 30)
-    votesLabel.Size = UDim2.new(0.5, -12, 0, 16)
+    votesLabel.Position = UDim2.new(0.5, 0, 0, 34)
+    votesLabel.Size = UDim2.new(0.5, -12, 0, 24)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
@@ -1512,13 +1512,13 @@ local function renderState(state)
     if readySummary then
         local readyCount = state.readyCount or 0
         local total = state.total or 0
-        readySummary.Text = string.format("%d/%d klaar", readyCount, total)
+        readySummary.Text = string.format("Gereed: %d/%d", readyCount, total)
     end
 
     if billboardSummary then
         local readyCount = state.readyCount or 0
         local total = state.total or 0
-        billboardSummary.Text = string.format("%d/%d klaar", readyCount, total)
+        billboardSummary.Text = string.format("Gereed: %d/%d", readyCount, total)
     end
 
     updatePrompts(state)

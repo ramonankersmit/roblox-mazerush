@@ -47,6 +47,12 @@ local function createFrame(parent, name, size, position, props)
     return frame
 end
 
+local TEXT_SCALE = 1.35
+
+local function scaleTextSize(value)
+    return math.floor((value or 24) * TEXT_SCALE + 0.5)
+end
+
 local function createTextLabel(parent, name, text, size, position, props)
     local label = Instance.new("TextLabel")
     label.Name = name
@@ -57,11 +63,15 @@ local function createTextLabel(parent, name, text, size, position, props)
     label.Text = text
     label.TextColor3 = Color3.fromRGB(235, 240, 255)
     label.TextScaled = false
-    label.TextSize = 24
+    label.TextSize = scaleTextSize(24)
     label.Parent = parent
     if props then
         for key, value in pairs(props) do
-            label[key] = value
+            if key == "TextSize" and typeof(value) == "number" then
+                label[key] = scaleTextSize(value)
+            else
+                label[key] = value
+            end
         end
     end
     return label
@@ -260,7 +270,20 @@ local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardSta
     return Vector3.new(pivotPos.X, targetHeight, pivotPos.Z)
 end
 
-local consoleHeightRatio = 0.5
+local boardHeightRatio = 0.5
+local boardHeightScale = 2
+local maxWallCoverage = 0.95
+
+local function resolveBoardHeight(wallHeight)
+    wallHeight = wallHeight or 12
+    local baseHeight = math.max(4, wallHeight * boardHeightRatio)
+    local scaledHeight = baseHeight * boardHeightScale
+    local maxHeight = wallHeight * maxWallCoverage
+    if maxHeight > 0 then
+        scaledHeight = math.min(scaledHeight, maxHeight)
+    end
+    return math.max(baseHeight, scaledHeight)
+end
 
 local function ensureLobbyBoard()
     local lobby = Workspace:FindFirstChild("Lobby")
@@ -282,7 +305,7 @@ local function ensureLobbyBoard()
     end
 
     local wallHeight = getWallHeight(lobby, nil)
-    local boardHeight = math.max(4, wallHeight * consoleHeightRatio)
+    local boardHeight = resolveBoardHeight(wallHeight)
     local boardThickness = 0.8
     local playerWidth = 6.5 * 2
     local themeWidth = 6.25 * 2
@@ -346,20 +369,20 @@ local function ensureLobbyBoard()
     boardStroke.Color = Color3.fromRGB(80, 90, 120)
     boardStroke.Parent = playerBoard
 
-    createTextLabel(playerBoard, "Title", "MAZE RUSH", UDim2.new(1, -40, 0, 48), UDim2.new(0, 20, 0, 12), {
+    createTextLabel(playerBoard, "Title", "MAZE RUSH", UDim2.new(1, -40, 0, 64), UDim2.new(0, 20, 0, 12), {
         Font = Enum.Font.GothamBlack,
         TextSize = 36,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(playerBoard, "ReadySummary", "Gereed: 0/0", UDim2.new(1, -40, 0, 28), UDim2.new(0, 20, 0, 72), {
+    createTextLabel(playerBoard, "ReadySummary", "Gereed: 0/0", UDim2.new(1, -40, 0, 36), UDim2.new(0, 20, 0, 80), {
         Font = Enum.Font.Gotham,
         TextColor3 = Color3.fromRGB(170, 178, 204),
         TextSize = 22,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local actionHint = createTextLabel(playerBoard, "ActionHint", "Gebruik [E] bij de console om klaar te melden en een thema te kiezen.", UDim2.new(1, -40, 0, 44), UDim2.new(0, 20, 0, 108), {
+    local actionHint = createTextLabel(playerBoard, "ActionHint", "Gebruik [E] bij de console om klaar te melden en een thema te kiezen.", UDim2.new(1, -40, 0, 64), UDim2.new(0, 20, 0, 116), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextWrapped = true,
@@ -368,14 +391,14 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -188), UDim2.new(0, 20, 0, 156), {
+    local playerList = createFrame(playerBoard, "PlayerList", UDim2.new(1, -40, 1, -220), UDim2.new(0, 20, 0, 188), {
         BackgroundTransparency = 1,
     })
 
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 12)
+    listLayout.Padding = UDim.new(0, 16)
     listLayout.Parent = playerList
 
     local themeSurface = createSurface(themeStand, "ThemeSurface")
@@ -395,28 +418,28 @@ local function ensureLobbyBoard()
     themeStroke.Color = Color3.fromRGB(90, 110, 160)
     themeStroke.Parent = themePanel
 
-    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(1, -40, 0, 32), UDim2.new(0, 20, 0, 16), {
+    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(1, -40, 0, 44), UDim2.new(0, 20, 0, 16), {
         Font = Enum.Font.GothamSemibold,
         TextSize = 24,
         TextColor3 = Color3.fromRGB(220, 226, 255),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeName", "Nog niet gekozen", UDim2.new(1, -40, 0, 34), UDim2.new(0, 20, 0, 60), {
+    createTextLabel(themePanel, "ThemeName", "Nog niet gekozen", UDim2.new(1, -40, 0, 48), UDim2.new(0, 20, 0, 68), {
         Font = Enum.Font.GothamBold,
         TextSize = 26,
         TextColor3 = Color3.fromRGB(240, 244, 255),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeCountdown", "Wacht op spelers", UDim2.new(0.5, -24, 0, 24), UDim2.new(0, 20, 0, 104), {
+    createTextLabel(themePanel, "ThemeCountdown", "Wacht op spelers", UDim2.new(0.5, -24, 0, 32), UDim2.new(0, 20, 0, 120), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextColor3 = Color3.fromRGB(200, 210, 240),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(0.5, -24, 0, 24), UDim2.new(0.5, 0, 0, 104), {
+    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(0.5, -24, 0, 32), UDim2.new(0.5, 0, 0, 120), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextColor3 = Color3.fromRGB(170, 180, 210),
@@ -431,18 +454,18 @@ local function ensureLobbyBoard()
     themeOptions.BorderSizePixel = 0
     themeOptions.ScrollBarThickness = 4
     themeOptions.ScrollingDirection = Enum.ScrollingDirection.Y
-    themeOptions.Size = UDim2.new(1, -40, 1, -188)
-    themeOptions.Position = UDim2.new(0, 20, 0, 140)
+    themeOptions.Size = UDim2.new(1, -40, 1, -228)
+    themeOptions.Position = UDim2.new(0, 20, 0, 168)
     themeOptions.CanvasSize = UDim2.new()
     themeOptions.Parent = themePanel
 
     local themeOptionsLayout = Instance.new("UIListLayout")
     themeOptionsLayout.FillDirection = Enum.FillDirection.Vertical
     themeOptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    themeOptionsLayout.Padding = UDim.new(0, 8)
+    themeOptionsLayout.Padding = UDim.new(0, 12)
     themeOptionsLayout.Parent = themeOptions
 
-    createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -40, 0, 40), UDim2.new(0, 20, 1, -52), {
+    createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -40, 0, 56), UDim2.new(0, 20, 1, -60), {
         Font = Enum.Font.Gotham,
         TextSize = 16,
         TextColor3 = Color3.fromRGB(170, 180, 210),
@@ -488,30 +511,30 @@ local function ensureLobbyBoard()
     billboardStroke.Color = Color3.fromRGB(70, 85, 120)
     billboardStroke.Parent = billboardFrame
 
-    createTextLabel(billboardFrame, "BillboardTitle", "Lobby status", UDim2.new(1, -30, 0, 28), UDim2.new(0, 15, 0, 12), {
+    createTextLabel(billboardFrame, "BillboardTitle", "Lobby status", UDim2.new(1, -30, 0, 40), UDim2.new(0, 15, 0, 12), {
         Font = Enum.Font.GothamBold,
         TextSize = 26,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(billboardFrame, "ReadySummary", "Gereed: 0/0", UDim2.new(1, -30, 0, 22), UDim2.new(0, 15, 0, 52), {
+    createTextLabel(billboardFrame, "ReadySummary", "Gereed: 0/0", UDim2.new(1, -30, 0, 32), UDim2.new(0, 15, 0, 56), {
         Font = Enum.Font.Gotham,
         TextSize = 20,
         TextColor3 = Color3.fromRGB(170, 178, 204),
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local billboardList = createFrame(billboardFrame, "PlayerEntries", UDim2.new(1, -30, 1, -96), UDim2.new(0, 15, 0, 84), {
+    local billboardList = createFrame(billboardFrame, "PlayerEntries", UDim2.new(1, -30, 1, -128), UDim2.new(0, 15, 0, 100), {
         BackgroundTransparency = 1,
     })
 
     local billboardLayout = Instance.new("UIListLayout")
     billboardLayout.FillDirection = Enum.FillDirection.Vertical
     billboardLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    billboardLayout.Padding = UDim.new(0, 6)
+    billboardLayout.Padding = UDim.new(0, 10)
     billboardLayout.Parent = billboardList
 
-    createTextLabel(billboardFrame, "Hint", "Gebruik de console voor klaarstatus en stemming.", UDim2.new(1, -30, 0, 20), UDim2.new(0, 15, 1, -32), {
+    createTextLabel(billboardFrame, "Hint", "Gebruik de console voor klaarstatus en stemming.", UDim2.new(1, -30, 0, 32), UDim2.new(0, 15, 1, -40), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextColor3 = Color3.fromRGB(140, 210, 255),
@@ -584,6 +607,33 @@ local boardSpacing = 0.8
 local boardThickness = 0.8
 local playerWidth = 6.5 * 2
 local themeWidth = 6.25 * 2
+local startButtonBaseGap = 0.6
+local startButtonMinGap = 0.25
+
+local function computeStartPanelOffset(pivot, anchor)
+    local gapBeyondPanel = startButtonBaseGap
+
+    if anchor and anchor:IsA("BasePart") then
+        local anchorCF = anchor.CFrame
+        local anchorRight = anchorCF.RightVector
+        local pivotRight = pivot.RightVector
+        local directionSign = pivotRight:Dot(anchorRight) >= 0 and 1 or -1
+
+        local pivotLocal = anchorCF:PointToObjectSpace(pivot.Position)
+        local anchorEdgeLocal = directionSign * (anchor.Size.X * 0.5)
+        local boardEdgeLocal = pivotLocal.X + directionSign * (playerStand.Size.X * 0.5)
+        local availableGap = (anchorEdgeLocal - boardEdgeLocal) * directionSign
+
+        if availableGap > startPanel.Size.X then
+            local desiredCenter = availableGap * 0.5
+            gapBeyondPanel = math.max(desiredCenter - startPanel.Size.X * 0.5, startButtonBaseGap)
+        elseif availableGap > 0 then
+            gapBeyondPanel = math.max(availableGap * 0.5, startButtonMinGap)
+        end
+    end
+
+    return playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + gapBeyondPanel
+end
 
 local trackedLobbyBase = nil
 local trackedBaseConnections = {}
@@ -620,7 +670,7 @@ local function updateBoardPlacement()
     end
 
     local wallHeight = getWallHeight(currentLobby, anchor)
-    local boardHeight = math.max(4, wallHeight * consoleHeightRatio)
+    local boardHeight = resolveBoardHeight(wallHeight)
 
     playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
     themeStand.Size = Vector3.new(themeWidth, boardHeight, boardThickness)
@@ -653,9 +703,9 @@ local function updateBoardPlacement()
     local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
     themeStand.CFrame = pivot * CFrame.new(-leftOffset, 0, 0)
 
-    local buttonOffsetX = playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + 1.1
+    local buttonOffsetX = computeStartPanelOffset(pivot, anchor)
     local buttonDepth = -(playerStand.Size.Z * 0.5 - startPanel.Size.Z * 0.5 - 0.02)
-    local buttonHeightOffset = -boardHeight * 0.12
+    local buttonHeightOffset = 0
     startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
     startButton.CFrame = startPanel.CFrame * CFrame.new(0, 0, -(startPanel.Size.Z * 0.5 + startButton.Size.Z * 0.5 - 0.01))
 
