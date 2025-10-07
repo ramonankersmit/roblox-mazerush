@@ -49,10 +49,23 @@ end
 
 local TEXT_SCALE = 1.35
 
-local boardHeightCoverage = 0.8
-local boardBottomPadding = 0.1
+local DEFAULT_BOARD_HEIGHT_COVERAGE = 0.8
+local DEFAULT_BOARD_BOTTOM_PADDING = 0.1
+
+local boardHeightCoverage = DEFAULT_BOARD_HEIGHT_COVERAGE
+local boardBottomPadding = DEFAULT_BOARD_BOTTOM_PADDING
 local boardWidthScale = 2.2
 local boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
+
+local boardHeightCoverageAttributeNames = {
+    "LobbyBoardHeightCoverage",
+    "BoardHeightCoverage",
+}
+
+local boardBottomPaddingAttributeNames = {
+    "LobbyBoardBottomPadding",
+    "BoardBottomPadding",
+}
 
 local function scaleTextSize(value)
     return math.floor((value or 24) * TEXT_SCALE + 0.5)
@@ -155,6 +168,48 @@ local function getWallHeight(lobby, anchor)
     end
 
     return 12
+end
+
+local function readNumberAttribute(instance, attributeNames)
+    if not instance then
+        return nil
+    end
+
+    for _, attributeName in ipairs(attributeNames) do
+        local value = instance:GetAttribute(attributeName)
+        if typeof(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge then
+            return value
+        end
+    end
+
+    return nil
+end
+
+local function resolveBoardLayoutOverrides(lobby, anchor)
+    local heightCoverage = DEFAULT_BOARD_HEIGHT_COVERAGE
+    local bottomPadding = DEFAULT_BOARD_BOTTOM_PADDING
+
+    local anchorHeightCoverage = readNumberAttribute(anchor, boardHeightCoverageAttributeNames)
+    local anchorBottomPadding = readNumberAttribute(anchor, boardBottomPaddingAttributeNames)
+    local lobbyHeightCoverage = readNumberAttribute(lobby, boardHeightCoverageAttributeNames)
+    local lobbyBottomPadding = readNumberAttribute(lobby, boardBottomPaddingAttributeNames)
+
+    if anchorHeightCoverage ~= nil then
+        heightCoverage = anchorHeightCoverage
+    elseif lobbyHeightCoverage ~= nil then
+        heightCoverage = lobbyHeightCoverage
+    end
+
+    if anchorBottomPadding ~= nil then
+        bottomPadding = anchorBottomPadding
+    elseif lobbyBottomPadding ~= nil then
+        bottomPadding = lobbyBottomPadding
+    end
+
+    heightCoverage = math.clamp(heightCoverage, 0, 1)
+    bottomPadding = math.clamp(bottomPadding, 0, 1)
+
+    return heightCoverage, bottomPadding
 end
 
 local function applyAnchorAttributes(anchor, boardStand, wallHeight)
@@ -749,6 +804,10 @@ local anchorAttributeNames = {
     "WallHeight",
     "LobbyWallHeight",
     "BoardWallHeight",
+    "LobbyBoardHeightCoverage",
+    "BoardHeightCoverage",
+    "LobbyBoardBottomPadding",
+    "BoardBottomPadding",
     "LobbyBoardOffset",
     "BoardOffset",
     "LobbyBoardRotation",
@@ -774,6 +833,9 @@ local function updateBoardPlacement()
     end
 
     local wallHeight = getWallHeight(currentLobby, anchor)
+    boardHeightCoverage, boardBottomPadding = resolveBoardLayoutOverrides(currentLobby, anchor)
+    boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
+
     local boardHeight = resolveBoardHeight(wallHeight)
 
     playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
@@ -929,6 +991,10 @@ local function monitorLobby(lobbyFolder)
 
     monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("WallHeight"):Connect(onLobbyAttributeChanged)
     monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyWallHeight"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyBoardHeightCoverage"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("BoardHeightCoverage"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyBoardBottomPadding"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("BoardBottomPadding"):Connect(onLobbyAttributeChanged)
 end
 
 local function monitorLobbyBase()
