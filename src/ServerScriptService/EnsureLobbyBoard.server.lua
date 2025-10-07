@@ -7,6 +7,29 @@ pcall(function()
     ThemeConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ThemeConfig"))
 end)
 
+local function disconnectConnections(list)
+    for index = #list, 1, -1 do
+        local conn = list[index]
+        list[index] = nil
+        if conn and conn.Disconnect then
+            conn:Disconnect()
+        end
+    end
+end
+
+local function isBoardAnchor(instance)
+    if not instance or not instance:IsA("BasePart") then
+        return false
+    end
+    if instance.Name == "LobbyBoardAnchor" or instance.Name == "BoardAnchor" then
+        return true
+    end
+    if instance:GetAttribute("LobbyBoardAnchor") or instance:GetAttribute("BoardAnchor") then
+        return true
+    end
+    return false
+end
+
 local function createFrame(parent, name, size, position, props)
     local frame = Instance.new("Frame")
     frame.Name = name
@@ -80,29 +103,14 @@ local function findBoardAnchor(lobby)
         return nil
     end
 
-    local function isAnchor(instance)
-        if not instance then
-            return false
-        end
-        if instance:IsA("BasePart") then
-            if instance.Name == "LobbyBoardAnchor" or instance.Name == "BoardAnchor" then
-                return true
-            end
-            if instance:GetAttribute("LobbyBoardAnchor") or instance:GetAttribute("BoardAnchor") then
-                return true
-            end
-        end
-        return false
-    end
-
     for _, child in ipairs(lobby:GetChildren()) do
-        if isAnchor(child) then
+        if isBoardAnchor(child) then
             return child
         end
     end
 
     for _, descendant in ipairs(lobby:GetDescendants()) do
-        if isAnchor(descendant) then
+        if isBoardAnchor(descendant) then
             return descendant
         end
     end
@@ -260,22 +268,26 @@ local function ensureLobbyBoard()
         lobby.Parent = Workspace
     end
 
-    if lobby:FindFirstChild("LobbyStatusBoard") then
-        return
+    local existing = lobby:FindFirstChild("LobbyStatusBoard")
+    if existing then
+        return lobby, existing, {
+            playerStand = existing:FindFirstChild("PlayerStand"),
+            themeStand = existing:FindFirstChild("ThemeStand"),
+            startPanel = existing:FindFirstChild("StartPanel"),
+            startButton = existing:FindFirstChild("StartButton"),
+            billboardAnchor = existing:FindFirstChild("BillboardAnchor"),
+        }
     end
 
-    local boardModel = Instance.new("Model")
-    boardModel.Name = "LobbyStatusBoard"
-    boardModel.Parent = lobby
-
-    local anchor = findBoardAnchor(lobby)
-    local wallHeight = getWallHeight(lobby, anchor)
+    local wallHeight = getWallHeight(lobby, nil)
     local boardHeight = math.max(4, wallHeight * 0.5)
     local boardThickness = 0.8
     local playerWidth = 6.5
     local themeWidth = 6.25
-    local boardSpacing = 0.8
-    local lobbyBase = getLobbyBase()
+
+    local boardModel = Instance.new("Model")
+    boardModel.Name = "LobbyStatusBoard"
+    boardModel.Parent = lobby
 
     local playerStand = Instance.new("Part")
     playerStand.Name = "PlayerStand"
@@ -515,43 +527,6 @@ local function ensureLobbyBoard()
     startClickDetector.MaxActivationDistance = 14
     startClickDetector.Parent = startButton
 
-    local defaultCenter
-    local defaultFloorY
-    local pivot
-    if anchor then
-        pivot = applyAnchorAttributes(anchor, playerStand, wallHeight)
-        local computedPivot, computedCenter, computedFloor = computeDefaultPivot(lobby, playerStand, wallHeight, lobbyBase)
-        defaultCenter = computedCenter
-        defaultFloorY = computedFloor
-    else
-        pivot, defaultCenter, defaultFloorY = computeDefaultPivot(lobby, playerStand, wallHeight, lobbyBase)
-    end
-
-    local lobbyCenterPosition = resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, playerStand, defaultCenter, defaultFloorY)
-
-    playerStand.CFrame = pivot
-    local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
-    themeStand.CFrame = pivot * CFrame.new(-leftOffset, 0, 0)
-
-    local buttonOffsetX = playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + 0.55
-    local buttonDepth = -(playerStand.Size.Z * 0.5 - startPanel.Size.Z * 0.5 - 0.02)
-    local buttonHeightOffset = -boardHeight * 0.12
-    startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
-    startButton.CFrame = startPanel.CFrame * CFrame.new(0, 0, -(startPanel.Size.Z * 0.5 + startButton.Size.Z * 0.5 - 0.01))
-
-    boardModel.PrimaryPart = playerStand
-    boardModel:PivotTo(pivot)
-
-    if billboardAnchor and lobbyCenterPosition then
-        local lookTarget = pivot.Position
-        local direction = lookTarget - lobbyCenterPosition
-        if direction.Magnitude < 0.01 then
-            direction = pivot.LookVector
-        end
-        local orientation = CFrame.lookAt(lobbyCenterPosition, lobbyCenterPosition + direction.Unit)
-        billboardAnchor.CFrame = orientation
-    end
-
     local buttonGui = Instance.new("SurfaceGui")
     buttonGui.Name = "ButtonLabel"
     buttonGui.Face = Enum.NormalId.Front
@@ -578,6 +553,270 @@ local function ensureLobbyBoard()
             end
         end
     end
+
+    return lobby, boardModel, {
+        playerStand = playerStand,
+        themeStand = themeStand,
+        startPanel = startPanel,
+        startButton = startButton,
+        billboardAnchor = billboardAnchor,
+    }
 end
 
-ensureLobbyBoard()
+local lobby, boardModel, components = ensureLobbyBoard()
+if not boardModel or not components then
+    return
+end
+
+local playerStand = components.playerStand
+local themeStand = components.themeStand
+local startPanel = components.startPanel
+local startButton = components.startButton
+local billboardAnchor = components.billboardAnchor
+
+if not playerStand or not themeStand or not startPanel or not startButton then
+    return
+end
+
+local boardSpacing = 0.8
+local boardThickness = 0.8
+local playerWidth = 6.5
+local themeWidth = 6.25
+
+local trackedLobbyBase = nil
+local trackedBaseConnections = {}
+local trackedAnchor = nil
+local trackedAnchorConnections = {}
+local monitorConnections = {}
+
+local anchorAttributeNames = {
+    "WallHeight",
+    "LobbyWallHeight",
+    "BoardWallHeight",
+    "LobbyBoardOffset",
+    "BoardOffset",
+    "LobbyBoardRotation",
+    "BoardRotation",
+    "LobbyBoardFlip",
+    "BoardFlip",
+    "LobbyCenter",
+    "BoardCenter",
+    "LobbyCenterOffset",
+    "BoardCenterOffset",
+}
+
+local function updateBoardPlacement()
+    if not boardModel.Parent then
+        return
+    end
+
+    local currentLobby = boardModel.Parent
+
+    local anchor = trackedAnchor
+    if not anchor or not anchor:IsDescendantOf(currentLobby) then
+        anchor = findBoardAnchor(currentLobby)
+    end
+
+    local wallHeight = getWallHeight(currentLobby, anchor)
+    local boardHeight = math.max(4, wallHeight * 0.5)
+
+    playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
+    themeStand.Size = Vector3.new(themeWidth, boardHeight, boardThickness)
+    startPanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
+
+    local lobbyBase = trackedLobbyBase
+    if not lobbyBase or not lobbyBase.Parent then
+        lobbyBase = getLobbyBase()
+    end
+
+    local pivot
+    local defaultCenter
+    local defaultFloorY
+    if anchor then
+        pivot = applyAnchorAttributes(anchor, playerStand, wallHeight)
+        local computedPivot, computedCenter, computedFloor = computeDefaultPivot(currentLobby, playerStand, wallHeight, lobbyBase)
+        defaultCenter = computedCenter
+        defaultFloorY = computedFloor
+    else
+        pivot, defaultCenter, defaultFloorY = computeDefaultPivot(currentLobby, playerStand, wallHeight, lobbyBase)
+    end
+
+    if not pivot then
+        return
+    end
+
+    local lobbyCenterPosition = resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, playerStand, defaultCenter, defaultFloorY)
+
+    playerStand.CFrame = pivot
+    local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
+    themeStand.CFrame = pivot * CFrame.new(-leftOffset, 0, 0)
+
+    local buttonOffsetX = playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + 0.55
+    local buttonDepth = -(playerStand.Size.Z * 0.5 - startPanel.Size.Z * 0.5 - 0.02)
+    local buttonHeightOffset = -boardHeight * 0.12
+    startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
+    startButton.CFrame = startPanel.CFrame * CFrame.new(0, 0, -(startPanel.Size.Z * 0.5 + startButton.Size.Z * 0.5 - 0.01))
+
+    boardModel.PrimaryPart = playerStand
+    boardModel:PivotTo(pivot)
+
+    if billboardAnchor and lobbyCenterPosition then
+        local lookTarget = pivot.Position
+        local direction = lookTarget - lobbyCenterPosition
+        if direction.Magnitude < 0.01 then
+            direction = pivot.LookVector
+        end
+        local orientation = CFrame.lookAt(lobbyCenterPosition, lobbyCenterPosition + direction.Unit)
+        billboardAnchor.CFrame = orientation
+    end
+end
+
+local function trackLobbyBase(base)
+    if base == trackedLobbyBase then
+        return
+    end
+
+    disconnectConnections(trackedBaseConnections)
+    trackedLobbyBase = base
+
+    if base then
+        trackedBaseConnections[#trackedBaseConnections + 1] = base:GetPropertyChangedSignal("CFrame"):Connect(updateBoardPlacement)
+        trackedBaseConnections[#trackedBaseConnections + 1] = base:GetPropertyChangedSignal("Size"):Connect(updateBoardPlacement)
+        trackedBaseConnections[#trackedBaseConnections + 1] = base.AncestryChanged:Connect(function(_, parent)
+            if parent == nil and trackedLobbyBase == base then
+                trackLobbyBase(nil)
+            end
+        end)
+    end
+
+    updateBoardPlacement()
+end
+
+local function trackAnchor(anchor)
+    if anchor == trackedAnchor then
+        return
+    end
+
+    disconnectConnections(trackedAnchorConnections)
+    trackedAnchor = anchor
+
+    if anchor then
+        trackedAnchorConnections[#trackedAnchorConnections + 1] = anchor:GetPropertyChangedSignal("CFrame"):Connect(updateBoardPlacement)
+        trackedAnchorConnections[#trackedAnchorConnections + 1] = anchor:GetPropertyChangedSignal("Size"):Connect(updateBoardPlacement)
+        for _, attr in ipairs(anchorAttributeNames) do
+            trackedAnchorConnections[#trackedAnchorConnections + 1] = anchor:GetAttributeChangedSignal(attr):Connect(updateBoardPlacement)
+        end
+        trackedAnchorConnections[#trackedAnchorConnections + 1] = anchor.AncestryChanged:Connect(function(_, parent)
+            if parent == nil and trackedAnchor == anchor then
+                trackAnchor(nil)
+            end
+        end)
+    end
+
+    updateBoardPlacement()
+end
+
+local function monitorLobby(lobbyFolder)
+    if not lobbyFolder then
+        return
+    end
+
+    local function watchPotentialAnchor(part)
+        if not part or not part:IsA("BasePart") then
+            return
+        end
+
+        local function onPotentialAnchorChanged()
+            if isBoardAnchor(part) then
+                trackAnchor(part)
+            elseif part == trackedAnchor and not isBoardAnchor(part) then
+                trackAnchor(findBoardAnchor(lobbyFolder))
+            else
+                updateBoardPlacement()
+            end
+        end
+
+        monitorConnections[#monitorConnections + 1] = part:GetAttributeChangedSignal("LobbyBoardAnchor"):Connect(onPotentialAnchorChanged)
+        monitorConnections[#monitorConnections + 1] = part:GetAttributeChangedSignal("BoardAnchor"):Connect(onPotentialAnchorChanged)
+    end
+
+    for _, descendant in ipairs(lobbyFolder:GetDescendants()) do
+        watchPotentialAnchor(descendant)
+    end
+
+    monitorConnections[#monitorConnections + 1] = lobbyFolder.ChildAdded:Connect(function(child)
+        if isBoardAnchor(child) then
+            trackAnchor(child)
+        end
+        watchPotentialAnchor(child)
+        updateBoardPlacement()
+    end)
+
+    monitorConnections[#monitorConnections + 1] = lobbyFolder.DescendantAdded:Connect(function(descendant)
+        if isBoardAnchor(descendant) then
+            trackAnchor(descendant)
+        end
+        watchPotentialAnchor(descendant)
+    end)
+
+    monitorConnections[#monitorConnections + 1] = lobbyFolder.DescendantRemoving:Connect(function(descendant)
+        if descendant == trackedAnchor then
+            task.defer(function()
+                trackAnchor(findBoardAnchor(lobbyFolder))
+            end)
+        end
+    end)
+
+    local function onLobbyAttributeChanged()
+        updateBoardPlacement()
+    end
+
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("WallHeight"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyWallHeight"):Connect(onLobbyAttributeChanged)
+end
+
+local function monitorLobbyBase()
+    local function hookSpawnsFolder(spawnsFolder)
+        if not spawnsFolder then
+            return
+        end
+        monitorConnections[#monitorConnections + 1] = spawnsFolder.ChildAdded:Connect(function(child)
+            if child.Name == "LobbyBase" and child:IsA("BasePart") then
+                trackLobbyBase(child)
+            end
+        end)
+        monitorConnections[#monitorConnections + 1] = spawnsFolder.ChildRemoved:Connect(function(child)
+            if child == trackedLobbyBase then
+                trackLobbyBase(nil)
+            end
+        end)
+    end
+
+    local spawns = Workspace:FindFirstChild("Spawns")
+    if spawns then
+        hookSpawnsFolder(spawns)
+    end
+
+    monitorConnections[#monitorConnections + 1] = Workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Spawns" then
+            hookSpawnsFolder(child)
+            task.defer(function()
+                trackLobbyBase(getLobbyBase())
+            end)
+        elseif child == lobby then
+            monitorLobby(child)
+        end
+    end)
+
+    monitorConnections[#monitorConnections + 1] = Workspace.ChildRemoved:Connect(function(child)
+        if child == trackedLobbyBase then
+            trackLobbyBase(nil)
+        end
+    end)
+end
+
+trackAnchor(findBoardAnchor(lobby))
+trackLobbyBase(getLobbyBase())
+monitorLobby(lobby)
+monitorLobbyBase()
+updateBoardPlacement()
