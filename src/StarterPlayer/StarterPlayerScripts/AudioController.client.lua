@@ -31,7 +31,7 @@ if not backgroundSound then
 end
 
 local heartbeatConfig = {
-        soundId = "rbxassetid://160248505",
+        soundId = "rbxassetid://7188240609",
         maxVolume = 0.6,
         minDistance = 12,
         maxDistance = 80,
