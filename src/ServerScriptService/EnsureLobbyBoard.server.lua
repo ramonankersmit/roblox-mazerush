@@ -271,8 +271,9 @@ local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardSta
 end
 
 local boardHeightRatio = 0.5
-local boardHeightScale = 2
-local maxWallCoverage = 0.95
+local boardHeightScale = 2.1
+local maxWallCoverage = 0.92
+local boardWidthScale = 2.2
 
 local function resolveBoardHeight(wallHeight)
     wallHeight = wallHeight or 12
@@ -295,11 +296,36 @@ local function ensureLobbyBoard()
 
     local existing = lobby:FindFirstChild("LobbyStatusBoard")
     if existing then
+        local playerStandExisting = existing:FindFirstChild("PlayerStand")
+        local themeStandExisting = existing:FindFirstChild("ThemeStand")
+        local startPanelExisting = existing:FindFirstChild("StartPanel")
+        local startButtonExisting = existing:FindFirstChild("StartButton")
+
+        local themeSurfaceExisting = themeStandExisting and themeStandExisting:FindFirstChild("ThemeSurface")
+        local themePanelExisting = themeSurfaceExisting and themeSurfaceExisting:FindFirstChild("ThemePanel")
+        if themePanelExisting then
+            local themeOptionsExisting = themePanelExisting:FindFirstChild("ThemeOptions")
+            if themeOptionsExisting and themeOptionsExisting:IsA("ScrollingFrame") then
+                themeOptionsExisting.Size = UDim2.new(1, -44, 1, -248)
+                themeOptionsExisting.Position = UDim2.new(0, 22, 0, 178)
+                local layout = themeOptionsExisting:FindFirstChildOfClass("UIListLayout")
+                if layout then
+                    layout.Padding = UDim.new(0, 18)
+                end
+            end
+
+            local themeHintExisting = themePanelExisting:FindFirstChild("ThemeHint")
+            if themeHintExisting and themeHintExisting:IsA("TextLabel") then
+                themeHintExisting.Size = UDim2.new(1, -44, 0, 72)
+                themeHintExisting.Position = UDim2.new(0, 22, 1, -76)
+            end
+        end
+
         return lobby, existing, {
-            playerStand = existing:FindFirstChild("PlayerStand"),
-            themeStand = existing:FindFirstChild("ThemeStand"),
-            startPanel = existing:FindFirstChild("StartPanel"),
-            startButton = existing:FindFirstChild("StartButton"),
+            playerStand = playerStandExisting,
+            themeStand = themeStandExisting,
+            startPanel = startPanelExisting,
+            startButton = startButtonExisting,
             billboardAnchor = existing:FindFirstChild("BillboardAnchor"),
         }
     end
@@ -307,8 +333,8 @@ local function ensureLobbyBoard()
     local wallHeight = getWallHeight(lobby, nil)
     local boardHeight = resolveBoardHeight(wallHeight)
     local boardThickness = 0.8
-    local playerWidth = 6.5 * 2
-    local themeWidth = 6.25 * 2
+    local playerWidth = 6.5 * boardWidthScale
+    local themeWidth = 6.25 * boardWidthScale
 
     local boardModel = Instance.new("Model")
     boardModel.Name = "LobbyStatusBoard"
@@ -454,18 +480,18 @@ local function ensureLobbyBoard()
     themeOptions.BorderSizePixel = 0
     themeOptions.ScrollBarThickness = 4
     themeOptions.ScrollingDirection = Enum.ScrollingDirection.Y
-    themeOptions.Size = UDim2.new(1, -40, 1, -228)
-    themeOptions.Position = UDim2.new(0, 20, 0, 168)
+    themeOptions.Size = UDim2.new(1, -44, 1, -248)
+    themeOptions.Position = UDim2.new(0, 22, 0, 178)
     themeOptions.CanvasSize = UDim2.new()
     themeOptions.Parent = themePanel
 
     local themeOptionsLayout = Instance.new("UIListLayout")
     themeOptionsLayout.FillDirection = Enum.FillDirection.Vertical
     themeOptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    themeOptionsLayout.Padding = UDim.new(0, 12)
+    themeOptionsLayout.Padding = UDim.new(0, 18)
     themeOptionsLayout.Parent = themeOptions
 
-    createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -40, 0, 56), UDim2.new(0, 20, 1, -60), {
+    createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -44, 0, 72), UDim2.new(0, 22, 1, -76), {
         Font = Enum.Font.Gotham,
         TextSize = 16,
         TextColor3 = Color3.fromRGB(170, 180, 210),
@@ -605,34 +631,60 @@ end
 
 local boardSpacing = 0.8
 local boardThickness = 0.8
-local playerWidth = 6.5 * 2
-local themeWidth = 6.25 * 2
-local startButtonBaseGap = 0.6
-local startButtonMinGap = 0.25
+local playerWidth = 6.5 * boardWidthScale
+local themeWidth = 6.25 * boardWidthScale
+local startButtonBaseGap = 0.9
+local startButtonMinGap = 0.3
+
+local function clamp(value, minValue, maxValue)
+    if minValue > maxValue then
+        return (minValue + maxValue) * 0.5
+    end
+    if value < minValue then
+        return minValue
+    end
+    if value > maxValue then
+        return maxValue
+    end
+    return value
+end
 
 local function computeStartPanelOffset(pivot, anchor)
-    local gapBeyondPanel = startButtonBaseGap
+    local pivotRight = pivot.RightVector
+    local themeLeftEdgeCoord = -(playerStand.Size.X * 0.5 + boardSpacing + themeStand.Size.X)
+    local leftEdge = themeLeftEdgeCoord - startPanel.Size.X - startButtonBaseGap
 
     if anchor and anchor:IsA("BasePart") then
         local anchorCF = anchor.CFrame
-        local anchorRight = anchorCF.RightVector
-        local pivotRight = pivot.RightVector
-        local directionSign = pivotRight:Dot(anchorRight) >= 0 and 1 or -1
+        local anchorAxes = {
+            anchorCF.RightVector,
+            anchorCF.UpVector,
+            anchorCF.LookVector,
+        }
+        local anchorHalfExtents = {
+            anchor.Size.X * 0.5,
+            anchor.Size.Y * 0.5,
+            anchor.Size.Z * 0.5,
+        }
 
-        local pivotLocal = anchorCF:PointToObjectSpace(pivot.Position)
-        local anchorEdgeLocal = directionSign * (anchor.Size.X * 0.5)
-        local boardEdgeLocal = pivotLocal.X + directionSign * (playerStand.Size.X * 0.5)
-        local availableGap = (anchorEdgeLocal - boardEdgeLocal) * directionSign
+        local anchorCenterCoord = pivotRight:Dot(anchorCF.Position - pivot.Position)
+        local anchorExtent = 0
+        for index = 1, 3 do
+            anchorExtent += math.abs(pivotRight:Dot(anchorAxes[index])) * anchorHalfExtents[index]
+        end
 
-        if availableGap > startPanel.Size.X then
-            local desiredCenter = availableGap * 0.5
-            gapBeyondPanel = math.max(desiredCenter - startPanel.Size.X * 0.5, startButtonBaseGap)
-        elseif availableGap > 0 then
-            gapBeyondPanel = math.max(availableGap * 0.5, startButtonMinGap)
+        local anchorMinCoord = anchorCenterCoord - anchorExtent
+        local minLeftEdge = anchorMinCoord + startButtonMinGap
+        local maxLeftEdge = themeLeftEdgeCoord - startPanel.Size.X - startButtonMinGap
+
+        if maxLeftEdge < minLeftEdge then
+            leftEdge = (minLeftEdge + maxLeftEdge) * 0.5
+        else
+            leftEdge = clamp(leftEdge, minLeftEdge, maxLeftEdge)
         end
     end
 
-    return playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + gapBeyondPanel
+    return leftEdge + startPanel.Size.X * 0.5
 end
 
 local trackedLobbyBase = nil

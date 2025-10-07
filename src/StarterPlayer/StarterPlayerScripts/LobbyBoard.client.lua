@@ -142,7 +142,7 @@ local function ensureConsoleGui()
     consoleWindow.Name = "ConsoleWindow"
     consoleWindow.AnchorPoint = Vector2.new(0.5, 0.5)
     consoleWindow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    consoleWindow.Size = UDim2.new(0, 1120, 0, 880)
+    consoleWindow.Size = UDim2.new(0, 560, 0, 440)
     consoleWindow.BackgroundColor3 = Color3.fromRGB(26, 32, 48)
     consoleWindow.BackgroundTransparency = 0.05
     consoleWindow.Parent = consoleBackdrop
@@ -864,7 +864,7 @@ local function ensureThemeOptionEntry(themeId)
     button.AutoButtonColor = false
     button.BackgroundTransparency = 0.25
     button.BackgroundColor3 = Color3.fromRGB(28, 32, 48)
-    button.Size = UDim2.new(1, 0, 0, 48)
+    button.Size = UDim2.new(1, 0, 0, 72)
     button.Text = ""
     button.Active = true
     button.ClipsDescendants = true
@@ -897,11 +897,11 @@ local function ensureThemeOptionEntry(themeId)
     tagLabel.Name = "Tag"
     tagLabel.BackgroundTransparency = 1
     tagLabel.Font = Enum.Font.GothamSemibold
-    tagLabel.TextSize = 14
+    tagLabel.TextSize = 15
     tagLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
     tagLabel.TextXAlignment = Enum.TextXAlignment.Left
-    tagLabel.Position = UDim2.new(0, 12, 0, -12)
-    tagLabel.Size = UDim2.new(1, -24, 0, 18)
+    tagLabel.Position = UDim2.new(0, 14, 0, -18)
+    tagLabel.Size = UDim2.new(1, -28, 0, 24)
     tagLabel.Visible = false
     tagLabel.Parent = button
 
@@ -909,35 +909,35 @@ local function ensureThemeOptionEntry(themeId)
     nameLabel.Name = "Name"
     nameLabel.BackgroundTransparency = 1
     nameLabel.Font = Enum.Font.GothamSemibold
-    nameLabel.TextSize = 20
+    nameLabel.TextSize = 22
     nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Position = UDim2.new(0, 12, 0, 6)
-    nameLabel.Size = UDim2.new(1, -24, 0, 24)
+    nameLabel.Position = UDim2.new(0, 14, 0, 9)
+    nameLabel.Size = UDim2.new(1, -28, 0, 30)
     nameLabel.Parent = button
 
     local descriptionLabel = Instance.new("TextLabel")
     descriptionLabel.Name = "Description"
     descriptionLabel.BackgroundTransparency = 1
     descriptionLabel.Font = Enum.Font.Gotham
-    descriptionLabel.TextSize = 16
+    descriptionLabel.TextSize = 17
     descriptionLabel.TextColor3 = Color3.fromRGB(182, 190, 212)
     descriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
     descriptionLabel.TextYAlignment = Enum.TextYAlignment.Top
     descriptionLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    descriptionLabel.Position = UDim2.new(0, 12, 0, 30)
-    descriptionLabel.Size = UDim2.new(0.6, 0, 0, 36)
+    descriptionLabel.Position = UDim2.new(0, 14, 0, 46)
+    descriptionLabel.Size = UDim2.new(0.58, 0, 0, 54)
     descriptionLabel.Parent = button
 
     local votesLabel = Instance.new("TextLabel")
     votesLabel.Name = "Votes"
     votesLabel.BackgroundTransparency = 1
     votesLabel.Font = Enum.Font.GothamSemibold
-    votesLabel.TextSize = 18
+    votesLabel.TextSize = 20
     votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
     votesLabel.TextXAlignment = Enum.TextXAlignment.Right
-    votesLabel.Position = UDim2.new(0.5, 0, 0, 34)
-    votesLabel.Size = UDim2.new(0.5, -12, 0, 24)
+    votesLabel.Position = UDim2.new(0.5, 2, 0, 50)
+    votesLabel.Size = UDim2.new(0.5, -16, 0, 32)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
