@@ -237,7 +237,7 @@ local function safelyCall(inventory, methodName, ...)
         return false
     end
 
-    return result ~= nil and result or true
+    return result ~= nil and result or false
 end
 
 local function configureKeyPrompt(keyModel)
@@ -396,13 +396,13 @@ local function configureDoorPrompt(door, lockedValue)
         end
 
         local hasKey = safelyCall(inventory, "HasKey", plr)
-        if not hasKey then
+        if hasKey ~= true then
             prompt.Enabled = true
             return
         end
 
         local consumed = safelyCall(inventory, "UseKey", plr, 1)
-        if not consumed then
+        if consumed ~= true then
             prompt.Enabled = true
             return
         end

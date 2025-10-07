@@ -6,7 +6,80 @@
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "$path": "src/ReplicatedStorage",
-      "$ignoreUnknownInstances": true
+      "$ignoreUnknownInstances": true,
+      "Modules": {
+        "$className": "Folder",
+        "$path": "src/ReplicatedStorage/Modules"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "RoundState": {
+          "$className": "RemoteEvent"
+        },
+        "Countdown": {
+          "$className": "RemoteEvent"
+        },
+        "Pickup": {
+          "$className": "RemoteEvent"
+        },
+        "DoorOpened": {
+          "$className": "RemoteEvent"
+        },
+        "SetMazeAlgorithm": {
+          "$className": "RemoteEvent"
+        },
+        "SetLoopChance": {
+          "$className": "RemoteEvent"
+        },
+        "InventoryUpdate": {
+          "$className": "RemoteEvent"
+        },
+        "LobbyState": {
+          "$className": "RemoteEvent"
+        },
+        "ToggleReady": {
+          "$className": "RemoteEvent"
+        },
+        "StartGameRequest": {
+          "$className": "RemoteEvent"
+        },
+        "ThemeVote": {
+          "$className": "RemoteEvent"
+        }
+      },
+      "State": {
+        "$className": "Folder",
+        "MazeAlgorithm": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "DFS"
+          }
+        },
+        "LoopChance": {
+          "$className": "NumberValue",
+          "$properties": {
+            "Value": 0.05
+          }
+        },
+        "Difficulty": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "Gemiddeld"
+          }
+        },
+        "Phase": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "IDLE"
+          }
+        },
+        "Theme": {
+          "$className": "StringValue",
+          "$properties": {
+            "Value": "Spooky"
+          }
+        }
+      }
     },
 
     "ServerScriptService": {

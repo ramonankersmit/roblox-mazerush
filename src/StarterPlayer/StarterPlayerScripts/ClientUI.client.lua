@@ -16,7 +16,7 @@ local ThemeConfig = require(game.ReplicatedStorage.Modules.ThemeConfig)
 local SOUND_IDS = {
         Pickup = "rbxassetid://138186576",
         DoorOpened = "rbxassetid://138210320",
-        Victory = "rbxassetid://1845743407",
+        Victory = "rbxassetid://9041812129",
 }
 
 local function playUISound(soundId)
