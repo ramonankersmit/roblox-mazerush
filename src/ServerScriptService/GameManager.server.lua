@@ -46,6 +46,46 @@ loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance o
 local difficultyValue = State:FindFirstChild("Difficulty") or Instance.new("StringValue", State)
 difficultyValue.Name = "Difficulty"; difficultyValue.Value = Config.DefaultDifficulty or "Gemiddeld"
 local difficultyPresets = Config.DifficultyPresets or {}
+local sentryCloakValue = State:FindFirstChild("SentryCanCloak") or Instance.new("BoolValue", State)
+sentryCloakValue.Name = "SentryCanCloak"; sentryCloakValue.Value = false
+
+local function sentryAllowsCloak(sentryConfig)
+        if type(sentryConfig) ~= "table" then
+                return false
+        end
+        if (sentryConfig.Count or 0) <= 0 then
+                return false
+        end
+        if sentryConfig.CanBecomeInvisible ~= nil then
+                return sentryConfig.CanBecomeInvisible
+        end
+        if sentryConfig.InvisibleWhileChasing ~= nil then
+                return sentryConfig.InvisibleWhileChasing
+        end
+        if type(sentryConfig.Routes) == "table" then
+                for _, route in pairs(sentryConfig.Routes) do
+                        if type(route) == "table" then
+                                if route.AllowInvisibility ~= nil then
+                                        if route.AllowInvisibility then
+                                                return true
+                                        end
+                                elseif route.CanBecomeInvisible ~= nil then
+                                        if route.CanBecomeInvisible then
+                                                return true
+                                        end
+                                end
+                        end
+                end
+        end
+        return false
+end
+
+local function updateEnemyStateFlags()
+        local sentryConfig = Config.Enemies and Config.Enemies.Sentry
+        sentryCloakValue.Value = sentryAllowsCloak(sentryConfig)
+end
+
+updateEnemyStateFlags()
 
 local function selectRandomDifficulty()
         if type(difficultyPresets) ~= "table" or #difficultyPresets == 0 then
@@ -703,6 +743,7 @@ local function runRound()
         placeExit()
 
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
+        updateEnemyStateFlags()
         if _G.SpawnEnemies then
                 task.spawn(_G.SpawnEnemies, Config.Enemies)
         else

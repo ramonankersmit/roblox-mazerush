@@ -116,6 +116,38 @@ eliminationMessage.TextColor3 = Color3.fromRGB(255, 230, 230)
 eliminationMessage.Visible = false
 eliminationMessage.Parent = gui
 
+local sentryWarningFrame = Instance.new("Frame")
+sentryWarningFrame.Name = "SentryWarning"
+sentryWarningFrame.Size = UDim2.new(0, 360, 0, 48)
+sentryWarningFrame.Position = UDim2.new(0.5, -180, 0, 24)
+sentryWarningFrame.BackgroundTransparency = 0.2
+sentryWarningFrame.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+sentryWarningFrame.BorderSizePixel = 0
+sentryWarningFrame.Visible = false
+sentryWarningFrame.Parent = gui
+
+local sentryWarningCorner = Instance.new("UICorner")
+sentryWarningCorner.CornerRadius = UDim.new(0, 12)
+sentryWarningCorner.Parent = sentryWarningFrame
+
+local sentryWarningStroke = Instance.new("UIStroke")
+sentryWarningStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+sentryWarningStroke.Thickness = 2
+sentryWarningStroke.Color = Color3.fromRGB(255, 200, 200)
+sentryWarningStroke.Parent = sentryWarningFrame
+
+local sentryWarningLabel = Instance.new("TextLabel")
+sentryWarningLabel.Name = "Label"
+sentryWarningLabel.Size = UDim2.new(1, -20, 1, -10)
+sentryWarningLabel.Position = UDim2.new(0, 10, 0, 5)
+sentryWarningLabel.BackgroundTransparency = 1
+sentryWarningLabel.TextWrapped = true
+sentryWarningLabel.Font = Enum.Font.GothamBold
+sentryWarningLabel.TextScaled = true
+sentryWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
+sentryWarningLabel.Text = "Let op: Sentry's kunnen tijdelijk onzichtbaar worden!"
+sentryWarningLabel.Parent = sentryWarningFrame
+
 local countdownLabel = Instance.new("TextLabel")
 countdownLabel.Name = "RoundCountdown"
 countdownLabel.Size = UDim2.new(0, 260, 0, 120)
@@ -140,6 +172,49 @@ countdownStroke.Parent = countdownLabel
 local scoreboardData
 local currentRoundState = "IDLE"
 local eliminationCameraToken
+
+local sentryWarningValue = State:FindFirstChild("SentryCanCloak")
+local sentryWarningConnection
+
+local function isRoundActiveForWarning(state)
+        state = state or currentRoundState
+        return state == "PREP" or state == "OVERVIEW" or state == "ACTIVE"
+end
+
+local function updateSentryWarningVisibility()
+        if not sentryWarningFrame then
+                return
+        end
+        if not sentryWarningValue then
+                sentryWarningFrame.Visible = false
+                return
+        end
+        sentryWarningFrame.Visible = sentryWarningValue.Value and isRoundActiveForWarning()
+end
+
+local function attachSentryWarningValue(value)
+        if sentryWarningConnection then
+                sentryWarningConnection:Disconnect()
+                sentryWarningConnection = nil
+        end
+        sentryWarningValue = value
+        if not sentryWarningValue then
+                updateSentryWarningVisibility()
+                return
+        end
+        sentryWarningConnection = sentryWarningValue:GetPropertyChangedSignal("Value"):Connect(updateSentryWarningVisibility)
+        updateSentryWarningVisibility()
+end
+
+if sentryWarningValue then
+        attachSentryWarningValue(sentryWarningValue)
+else
+        State.ChildAdded:Connect(function(child)
+                if child.Name == "SentryCanCloak" then
+                        attachSentryWarningValue(child)
+                end
+        end)
+end
 
 local COUNTDOWN_SHOW_THRESHOLD = 10
 local COUNTDOWN_EMPHASIS_THRESHOLD = 3
@@ -417,6 +492,7 @@ RoundState.OnClientEvent:Connect(function(state)
         if updateFinderVisibility then
                 updateFinderVisibility()
         end
+        updateSentryWarningVisibility()
 
         if currentRoundState == "ACTIVE" then
                 exitVictoryTriggered = false
