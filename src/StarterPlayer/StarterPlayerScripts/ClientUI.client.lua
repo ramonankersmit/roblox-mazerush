@@ -1235,6 +1235,10 @@ local lastLobbyState = nil
 
 local function applyLobbyBoardVisibility()
         local hideLegacy = lobbyBoardActive
+        if hideLegacy then
+                lobby.Visible = false
+                themePanel.Visible = false
+        end
         listLbl.Visible = not hideLegacy
         btnReady.Visible = not hideLegacy
         btnStart.Visible = not hideLegacy
@@ -1552,8 +1556,8 @@ renderLobby = function(state)
         end
 
 	-- Show/hide panel based on phase: visible in IDLE/PREP
-	local showLobby = (state.phase == "IDLE" or state.phase == "PREP")
-	lobby.Visible = showLobby
+        local showLobby = (not lobbyBoardActive) and (state.phase == "IDLE" or state.phase == "PREP")
+        lobby.Visible = showLobby
 
 	-- Buttons disabled during ACTIVE/END
         if lobbyBoardActive then

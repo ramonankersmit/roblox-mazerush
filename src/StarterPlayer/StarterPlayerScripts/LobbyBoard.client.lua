@@ -92,6 +92,8 @@ if startClickDetector then
     startClickDetector.MaxActivationDistance = 0
 end
 
+local setConsoleOpen
+
 local consoleGui
 local consoleBackdrop
 local consoleWindow
@@ -240,7 +242,9 @@ local function ensureConsoleGui()
     listLayout.Parent = consoleThemeList
 
     consoleCloseButton.MouseButton1Click:Connect(function()
-        setConsoleOpen(false)
+        if setConsoleOpen then
+            setConsoleOpen(false)
+        end
     end)
 
     consoleReadyButton.MouseButton1Click:Connect(function()
@@ -248,7 +252,7 @@ local function ensureConsoleGui()
     end)
 end
 
-local function setConsoleOpen(open)
+local function setConsoleOpenImpl(open)
     ensureConsoleGui()
     if consoleOpen == open then
         if open then
@@ -267,13 +271,17 @@ local function setConsoleOpen(open)
     end
 end
 
+setConsoleOpen = setConsoleOpenImpl
+
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then
         return
     end
     local key = input.KeyCode
     if (key == Enum.KeyCode.Escape or key == Enum.KeyCode.ButtonB) and consoleOpen then
-        setConsoleOpen(false)
+        if setConsoleOpen then
+            setConsoleOpen(false)
+        end
     end
 end)
 
@@ -1281,7 +1289,7 @@ local function updatePrompts(state)
         end
     end
 
-    if not showPrompts and consoleOpen then
+    if not showPrompts and consoleOpen and setConsoleOpen then
         setConsoleOpen(false)
     end
 end
@@ -1434,9 +1442,11 @@ if consolePrompt or startPrompt then
             return
         end
         if prompt == consolePrompt then
-            setConsoleOpen(not consoleOpen)
-            if latestState then
-                updateConsoleDisplay(latestState, latestThemeState)
+            if setConsoleOpen then
+                setConsoleOpen(not consoleOpen)
+                if latestState then
+                    updateConsoleDisplay(latestState, latestThemeState)
+                end
             end
         elseif prompt == startPrompt then
             attemptStart()
