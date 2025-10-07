@@ -119,6 +119,45 @@ local sharedContext = {
 	PrefabsFolder = prefabsFolder,
 }
 
+local function spawnWithController(controllerClass, typeName, resolved, context, prefab)
+        if typeof(controllerClass) ~= "table" then
+                return
+        end
+
+        if typeof(controllerClass.SetSharedContext) == "function" then
+                controllerClass.SetSharedContext(context)
+        elseif typeof(controllerClass.setSharedContext) == "function" then
+                controllerClass.setSharedContext(context)
+        elseif typeof(controllerClass.SetContext) == "function" then
+                controllerClass.SetContext(context)
+        end
+
+        local count = resolved.Count or 0
+        if count <= 0 then
+                return
+        end
+
+        for _ = 1, count do
+                local enemy = prefab:Clone()
+                enemy:SetAttribute("EnemyType", typeName)
+                enemy.Name = resolved.InstanceName or enemy.Name or typeName
+                enemy.Parent = context.Workspace
+
+                local primary = ensureModelPrimaryPart(enemy)
+                if primary then
+                        enemy:PivotTo(CFrame.new(randomCellPosition(context.GlobalConfig or {})))
+                end
+
+                local ok, controllerInstance = pcall(controllerClass.new, enemy, resolved, context)
+                if not ok then
+                        warn(string.format("[EnemySpawner] Initialiseren van controller \"%s\" voor type \"%s\" mislukt: %s", tostring(resolved.Controller), tostring(typeName), tostring(controllerInstance)))
+                        enemy:Destroy()
+                elseif controllerInstance and typeof(controllerInstance.Destroy) == "function" then
+                        -- controller beheert zichzelf; niets extra nodig
+                end
+        end
+end
+
 local function spawnType(typeName, entry)
 	local baseConfig = defaultEnemyConfig[typeName]
 	if not baseConfig then
@@ -169,6 +208,21 @@ local function spawnType(typeName, entry)
                 return
         end
         local spawnFunc = controller.SpawnEnemies or controller.spawnEnemies or controller.Spawn or controller.spawn
+        local controllerClass
+        if typeof(spawnFunc) ~= "function" and typeof(controller) == "table" then
+                controllerClass = controller
+                if typeof(controllerClass.new) == "function" then
+                        spawnFunc = function()
+                                spawnWithController(controllerClass, typeName, resolved, sharedContext, prefab)
+                        end
+                elseif typeof(controller.HunterController) == "table" and typeof(controller.HunterController.new) == "function" then
+                        controllerClass = controller.HunterController
+                        spawnFunc = function()
+                                spawnWithController(controllerClass, typeName, resolved, sharedContext, prefab)
+                        end
+                end
+        end
+
         if typeof(spawnFunc) ~= "function" then
                 warn(string.format("[EnemySpawner] Controller-module \"%s\" mist een SpawnEnemies-functie", tostring(resolved.Controller)))
                 spawnBasicClones(typeName, resolved, sharedContext, prefab)
