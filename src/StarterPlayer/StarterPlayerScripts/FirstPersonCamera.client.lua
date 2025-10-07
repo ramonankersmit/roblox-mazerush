@@ -53,6 +53,7 @@ end
 
 local MIN_ZOOM = 0.5
 local MAX_ZOOM = 0.5
+local LOBBY_DEFAULT_DISTANCE = 12
 
 local originalMode = player.CameraMode
 local originalMinZoom = player.CameraMinZoomDistance
@@ -160,12 +161,9 @@ local function snapCameraBehindCharacter()
         return
     end
 
-    local desiredDistance = (originalMinZoom + originalMaxZoom) * 0.5
-    if desiredDistance < originalMinZoom then
-        desiredDistance = originalMinZoom
-    elseif desiredDistance > originalMaxZoom then
-        desiredDistance = originalMaxZoom
-    end
+    local minZoom = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
+    local maxZoom = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
+    local desiredDistance = math.clamp(LOBBY_DEFAULT_DISTANCE, minZoom, maxZoom)
 
     local heightOffset = math.clamp(desiredDistance * 0.4, 2, 8)
 
@@ -180,8 +178,8 @@ end
 local function disableFirstPerson()
     if not firstPersonActive then
         player.CameraMode = originalMode
-        player.CameraMinZoomDistance = originalMinZoom
-        player.CameraMaxZoomDistance = originalMaxZoom
+        player.CameraMinZoomDistance = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
+        player.CameraMaxZoomDistance = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
         if not shouldLockFirstPerson() then
             snapCameraBehindCharacter()
         end
@@ -190,8 +188,8 @@ local function disableFirstPerson()
 
     firstPersonActive = false
     player.CameraMode = originalMode
-    player.CameraMinZoomDistance = originalMinZoom
-    player.CameraMaxZoomDistance = originalMaxZoom
+    player.CameraMinZoomDistance = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
+    player.CameraMaxZoomDistance = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
     if not shouldLockFirstPerson() then
         snapCameraBehindCharacter()
     end
