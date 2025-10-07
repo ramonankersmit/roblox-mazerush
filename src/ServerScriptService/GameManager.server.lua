@@ -203,14 +203,14 @@ local function ensureBasicEnemyPrefab(name)
         root.Name = "HumanoidRootPart"
         root.Size = Vector3.new(2, 2, 1)
         root.Anchored = false
-        root.CanCollide = false
+        root.CanCollide = true
         root.Parent = model
 
         local head = Instance.new("Part")
         head.Name = "Head"
         head.Size = Vector3.new(2, 1, 2)
         head.Anchored = false
-        head.CanCollide = false
+        head.CanCollide = true
         head.Parent = model
 
         local weld = Instance.new("WeldConstraint")
