@@ -17,11 +17,51 @@ local TILE_THICKNESS = 0.2
 local TILE_SURFACE_Y = 0.6
 local TILE_SIZE_SCALE = 0.88
 local TRANSPARENCY_OFFSET = 0.22
+local TILE_SURFACE_OFFSET = TILE_SURFACE_Y - 0.5
 
 local visitedFolder
 local visitedTiles = {}
 local trackingConnection
 local currentRoundState = "IDLE"
+local mazeFloor
+
+local function updateMazeFloor()
+  local maze = Workspace:FindFirstChild("Maze")
+  if not maze then
+    mazeFloor = nil
+    return nil
+  end
+
+  if mazeFloor and mazeFloor:IsDescendantOf(maze) then
+    return mazeFloor
+  end
+
+  local floor = maze:FindFirstChild("Floor")
+  if not (floor and floor:IsA("BasePart")) then
+    for _, child in ipairs(maze:GetDescendants()) do
+      if child:IsA("BasePart") and child.Name == "Floor" then
+        floor = child
+        break
+      end
+    end
+  end
+
+  if floor and floor:IsA("BasePart") then
+    mazeFloor = floor
+  else
+    mazeFloor = nil
+  end
+
+  return mazeFloor
+end
+
+local function getMazeFloor()
+  local floor = updateMazeFloor()
+  if floor and floor:IsDescendantOf(Workspace) then
+    return floor
+  end
+  return nil
+end
 
 local function shouldTrackState(state)
   state = state or currentRoundState
@@ -46,6 +86,8 @@ local function ensureVisitedFolder()
   visitedFolder = Instance.new("Folder")
   visitedFolder.Name = string.format("VisitedTiles_%s", localPlayer.UserId)
   visitedFolder.Parent = mazeFolder
+
+  updateMazeFloor()
 
   return visitedFolder
 end
@@ -106,14 +148,45 @@ local function cellKey(x, z)
 end
 
 local function positionToCell(position)
-  local xIndex = math.floor((position.X / CELL_SIZE) + 0.5)
-  local zIndex = math.floor((position.Z / CELL_SIZE) + 0.5)
+  local floor = getMazeFloor()
+  if not floor then
+    return nil, nil
+  end
+
+  local localPosition = floor.CFrame:PointToObjectSpace(position)
+  local halfX = floor.Size.X * 0.5
+  local halfZ = floor.Size.Z * 0.5
+  local xFromCorner = localPosition.X + halfX
+  local zFromCorner = localPosition.Z + halfZ
+
+  local tolerance = 0.001
+  if xFromCorner < -tolerance or zFromCorner < -tolerance then
+    return nil, nil
+  end
+
+  local floorWidth = floor.Size.X
+  local floorDepth = floor.Size.Z
+  if xFromCorner > floorWidth + tolerance or zFromCorner > floorDepth + tolerance then
+    return nil, nil
+  end
+
+  local gridWidth = math.max(1, math.floor((floorWidth / CELL_SIZE) + 0.5))
+  local gridHeight = math.max(1, math.floor((floorDepth / CELL_SIZE) + 0.5))
+
+  local xIndex = math.clamp(math.floor(xFromCorner / CELL_SIZE) + 1, 1, gridWidth)
+  local zIndex = math.clamp(math.floor(zFromCorner / CELL_SIZE) + 1, 1, gridHeight)
+
   return xIndex, zIndex
 end
 
 local function placeVisitedTile(xIndex, zIndex)
   local folder = ensureVisitedFolder()
   if not folder then
+    return
+  end
+
+  local floor = getMazeFloor()
+  if not floor then
     return
   end
 
@@ -133,10 +206,13 @@ local function placeVisitedTile(xIndex, zIndex)
   tile.Transparency = visitedTransparency
   tile.Size = Vector3.new(CELL_SIZE * TILE_SIZE_SCALE, TILE_THICKNESS, CELL_SIZE * TILE_SIZE_SCALE)
 
-  local worldX = (xIndex - 0.5) * CELL_SIZE
-  local worldZ = (zIndex - 0.5) * CELL_SIZE
-  local tileCenterY = TILE_SURFACE_Y - (TILE_THICKNESS * 0.5)
-  tile.CFrame = CFrame.new(worldX, tileCenterY, worldZ)
+  local halfX = floor.Size.X * 0.5
+  local halfZ = floor.Size.Z * 0.5
+  local localX = -halfX + ((xIndex - 0.5) * CELL_SIZE)
+  local localZ = -halfZ + ((zIndex - 0.5) * CELL_SIZE)
+  local localY = (floor.Size.Y * 0.5) + TILE_SURFACE_OFFSET - (TILE_THICKNESS * 0.5)
+
+  tile.CFrame = floor.CFrame * CFrame.new(localX, localY, localZ)
   tile.Parent = folder
 
   visitedTiles[key] = tile
