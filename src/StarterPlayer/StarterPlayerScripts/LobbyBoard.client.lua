@@ -983,13 +983,14 @@ local function ensureThemeOptionEntry(themeId)
 
     local votesLabel = Instance.new("TextLabel")
     votesLabel.Name = "Votes"
+    votesLabel.AnchorPoint = Vector2.new(1, 1)
     votesLabel.BackgroundTransparency = 1
     votesLabel.Font = Enum.Font.GothamSemibold
     votesLabel.TextSize = 20
     votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
     votesLabel.TextXAlignment = Enum.TextXAlignment.Right
-    votesLabel.Position = UDim2.new(0.5, 2, 0, 50)
-    votesLabel.Size = UDim2.new(0.5, -16, 0, 32)
+    votesLabel.Position = UDim2.new(1, -16, 1, -12)
+    votesLabel.Size = UDim2.new(0.48, 0, 0, 26)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
