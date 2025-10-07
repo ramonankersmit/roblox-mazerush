@@ -185,7 +185,17 @@ local function readNumberAttribute(instance, attributeNames)
     return nil
 end
 
-local function normalizeBoardFraction(value, wallHeight)
+--
+-- Converts an attribute override into a fraction of the wall height. Values
+-- may be expressed as:
+-- * direct fractions (0-1)
+-- * stud measurements (compared against the resolved wall height)
+-- * percentages (0-100)
+--
+-- When the number is ambiguous (e.g. "8" could be 8% or 8 studs), pick the
+-- candidate that stays inside the [0, 1] range and closest to the currently
+-- applied baseline so Studio tweaks feel responsive.
+local function normalizeBoardFraction(value, wallHeight, baseline)
     if typeof(value) ~= "number" then
         return nil
     end
@@ -193,24 +203,64 @@ local function normalizeBoardFraction(value, wallHeight)
     local result = value
     local absValue = math.abs(value)
 
-    if wallHeight and wallHeight > 0 then
-        if absValue > 1 then
-            if absValue <= wallHeight then
-                result = value / wallHeight
-            else
-                result = value / 100
-            end
-        end
-    elseif absValue > 1 and absValue <= 100 then
-        result = value / 100
+    if absValue <= 1 then
+        return result
     end
 
-    return result
+    local candidates = {}
+    local function pushCandidate(candidateValue)
+        local withinRange = candidateValue >= 0 and candidateValue <= 1 and 0 or 1
+        local deviation
+        if typeof(baseline) == "number" then
+            deviation = math.abs(candidateValue - baseline)
+        else
+            deviation = math.abs(candidateValue)
+        end
+        candidates[#candidates + 1] = {
+            value = candidateValue,
+            withinRange = withinRange,
+            deviation = deviation,
+            magnitude = math.abs(candidateValue),
+        }
+    end
+
+    if wallHeight and wallHeight > 0 then
+        pushCandidate(value / wallHeight)
+    end
+
+    if absValue <= 100 then
+        pushCandidate(value / 100)
+    end
+
+    if #candidates == 0 then
+        if wallHeight and wallHeight > 0 then
+            return value / wallHeight
+        end
+        return value / 100
+    end
+
+    table.sort(candidates, function(a, b)
+        if a.withinRange ~= b.withinRange then
+            return a.withinRange < b.withinRange
+        end
+        if a.deviation ~= b.deviation then
+            return a.deviation < b.deviation
+        end
+        if a.magnitude ~= b.magnitude then
+            return a.magnitude < b.magnitude
+        end
+        return false
+    end)
+
+    return candidates[1].value
 end
 
-local function resolveBoardLayoutOverrides(lobby, anchor, wallHeight)
-    local heightCoverage = DEFAULT_BOARD_HEIGHT_COVERAGE
-    local bottomPadding = DEFAULT_BOARD_BOTTOM_PADDING
+local function resolveBoardLayoutOverrides(lobby, anchor, wallHeight, currentHeightCoverage, currentBottomPadding)
+    local fallbackHeightCoverage = typeof(currentHeightCoverage) == "number" and currentHeightCoverage or DEFAULT_BOARD_HEIGHT_COVERAGE
+    local fallbackBottomPadding = typeof(currentBottomPadding) == "number" and currentBottomPadding or DEFAULT_BOARD_BOTTOM_PADDING
+
+    local heightCoverage = fallbackHeightCoverage
+    local bottomPadding = fallbackBottomPadding
 
     local anchorHeightCoverage = readNumberAttribute(anchor, boardHeightCoverageAttributeNames)
     local anchorBottomPadding = readNumberAttribute(anchor, boardBottomPaddingAttributeNames)
@@ -229,12 +279,12 @@ local function resolveBoardLayoutOverrides(lobby, anchor, wallHeight)
         bottomPadding = lobbyBottomPadding
     end
 
-    local normalizedHeightCoverage = normalizeBoardFraction(heightCoverage, wallHeight)
+    local normalizedHeightCoverage = normalizeBoardFraction(heightCoverage, wallHeight, fallbackHeightCoverage)
     if normalizedHeightCoverage ~= nil then
         heightCoverage = normalizedHeightCoverage
     end
 
-    local normalizedBottomPadding = normalizeBoardFraction(bottomPadding, wallHeight)
+    local normalizedBottomPadding = normalizeBoardFraction(bottomPadding, wallHeight, fallbackBottomPadding)
     if normalizedBottomPadding ~= nil then
         bottomPadding = normalizedBottomPadding
     end
@@ -867,7 +917,7 @@ local function updateBoardPlacement()
     end
 
     local wallHeight = getWallHeight(currentLobby, anchor)
-    boardHeightCoverage, boardBottomPadding = resolveBoardLayoutOverrides(currentLobby, anchor, wallHeight)
+    boardHeightCoverage, boardBottomPadding = resolveBoardLayoutOverrides(currentLobby, anchor, wallHeight, boardHeightCoverage, boardBottomPadding)
     boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
 
     local boardHeight = resolveBoardHeight(wallHeight)
