@@ -206,8 +206,9 @@ local function resolveBoardLayoutOverrides(lobby, anchor)
         bottomPadding = lobbyBottomPadding
     end
 
-    heightCoverage = math.clamp(heightCoverage, 0, 1)
     bottomPadding = math.clamp(bottomPadding, 0, 1)
+    local maxCoverage = math.clamp(1 - bottomPadding, 0, 1)
+    heightCoverage = math.clamp(heightCoverage, 0, maxCoverage)
 
     return heightCoverage, bottomPadding
 end

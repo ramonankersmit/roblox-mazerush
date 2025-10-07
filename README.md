@@ -22,8 +22,8 @@
 ## Lobby-bord hoger plaatsen
 
 1. Open de lobby in Studio en selecteer het onderdeel dat het bord moet dragen (meestal het onderdeel met het `LobbyBoardAnchor`-attribuut). Je kunt de `Lobby`-folder zelf selecteren als je de waarde globaal wilt toepassen.
-2. Voeg in het **Attributes**-paneel een `Number`-attribuut `LobbyBoardHeightCoverage` toe. Kies een waarde tussen `0` en `1` die aangeeft welk percentage van de opgegeven muurhoogte het bord mag vullen (bijvoorbeeld `0.9` om dichter tegen het plafond aan te komen).
-3. Voeg optioneel een `Number`-attribuut `LobbyBoardBottomPadding` toe om de onderkant van het bord een extra marge te geven boven de vloer (bijvoorbeeld `0.05` voor 5% van de muurhoogte).
+2. Voeg in het **Attributes**-paneel een `Number`-attribuut `LobbyBoardHeightCoverage` toe. Kies een waarde tussen `0` en `1` die aangeeft welk percentage van de opgegeven muurhoogte het bord mag vullen (bijvoorbeeld `0.9` om dichter tegen het plafond aan te komen). Het script zorgt ervoor dat deze waarde nooit hoger is dan `1 - LobbyBoardBottomPadding`, zodat het bord binnen de muurhoogte past.
+3. Voeg optioneel een `Number`-attribuut `LobbyBoardBottomPadding` toe om de onderkant van het bord een extra marge te geven boven de vloer (bijvoorbeeld `0.05` voor 5% van de muurhoogte). Een hogere padding betekent automatisch dat de maximale hoogte-coverage iets krimpt, zodat de topzijde niet door het plafond steekt.
 4. Druk op **Play** of **F5**: het script leest deze overrides en centreert de `PlayerStand`/`ThemeStand` opnieuw zodat het bord symmetrisch binnen de opgegeven hoogte blijft.
 
 ## Inventory en Roblox-backpack
