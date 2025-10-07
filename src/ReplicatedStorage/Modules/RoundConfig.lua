@@ -52,6 +52,7 @@ local Config = {
                         PrefabName = "Sentry",
                         Controller = "Sentry",
                         PatrolSpeed = 8,
+                        CloakChance = 0,
                         RotationSpeed = 45,
                         ChaseSpeedMultiplier = 1.4,
                         ReturnSpeedMultiplier = 1.1,

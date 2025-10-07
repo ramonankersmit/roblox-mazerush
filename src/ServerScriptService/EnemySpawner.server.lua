@@ -3,13 +3,42 @@ local Replicated = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ServerStorage = game:GetService("ServerStorage")
+local CollectionService = game:GetService("CollectionService")
 
 local Config = require(Replicated.Modules.RoundConfig)
 
 local controllersFolder = Replicated.Modules:FindFirstChild("Enemies")
 local prefabsFolder = ServerStorage:FindFirstChild("Prefabs") or ServerStorage:WaitForChild("Prefabs")
+local enemyModelsFolder = ServerStorage:FindFirstChild("Enemies")
+
+local function formatVector3(position)
+        if typeof(position) ~= "Vector3" then
+                return "(nil)"
+        end
+        return string.format("(%.1f, %.1f, %.1f)", position.X, position.Y, position.Z)
+end
 
 local defaultEnemyConfig = Config.Enemies or {}
+
+local function getEnemyTemplate(typeName, prefabName)
+        prefabName = prefabName or typeName
+        local template = prefabsFolder and prefabsFolder:FindFirstChild(prefabName)
+        if template then
+                return template, "Prefabs"
+        end
+
+        if typeName ~= "Sentry" then
+                return nil
+        end
+
+        if not enemyModelsFolder then
+                error("[Sentry] Enemy model folder 'ServerStorage/Enemies' ontbreekt")
+        end
+
+        local fallback = enemyModelsFolder:FindFirstChild(prefabName) or enemyModelsFolder:FindFirstChild(typeName)
+        assert(fallback, string.format("[Sentry] Enemy model '%s' ontbreekt in ServerStorage/Enemies", tostring(prefabName)))
+        return fallback, "ServerStorage/Enemies"
+end
 
 local function ensureModelPrimaryPart(model)
         if not model then
@@ -198,6 +227,7 @@ local function convertSentryRoutes(resolved, context)
                         end
                 end
                 if #computed == 0 then
+                        warn(string.format("[Sentry] Route '%s' bevat geen geldige waypoints", tostring(name)))
                         return
                 end
                 converted[name] = {
@@ -392,6 +422,10 @@ local function spawnWithController(controllerClass, typeName, resolved, context,
         end
 
         for spawnIndex = 1, count do
+                if isSentry then
+                        print(string.format("[Sentry] Spawn %d/%d gestart (prefab uit %s)", spawnIndex, count, tostring(resolved.PrefabSource or "Onbekend")))
+                end
+
                 local enemy = prefab:Clone()
                 enemy:SetAttribute("EnemyType", typeName)
                 enemy.Name = resolveInstanceName(typeName, resolved)
@@ -410,14 +444,44 @@ local function spawnWithController(controllerClass, typeName, resolved, context,
                 end
                 if not spawnPosition then
                         spawnPosition = randomCellPosition(context.GlobalConfig or {})
+                        if isSentry then
+                                if hasSentryRoutes then
+                                        warn("[Sentry] Geen route-start gevonden; gebruik willekeurige cel")
+                                else
+                                        print("[Sentry] Gebruik willekeurige startpositie (geen routes beschikbaar)")
+                                end
+                        end
                 end
                 if primary and spawnPosition then
                         enemy:PivotTo(CFrame.new(spawnPosition))
+                        if isSentry then
+                                print(string.format("[Sentry] Model geplaatst op %s (route: %s)", formatVector3(spawnPosition), assignedRoute or "geen"))
+                        end
+                elseif isSentry then
+                        warn(string.format("[Sentry] Kon model niet positioneren (primary=%s, spawnPosition=%s)", tostring(primary ~= nil), formatVector3(spawnPosition)))
                 end
 
                 local humanoid = enemy:FindFirstChildOfClass("Humanoid")
                 if humanoid then
                         humanoid.WalkSpeed = resolved.PatrolSpeed or humanoid.WalkSpeed
+                end
+
+                if isSentry then
+                        local root = enemy:FindFirstChild("HumanoidRootPart", true)
+                        if root then
+                                local okNetwork, errNetwork = pcall(function()
+                                        root:SetNetworkOwner(nil)
+                                end)
+                                if not okNetwork then
+                                        warn(string.format("[Sentry] Kon network ownership niet vrijgeven: %s", tostring(errNetwork)))
+                                end
+                        else
+                                warn("[Sentry] HumanoidRootPart niet gevonden voor spawned model")
+                        end
+                        pcall(function()
+                                CollectionService:AddTag(enemy, "Enemy")
+                                CollectionService:AddTag(enemy, "Sentry")
+                        end)
                 end
 
                 local controllerConfig = shallowCopy(resolved)
@@ -458,10 +522,18 @@ local function spawnWithController(controllerClass, typeName, resolved, context,
 
                 local ok, controllerInstance = pcall(controllerClass.new, enemy, controllerConfig, context)
                 if not ok then
+                        if isSentry then
+                                warn(string.format("[Sentry] Controller-initialisatie mislukt: %s", tostring(controllerInstance)))
+                        end
                         warn(string.format("[EnemySpawner] Initialiseren van controller \"%s\" voor type \"%s\" mislukt: %s", tostring(resolved.Controller), tostring(typeName), tostring(controllerInstance)))
                         enemy:Destroy()
                 elseif controllerInstance and typeof(controllerInstance.Destroy) == "function" then
+                        if isSentry then
+                                print(string.format("[Sentry] Controller actief voor spawn %d (route: %s)", spawnIndex, assignedRoute or "geen"))
+                        end
                         -- controller beheert zichzelf; niets extra nodig
+                elseif isSentry then
+                        print(string.format("[Sentry] Spawn %d afgerond zonder aparte controller-instance (route: %s)", spawnIndex, assignedRoute or "geen"))
                 end
         end
 end
@@ -488,11 +560,20 @@ local function spawnType(typeName, entry)
                 return
         end
 
-        local prefab = prefabsFolder:FindFirstChild(resolved.PrefabName)
+        local prefab, prefabSource = getEnemyTemplate(typeName, resolved.PrefabName)
         if not prefab then
+                if typeName == "Sentry" then
+                        warn(string.format("[Sentry] Prefab \"%s\" ontbreekt", tostring(resolved.PrefabName)))
+                end
                 warn(string.format("[EnemySpawner] Prefab \"%s\" ontbreekt voor vijandtype \"%s\"", tostring(resolved.PrefabName), tostring(typeName)))
                 return
         end
+
+        if typeName == "Sentry" and prefabSource ~= "Prefabs" then
+                print(string.format("[Sentry] Gebruik fallback prefab uit %s", tostring(prefabSource)))
+        end
+
+        resolved.PrefabSource = prefabSource or "Prefabs"
 
         clearExisting(typeName, resolved)
 
@@ -504,6 +585,9 @@ local function spawnType(typeName, entry)
 
         local controllerModule = controllersFolder:FindFirstChild(resolved.Controller)
         if not controllerModule then
+                if typeName == "Sentry" then
+                        warn(string.format("[Sentry] Controller-module \"%s\" niet gevonden", tostring(resolved.Controller)))
+                end
                 warn(string.format("[EnemySpawner] Controller-module \"%s\" niet gevonden voor type \"%s\"", tostring(resolved.Controller), tostring(typeName)))
                 spawnBasicClones(typeName, resolved, sharedContext, prefab)
                 return
@@ -511,6 +595,9 @@ local function spawnType(typeName, entry)
 
         local okController, controller = pcall(require, controllerModule)
         if not okController then
+                if typeName == "Sentry" then
+                        warn(string.format("[Sentry] Controller-module \"%s\" kon niet geladen worden: %s", tostring(resolved.Controller), tostring(controller)))
+                end
                 warn(string.format("[EnemySpawner] Laden van controller \"%s\" mislukt: %s", tostring(resolved.Controller), tostring(controller)))
                 spawnBasicClones(typeName, resolved, sharedContext, prefab)
                 return
@@ -532,6 +619,9 @@ local function spawnType(typeName, entry)
         end
 
         if typeof(spawnFunc) ~= "function" then
+                if typeName == "Sentry" then
+                        warn(string.format("[Sentry] Controller-module \"%s\" mist SpawnEnemies-functie", tostring(resolved.Controller)))
+                end
                 warn(string.format("[EnemySpawner] Controller-module \"%s\" mist een SpawnEnemies-functie", tostring(resolved.Controller)))
                 spawnBasicClones(typeName, resolved, sharedContext, prefab)
                 return
@@ -541,6 +631,9 @@ local function spawnType(typeName, entry)
                 spawnFunc(typeName, resolved, sharedContext, prefab)
         end)
         if not ok then
+                if typeName == "Sentry" then
+                        warn(string.format("[Sentry] Spawnen van type \"%s\" is mislukt: %s", tostring(typeName), tostring(err)))
+                end
                 warn(string.format("[EnemySpawner] Spawnen van type \"%s\" is mislukt: %s", tostring(typeName), tostring(err)))
                 spawnBasicClones(typeName, resolved, sharedContext, prefab)
         end

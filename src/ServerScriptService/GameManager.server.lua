@@ -4,6 +4,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
 
 local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
@@ -765,8 +766,29 @@ local function runRound()
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
         enforceMinimumSentryCount()
         updateEnemyStateFlags()
+        local sentryConfig = Config.Enemies and Config.Enemies.Sentry
+        if sentryConfig then
+                local count = tonumber(sentryConfig.Count) or 0
+                local allowCloak = sentryAllowsCloak(sentryConfig)
+                print(string.format("[Sentry] Rondestart: spawnverzoek voor %d Sentry's (cloaken toegestaan: %s)", count, tostring(allowCloak)))
+        else
+                warn("[Sentry] Geen Sentry-config gevonden bij rondestart")
+        end
+
         if _G.SpawnEnemies then
-                task.spawn(_G.SpawnEnemies, Config.Enemies)
+                task.spawn(function()
+                        _G.SpawnEnemies(Config.Enemies)
+                        task.delay(2, function()
+                                local ok, tagged = pcall(function()
+                                        return CollectionService:GetTagged("Sentry")
+                                end)
+                                if ok then
+                                        print(string.format("[Sentry] CollectionService rapporteert %d actieve Sentry's", #tagged))
+                                else
+                                        warn(string.format("[Sentry] Ophalen van Sentry-tags mislukt: %s", tostring(tagged)))
+                                end
+                        end)
+                end)
         else
                 warn("[GameManager] _G.SpawnEnemies niet beschikbaar")
         end
