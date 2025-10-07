@@ -372,6 +372,18 @@ local function applyTheme(themeId)
         end
 end
 
+local function setMazeFloorTransparency(transparency)
+        local clamped = clampedTransparency(transparency)
+        if clamped == nil then
+                return
+        end
+        for _, part in ipairs(mazeFolder:GetChildren()) do
+                if part:IsA("BasePart") and part.Name == "Floor" then
+                        part.Transparency = clamped
+                end
+        end
+end
+
 local function resolvedThemeValue()
         return themeValue.Value ~= "" and themeValue.Value or ThemeConfig.Default
 end
@@ -657,7 +669,10 @@ local function runRound()
                 print(string.format("[GameManager] Moeilijkheid presets ontbreken, gebruik standaard: %s (carveLoops %.0f%%)", difficultyValue.Value, (loopChanceValue.Value or 0) * 100))
         end
         roundActive = true
-        applyTheme(resolvedThemeValue())
+        local activeThemeId = resolvedThemeValue()
+        applyTheme(activeThemeId)
+        local activeThemeData = ThemeConfig.Themes[activeThemeId] or ThemeConfig.Themes[ThemeConfig.Default] or {}
+        local defaultFloorTransparency = clampedTransparency(activeThemeData.floorTransparency) or 0
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
         teleportToLobby()
 
@@ -672,6 +687,7 @@ local function runRound()
         MazeBuilder.Clear(mazeFolder)
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        setMazeFloorTransparency(1)
         layoutExitRoom()
         local buildDuration = math.max(Config.PrepBuildDuration or Config.PrepTime or 0, 0)
         local overviewDuration = math.max(Config.PrepOverviewDuration or 0, 0)
@@ -721,6 +737,8 @@ local function runRound()
         if roundActive and overviewDuration > overviewSeconds then
                 task.wait(overviewDuration - overviewSeconds)
         end
+
+        setMazeFloorTransparency(defaultFloorTransparency)
 
         if roundActive then
                 -- Teleport naar start in de maze (cel 1,1)
