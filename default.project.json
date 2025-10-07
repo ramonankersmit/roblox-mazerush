@@ -2,8 +2,11 @@
   "name": "MazeRush",
   "tree": {
     "$className": "DataModel",
+
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
+      "$path": "src/ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
       "Modules": {
         "$className": "Folder",
         "$path": "src/ReplicatedStorage/Modules"
@@ -78,66 +81,38 @@
         }
       }
     },
+
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "$path": "src/ServerScriptService"
+      "$path": "src/ServerScriptService",
+      "$ignoreUnknownInstances": true
     },
+
     "StarterPlayer": {
       "$className": "StarterPlayer",
+
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
-        "$path": "src/StarterPlayer/StarterPlayerScripts"
+        "$path": "src/StarterPlayer/StarterPlayerScripts",
+        "$ignoreUnknownInstances": true
       }
     },
-    "ServerStorage": {
-      "$className": "ServerStorage",
-      "Prefabs": {
-        "$className": "Folder"
-      }
+
+    "StarterGui": {
+      "$className": "StarterGui",
+      "$path": "src/StarterGui",
+      "$ignoreUnknownInstances": true
     },
+
     "Workspace": {
       "$className": "Workspace",
-      "Maze": {
-        "$className": "Folder"
-      },
-      "Spawns": {
+      "$path": "src/Workspace",
+      "$ignoreUnknownInstances": true,
+
+      "Lobby": {
         "$className": "Folder",
-        "PlayerSpawn": {
-          "$className": "SpawnLocation",
-          "$properties": {
-            "Anchored": true,
-            "Enabled": true,
-            "Duration": 0
-          }
-        },
-        "ExitPad": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              1,
-              4
-            ],
-            "Transparency": 0.2
-          }
-        },
-        "LobbyBase": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "Size": [
-              60,
-              1,
-              60
-            ],
-            "Position": [
-              -40,
-              0,
-              -40
-            ]
-          }
-        }
+        "$path": "src/Workspace/Lobby",
+        "$ignoreUnknownInstances": true
       }
     }
   }

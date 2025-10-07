@@ -237,7 +237,7 @@ local function refreshScoreboardVisibility()
                 scoreboardFrame.Visible = false
                 return
         end
-        if currentRoundState == "ACTIVE" or currentRoundState == "PREP" then
+        if isGameplayState() then
                 scoreboardFrame.Visible = true
         else
                 scoreboardFrame.Visible = false
@@ -373,6 +373,7 @@ RoundState.OnClientEvent:Connect(function(state)
         if updateMinimapVisibility then
                 updateMinimapVisibility()
         end
+        updateFinderVisibility()
 
         if currentRoundState == "ACTIVE" then
                 exitVictoryTriggered = false
@@ -633,6 +634,7 @@ finderFrame.Size = UDim2.new(0,260,0,170)
 finderFrame.Position = UDim2.new(1,-280,0,90)
 finderFrame.BackgroundTransparency = 0.2
 finderFrame.Parent = gui
+finderFrame.Visible = false
 
 local lbl = Instance.new("TextLabel")
 lbl.Size = UDim2.new(1,0,0,24)
@@ -668,6 +670,12 @@ updateFinderButtonStates = function()
                 end
         end
 end
+
+local function updateFinderVisibility()
+        finderFrame.Visible = isGameplayState()
+end
+
+updateFinderVisibility()
 
 local function startExitFinderLoop(token)
         task.spawn(function()
@@ -815,6 +823,7 @@ setExitFinderEnabled = function(enabled)
         exitFinderEnabled = enabled
         exitUpdateToken += 1
         updateFinderButtonStates()
+        updateFinderVisibility()
         if not enabled then
                 clearTrail(EXIT_TRAIL_NAME)
                 lastExitTrailKey = nil
@@ -834,6 +843,7 @@ setHunterFinderEnabled = function(enabled)
         hunterFinderEnabled = enabled
         hunterUpdateToken += 1
         updateFinderButtonStates()
+        updateFinderVisibility()
         if not enabled then
                 clearTrail(HUNTER_TRAIL_NAME)
                 lastHunterTrailKey = nil
@@ -853,6 +863,7 @@ setKeyFinderEnabled = function(enabled)
         keyFinderEnabled = enabled
         keyUpdateToken += 1
         updateFinderButtonStates()
+        updateFinderVisibility()
         if not enabled then
                 clearTrail(KEY_TRAIL_NAME)
                 lastKeyTrailKey = nil
@@ -1165,7 +1176,7 @@ local function updatePreviewHighlights(targetThemeId, accentColor)
 end
 
 local lobby = Instance.new("Frame"); lobby.Name = "Lobby"; lobby.Size = UDim2.new(0, 380, 0, 320)
-lobby.Position = UDim2.new(0.5, -190, 0, 10); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
+lobby.Position = UDim2.new(0, 20, 0, 20); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
 local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.Text = "Lobby"; title.BackgroundTransparency = 1; title.Parent = lobby
 local listLbl = Instance.new("TextLabel"); listLbl.Size = UDim2.new(1, -12, 0, 76); listLbl.Position = UDim2.new(0,6,0,32)
 listLbl.TextXAlignment = Enum.TextXAlignment.Left; listLbl.BackgroundTransparency = 0.6; listLbl.Text = ""; listLbl.Parent = lobby
@@ -1209,6 +1220,73 @@ local btnReady = Instance.new("TextButton"); btnReady.Size = UDim2.new(0.5, -12,
 btnReady.Position = UDim2.new(0, 6, 1, -8); btnReady.Text = "Ready"; btnReady.Parent = lobby
 local btnStart = Instance.new("TextButton"); btnStart.Size = UDim2.new(0.5, -12, 0, 36); btnStart.AnchorPoint = Vector2.new(1,1)
 btnStart.Position = UDim2.new(1, -6, 1, -8); btnStart.Text = "Start Game"; btnStart.Parent = lobby
+
+local function hasLobbyStatusBoard()
+        local lobbyFolder = workspace:FindFirstChild("Lobby")
+        if not lobbyFolder then
+                return false
+        end
+        return lobbyFolder:FindFirstChild("LobbyStatusBoard") ~= nil
+end
+
+local lobbyBoardActive = hasLobbyStatusBoard()
+local renderLobby
+local lastLobbyState = nil
+
+local function applyLobbyBoardVisibility()
+        local hideLegacy = lobbyBoardActive
+        lobby.Visible = not hideLegacy
+        themePanel.Visible = not hideLegacy
+        listLbl.Visible = not hideLegacy
+        btnReady.Visible = not hideLegacy
+        btnStart.Visible = not hideLegacy
+        if hideLegacy then
+                btnReady.Active = false
+                btnReady.AutoButtonColor = false
+                btnStart.Active = false
+                btnStart.AutoButtonColor = false
+        else
+                btnReady.AutoButtonColor = true
+                btnStart.AutoButtonColor = true
+        end
+end
+
+applyLobbyBoardVisibility()
+
+local function refreshLobbyBoardVisibility()
+        local detected = hasLobbyStatusBoard()
+        if detected == lobbyBoardActive then
+                return
+        end
+        lobbyBoardActive = detected
+        applyLobbyBoardVisibility()
+        if renderLobby and lastLobbyState then
+                task.defer(renderLobby, lastLobbyState)
+        end
+end
+
+local function monitorLobbyFolder(folder)
+        if not folder then
+                return
+        end
+        folder.ChildAdded:Connect(refreshLobbyBoardVisibility)
+        folder.ChildRemoved:Connect(refreshLobbyBoardVisibility)
+end
+
+monitorLobbyFolder(workspace:FindFirstChild("Lobby"))
+
+workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Lobby" then
+                monitorLobbyFolder(child)
+                refreshLobbyBoardVisibility()
+        end
+end)
+
+workspace.ChildRemoved:Connect(function(child)
+        if child.Name == "Lobby" then
+                refreshLobbyBoardVisibility()
+        end
+end)
 
 local themeButtons = {}
 local activeThemeVote = false
@@ -1304,7 +1382,7 @@ local function ensureThemeButton(themeId)
         return entry
 end
 
-local function renderThemeState(themeState)
+local function renderThemeState(themeState, lobbyState)
         if not themeState or not themeState.options then
                 themePanel.Visible = false
                 activeThemeVote = false
@@ -1312,6 +1390,9 @@ local function renderThemeState(themeState)
                 themeCountdown.TextColor3 = Color3.fromRGB(220, 220, 220)
                 winningLabel.Text = "Volgende ronde: ?"
                 winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+                if themeHeader then
+                        themeHeader.Text = "Kies een thema"
+                end
                 updatePreviewHighlights(nil, nil)
                 for _, entry in pairs(themeButtons) do
                         entry.button.Visible = false
@@ -1319,48 +1400,62 @@ local function renderThemeState(themeState)
                 return
         end
 
+        lobbyState = lobbyState or {}
+
         activeThemeVote = themeState.active == true
-        themePanel.Visible = lobby.Visible
+        local countdownActive = themeState.countdownActive == true
+        themePanel.Visible = lobby.Visible and #themeState.options > 0
 
-	local totalVotes = themeState.totalVotes or 0
-	local votesByPlayer = themeState.votesByPlayer or {}
-	local myVote = votesByPlayer[tostring(player.UserId)] or votesByPlayer[player.UserId]
-	local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
+        local totalVotes = themeState.totalVotes or 0
+        local randomVotes = themeState.randomVotes or 0
+        local votePool = totalVotes + randomVotes
+        local votesByPlayer = themeState.votesByPlayer or {}
+        local myVote = votesByPlayer[tostring(player.UserId)] or votesByPlayer[player.UserId]
+        local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
+        local readyCount = lobbyState.readyCount or 0
+        local totalPlayers = lobbyState.total or 0
 
-	if activeThemeVote then
-		themeCountdown.Text = string.format("Stem nog %ds", endsIn)
-		themeCountdown.TextColor3 = endsIn <= 5 and Color3.fromRGB(255, 120, 120) or Color3.fromRGB(220, 220, 220)
-	else
-		themeCountdown.Text = "Stemming afgerond"
-		themeCountdown.TextColor3 = Color3.fromRGB(180, 180, 180)
-	end
+        if activeThemeVote then
+                if countdownActive then
+                        if endsIn > 0 then
+                                themeCountdown.Text = string.format("Stem nog %ds", endsIn)
+                                themeCountdown.TextColor3 = endsIn <= 5 and Color3.fromRGB(255, 120, 120) or Color3.fromRGB(220, 220, 220)
+                        else
+                                themeCountdown.Text = "Stemming sluit nu"
+                                themeCountdown.TextColor3 = Color3.fromRGB(255, 120, 120)
+                        end
+                else
+                        themeCountdown.Text = readyCount > 0 and "Stemming actief" or "Wacht op eerste speler"
+                        themeCountdown.TextColor3 = Color3.fromRGB(220, 220, 220)
+                end
+        else
+                themeCountdown.Text = "Stemming afgerond"
+                themeCountdown.TextColor3 = Color3.fromRGB(180, 180, 180)
+        end
 
-	local votesLookup = {}
-	local optionColors = {}
-	local optionNames = {}
-	for _, option in ipairs(themeState.options) do
-		local color = option.color or Color3.fromRGB(160,160,160)
-		votesLookup[option.id] = option.votes or 0
-		optionColors[option.id] = color
-		optionNames[option.id] = option.name or option.id
-	end
+        local votesLookup = {}
+        local optionColors = {}
+        local optionNames = {}
+        for _, option in ipairs(themeState.options) do
+                local color = option.color or Color3.fromRGB(160,160,160)
+                votesLookup[option.id] = option.votes or 0
+                optionColors[option.id] = color
+                optionNames[option.id] = option.name or option.id
+        end
 
-	local leaderId = themeState.current
-	local leaderVotes = leaderId and votesLookup[leaderId] or -1
-	if leaderVotes == nil then leaderVotes = -1 end
-	for _, option in ipairs(themeState.options) do
-		local votes = votesLookup[option.id] or 0
-		if votes > leaderVotes then
-			leaderId = option.id
-			leaderVotes = votes
-		end
-	end
-	if not leaderId and #themeState.options > 0 then
-		leaderId = themeState.options[1].id
-	end
-	local highlightId = activeThemeVote and leaderId or (themeState.current or leaderId)
+        local leaderId = themeState.current
+        local leaderVotes = leaderId and votesLookup[leaderId] or -1
+        if leaderVotes == nil then leaderVotes = -1 end
+        for index, option in ipairs(themeState.options) do
+                local votes = votesLookup[option.id] or 0
+                if votes > leaderVotes or leaderId == nil and index == 1 then
+                        leaderId = option.id
+                        leaderVotes = votes
+                end
+        end
+        local highlightId = activeThemeVote and (leaderId or themeState.current) or (themeState.current or leaderId)
 
-	local seen = {}
+        local seen = {}
         for index, option in ipairs(themeState.options) do
                 local entry = ensureThemeButton(option.id)
                 entry.button.LayoutOrder = index
@@ -1368,33 +1463,35 @@ local function renderThemeState(themeState)
 
                 local votes = votesLookup[option.id] or 0
                 local color = optionColors[option.id] or Color3.fromRGB(160,160,160)
-		local ratio = (totalVotes > 0) and math.clamp(votes / totalVotes, 0, 1) or 0
+                local ratio = (votePool > 0) and math.clamp(votes / votePool, 0, 1) or 0
 
-		entry.fill.BackgroundColor3 = color
-		entry.fill.Size = UDim2.new(ratio, 0, 1, 0)
-		entry.fill.BackgroundTransparency = ratio > 0 and 0.4 or 0.7
+                entry.fill.BackgroundColor3 = color
+                entry.fill.Size = UDim2.new(ratio, 0, 1, 0)
+                entry.fill.BackgroundTransparency = ratio > 0 and 0.4 or 0.7
 
-		entry.label.Text = string.format("%s (%d)", optionNames[option.id] or option.id, votes)
-		entry.desc.Text = option.description or ""
+                entry.label.Text = string.format("%s (%d)", optionNames[option.id] or option.id, votes)
+                entry.desc.Text = option.description or ""
 
-		entry.button.AutoButtonColor = activeThemeVote
-		entry.button.Active = activeThemeVote
-		entry.button.Selectable = activeThemeVote
-		entry.button.BackgroundColor3 = myVote == option.id and Color3.fromRGB(55, 65, 110) or Color3.fromRGB(28, 28, 34)
-		entry.stroke.Color = myVote == option.id and color or Color3.fromRGB(255,255,255)
-		entry.stroke.Transparency = myVote == option.id and 0.2 or 0.6
+                entry.button.AutoButtonColor = activeThemeVote
+                entry.button.Active = activeThemeVote
+                entry.button.Selectable = activeThemeVote
+                entry.button.BackgroundColor3 = myVote == option.id and Color3.fromRGB(55, 65, 110) or Color3.fromRGB(28, 28, 34)
+                entry.stroke.Color = myVote == option.id and color or Color3.fromRGB(255,255,255)
+                entry.stroke.Transparency = myVote == option.id and 0.2 or 0.6
 
-		entry.leader.Visible = highlightId == option.id
-		entry.leader.Text = activeThemeVote and "Leidt" or "Gekozen"
+                entry.leader.Visible = highlightId == option.id
+                if activeThemeVote then
+                        entry.leader.Text = countdownActive and "Aan kop" or "In stemming"
+                else
+                        entry.leader.Text = "Gekozen"
+                end
 
-		seen[option.id] = true
-	end
+                seen[option.id] = true
+        end
 
-        local labelId = highlightId
-        if activeThemeVote then
-                labelId = leaderId or labelId
-        else
-                labelId = themeState.current or labelId
+        local labelId = highlightId or leaderId
+        if not activeThemeVote and themeState.current then
+                labelId = themeState.current
         end
         if not labelId and #themeState.options > 0 then
                 labelId = themeState.options[1].id
@@ -1409,16 +1506,25 @@ local function renderThemeState(themeState)
         local labelColor = optionColors[labelId] or (labelTheme and labelTheme.primaryColor) or Color3.fromRGB(220,220,220)
         local accentColor = optionColors[highlightId] or (highlightTheme and highlightTheme.primaryColor) or labelColor
 
-        winningLabel.Text = activeThemeVote and string.format("Voorlopige leider: %s", labelName) or string.format("Volgende ronde: %s", labelName)
+        if activeThemeVote then
+                winningLabel.Text = string.format("Voorlopige leider: %s (%d stemmen)", labelName, votesLookup[labelId] or 0)
+        else
+                winningLabel.Text = string.format("Volgende ronde: %s", labelName)
+        end
         winningLabel.TextColor3 = labelColor
+
+        if themeHeader then
+                themeHeader.Text = string.format("Kies een thema · Stemmen: %d · Gereed: %d/%d", totalVotes, readyCount, totalPlayers)
+        end
+
         updatePreviewHighlights(highlightId, accentColor)
 
-	for themeId, entry in pairs(themeButtons) do
-		if not seen[themeId] then
-			entry.button:Destroy()
-			themeButtons[themeId] = nil
-		end
-	end
+        for themeId, entry in pairs(themeButtons) do
+                if not seen[themeId] then
+                        entry.button:Destroy()
+                        themeButtons[themeId] = nil
+                end
+        end
 end
 
 btnReady.MouseButton1Click:Connect(function()
@@ -1429,30 +1535,42 @@ btnStart.MouseButton1Click:Connect(function()
 	StartGameRequest:FireServer()
 end)
 
-local function renderLobby(state)
-	if not state then
-		renderThemeState(nil)
-		return
-	end
+renderLobby = function(state)
+        lastLobbyState = state
+        if not state then
+                renderThemeState(nil, nil)
+                return
+        end
 	local lines = {}
 	table.insert(lines, ("Phase: %s  |  Ready: %d/%d"):format(state.phase, state.readyCount or 0, state.total or 0))
 	table.insert(lines, "Players:")
 	for _, p in ipairs(state.players or {}) do
 		table.insert(lines, string.format(" - %s %s", p.name, p.ready and "[READY]" or ""))
 	end
-	listLbl.Text = table.concat(lines, "\n")
+        if lobbyBoardActive then
+                listLbl.Text = ""
+        else
+                listLbl.Text = table.concat(lines, "\n")
+        end
 
 	-- Show/hide panel based on phase: visible in IDLE/PREP
-	local showLobby = (state.phase == "IDLE" or state.phase == "PREP")
-	lobby.Visible = showLobby
+        local showLobby = (not lobbyBoardActive) and (state.phase == "IDLE" or state.phase == "PREP")
+        lobby.Visible = showLobby
 
 	-- Buttons disabled during ACTIVE/END
-	btnReady.AutoButtonColor = showLobby
-	btnReady.Active = showLobby
-	btnStart.AutoButtonColor = (state.phase == "IDLE")
-	btnStart.Active = (state.phase == "IDLE")
+        if lobbyBoardActive then
+                btnReady.AutoButtonColor = false
+                btnReady.Active = false
+                btnStart.AutoButtonColor = false
+                btnStart.Active = false
+        else
+                btnReady.AutoButtonColor = showLobby
+                btnReady.Active = showLobby
+                btnStart.AutoButtonColor = (state.phase == "IDLE")
+                btnStart.Active = (state.phase == "IDLE")
+        end
 
-	renderThemeState(state.themes)
+        renderThemeState(state.themes, state)
 end
 
 LobbyState.OnClientEvent:Connect(renderLobby)
