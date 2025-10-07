@@ -1144,6 +1144,7 @@ end
 local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
 local dotExit   = makeDot("E", Color3.fromRGB(255,255,0))
 local dotHuntersFolder = mapCanvas:FindFirstChild("Hunters") or Instance.new("Folder", mapCanvas); dotHuntersFolder.Name = "Hunters"
+local dotSentriesFolder = mapCanvas:FindFirstChild("Sentries") or Instance.new("Folder", mapCanvas); dotSentriesFolder.Name = "Sentries"
 
 updateMinimapVisibility = function()
         if mapFrame then
@@ -1158,6 +1159,7 @@ mapBtn.MouseButton1Click:Connect(function()
         mapBtn.Text = minimapOn and "Minimap (perk) ON" or "Minimap (perk) OFF"
         if not minimapOn then
                 for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
+                for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
         end
         updateMinimapVisibility()
 end)
@@ -1179,6 +1181,16 @@ local function hunters()
         return list
 end
 
+local function sentries()
+        local list = {}
+        for _, m in ipairs(workspace:GetChildren()) do
+                if m:IsA("Model") and m.Name == "Sentry" and m.PrimaryPart then
+                        table.insert(list, m)
+                end
+        end
+        return list
+end
+
 game:GetService("RunService").Heartbeat:Connect(function()
         if not minimapOn or not isGameplayState() then return end
 	local char = player.Character or player.CharacterAdded:Wait()
@@ -1189,12 +1201,24 @@ game:GetService("RunService").Heartbeat:Connect(function()
         local exitTarget = select(1, findExitTarget())
         if exitTarget then dotExit.Visible = true; dotExit.Position = worldToMap(exitTarget.Position) else dotExit.Visible = false end
 
-	for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
-	for i, h in ipairs(hunters()) do
-		local d = Instance.new("Frame"); d.Size = UDim2.new(0,5,0,5); d.AnchorPoint = Vector2.new(0.5,0.5)
-		d.BackgroundColor3 = Color3.fromRGB(255,0,0); d.BorderSizePixel = 0; d.Name = "H"..i; d.Parent = dotHuntersFolder
-		d.Position = worldToMap(h.PrimaryPart.Position)
-	end
+        for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
+        for i, h in ipairs(hunters()) do
+                local d = Instance.new("Frame"); d.Size = UDim2.new(0,5,0,5); d.AnchorPoint = Vector2.new(0.5,0.5)
+                d.BackgroundColor3 = Color3.fromRGB(255,0,0); d.BorderSizePixel = 0; d.Name = "H"..i; d.Parent = dotHuntersFolder
+                d.Position = worldToMap(h.PrimaryPart.Position)
+        end
+
+        for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
+        for i, s in ipairs(sentries()) do
+                local d = Instance.new("Frame")
+                d.Size = UDim2.new(0,5,0,5)
+                d.AnchorPoint = Vector2.new(0.5,0.5)
+                d.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
+                d.BorderSizePixel = 0
+                d.Name = "S"..i
+                d.Parent = dotSentriesFolder
+                d.Position = worldToMap(s.PrimaryPart.Position)
+        end
 end)
 
 
