@@ -106,6 +106,7 @@ local consoleStatusLabel
 local consoleHintLabel
 local consoleThemeEntries = {}
 local consoleOpen = false
+local ensureReadyAfterVote
 
 local readyColor = Color3.fromRGB(105, 255, 180)
 local notReadyColor = Color3.fromRGB(255, 110, 130)
@@ -116,6 +117,18 @@ local RANDOM_THEME_ID = "__random__"
 local RANDOM_THEME_COLOR = Color3.fromRGB(200, 215, 255)
 local RANDOM_THEME_NAME = "Kies willekeurig"
 local RANDOM_THEME_DESCRIPTION = "Laat Maze Rush een willekeurig thema kiezen."
+
+local function formatCountdown(seconds)
+    seconds = math.max(0, math.floor(seconds or 0))
+    local minutes = math.floor(seconds / 60)
+    local secs = seconds % 60
+    return string.format("%02d:%02d", minutes, secs)
+end
+
+local lastVoteActive = false
+local lastCountdownActive = false
+local lastCountdownWasRunning = false
+local lastCountdownSeconds = nil
 
 local function ensureConsoleGui()
     if consoleGui then
@@ -339,7 +352,7 @@ local function ensureConsoleThemeEntry(themeId)
     descLabel.TextWrapped = true
     descLabel.TextTruncate = Enum.TextTruncate.AtEnd
     descLabel.Position = UDim2.new(0, 16, 0, 34)
-    descLabel.Size = UDim2.new(0.65, 0, 0, 24)
+    descLabel.Size = UDim2.new(0.65, 0, 0, 48)
     descLabel.Parent = button
 
     local votesLabel = Instance.new("TextLabel")
@@ -349,8 +362,8 @@ local function ensureConsoleThemeEntry(themeId)
     votesLabel.TextSize = 18
     votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
     votesLabel.TextXAlignment = Enum.TextXAlignment.Right
-    votesLabel.Position = UDim2.new(0.65, -8, 0, 34)
-    votesLabel.Size = UDim2.new(0.35, -16, 0, 24)
+    votesLabel.Position = UDim2.new(0.65, -8, 0, 44)
+    votesLabel.Size = UDim2.new(0.35, -16, 0, 28)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
@@ -359,6 +372,7 @@ local function ensureConsoleThemeEntry(themeId)
         else
             ThemeVote:FireServer(themeId)
         end
+        ensureReadyAfterVote()
     end)
 
     local entry = {
@@ -711,6 +725,75 @@ local readyStates = {}
 local lastPhase = nil
 local latestState = nil
 local latestThemeState = nil
+local pendingAutoReady = false
+
+local function isLocalReady()
+    local stored = readyStates[localPlayer.UserId]
+    if stored ~= nil then
+        return stored
+    end
+
+    if latestState then
+        for _, info in ipairs(latestState.players or {}) do
+            if info.userId == localPlayer.UserId then
+                return info.ready == true
+            end
+        end
+    end
+
+    return false
+end
+
+ensureReadyAfterVote = function()
+    if pendingAutoReady then
+        return
+    end
+
+    if not isLocalReady() then
+        pendingAutoReady = true
+        ToggleReady:FireServer()
+    end
+end
+
+local function handleCountdownState(activeVote, countdownActive, endsIn)
+    endsIn = math.max(0, math.floor(endsIn or 0))
+
+    if lastVoteActive and not activeVote then
+        if consoleOpen and setConsoleOpen then
+            setConsoleOpen(false)
+        end
+    end
+
+    local newCountdownActive = activeVote and countdownActive
+    local newCountdownWasRunning = newCountdownActive and endsIn > 0
+
+    local countdownEnded = false
+    if lastCountdownActive and lastCountdownWasRunning then
+        if newCountdownActive then
+            countdownEnded = endsIn <= 0
+        else
+            countdownEnded = endsIn <= 0 or (lastCountdownSeconds or 0) <= 0
+        end
+    end
+
+    if countdownEnded then
+        if consoleOpen and setConsoleOpen then
+            setConsoleOpen(false)
+        end
+        if not isLocalReady() then
+            ensureReadyAfterVote()
+        end
+        lastCountdownActive = newCountdownActive
+        lastCountdownWasRunning = false
+        lastCountdownSeconds = newCountdownActive and endsIn or nil
+    else
+        lastCountdownActive = newCountdownActive
+        lastCountdownWasRunning = newCountdownWasRunning
+        lastCountdownSeconds = endsIn
+    end
+
+    lastVoteActive = activeVote
+end
 
 local function updateConsoleDisplay(state, themeState)
     ensureConsoleGui()
@@ -833,7 +916,7 @@ local function ensureThemeOptionEntry(themeId)
     button.AutoButtonColor = false
     button.BackgroundTransparency = 0.25
     button.BackgroundColor3 = Color3.fromRGB(28, 32, 48)
-    button.Size = UDim2.new(1, 0, 0, 48)
+    button.Size = UDim2.new(1, 0, 0, 72)
     button.Text = ""
     button.Active = true
     button.ClipsDescendants = true
@@ -866,11 +949,11 @@ local function ensureThemeOptionEntry(themeId)
     tagLabel.Name = "Tag"
     tagLabel.BackgroundTransparency = 1
     tagLabel.Font = Enum.Font.GothamSemibold
-    tagLabel.TextSize = 14
+    tagLabel.TextSize = 15
     tagLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
     tagLabel.TextXAlignment = Enum.TextXAlignment.Left
-    tagLabel.Position = UDim2.new(0, 12, 0, -12)
-    tagLabel.Size = UDim2.new(1, -24, 0, 18)
+    tagLabel.Position = UDim2.new(0, 14, 0, -18)
+    tagLabel.Size = UDim2.new(1, -28, 0, 24)
     tagLabel.Visible = false
     tagLabel.Parent = button
 
@@ -878,40 +961,41 @@ local function ensureThemeOptionEntry(themeId)
     nameLabel.Name = "Name"
     nameLabel.BackgroundTransparency = 1
     nameLabel.Font = Enum.Font.GothamSemibold
-    nameLabel.TextSize = 20
+    nameLabel.TextSize = 22
     nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Position = UDim2.new(0, 12, 0, 6)
-    nameLabel.Size = UDim2.new(1, -24, 0, 24)
+    nameLabel.Position = UDim2.new(0, 14, 0, 9)
+    nameLabel.Size = UDim2.new(1, -28, 0, 30)
     nameLabel.Parent = button
 
     local descriptionLabel = Instance.new("TextLabel")
     descriptionLabel.Name = "Description"
     descriptionLabel.BackgroundTransparency = 1
     descriptionLabel.Font = Enum.Font.Gotham
-    descriptionLabel.TextSize = 16
+    descriptionLabel.TextSize = 17
     descriptionLabel.TextColor3 = Color3.fromRGB(182, 190, 212)
     descriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
     descriptionLabel.TextYAlignment = Enum.TextYAlignment.Top
     descriptionLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    descriptionLabel.Position = UDim2.new(0, 12, 0, 30)
-    descriptionLabel.Size = UDim2.new(0.6, 0, 0, 16)
+    descriptionLabel.Position = UDim2.new(0, 14, 0, 46)
+    descriptionLabel.Size = UDim2.new(0.58, 0, 0, 54)
     descriptionLabel.Parent = button
 
     local votesLabel = Instance.new("TextLabel")
     votesLabel.Name = "Votes"
     votesLabel.BackgroundTransparency = 1
     votesLabel.Font = Enum.Font.GothamSemibold
-    votesLabel.TextSize = 18
+    votesLabel.TextSize = 20
     votesLabel.TextColor3 = Color3.fromRGB(210, 220, 240)
     votesLabel.TextXAlignment = Enum.TextXAlignment.Right
-    votesLabel.Position = UDim2.new(0.5, 0, 0, 30)
-    votesLabel.Size = UDim2.new(0.5, -12, 0, 16)
+    votesLabel.Position = UDim2.new(0.5, 2, 0, 50)
+    votesLabel.Size = UDim2.new(0.5, -16, 0, 32)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
         local voteId = themeId == "random" and RANDOM_THEME_ID or themeId
         ThemeVote:FireServer(voteId)
+        ensureReadyAfterVote()
     end)
 
     local entry = {
@@ -951,23 +1035,25 @@ local function updateThemePanel(themeState, state)
         return
     end
 
-    applyThemePanelVisibility(themeState)
-
-    if not themePanel.Visible then
-        return
-    end
-
     state = state or {}
     themeState = themeState or {}
+
+    applyThemePanelVisibility(themeState)
 
     local readyCount = state.readyCount or 0
     local totalPlayers = state.total or 0
     local totalVotes = themeState.totalVotes or 0
     local randomVotes = themeState.randomVotes or 0
     local votePool = totalVotes + randomVotes
+    local activeVote = themeState.active == true
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
-    local activeVote = themeState.active == true
+
+    handleCountdownState(activeVote, countdownActive, endsIn)
+
+    if not themePanel.Visible then
+        return
+    end
 
     local votesByPlayer = {}
     if themeState.votesByPlayer then
@@ -1066,17 +1152,20 @@ local function updateThemePanel(themeState, state)
     if themeCountdownLabel and themeCountdownLabel:IsA("TextLabel") then
         if activeVote then
             if countdownActive then
-                if endsIn > 0 then
-                    themeCountdownLabel.Text = string.format("Stemmen sluiten over %ds", endsIn)
+                themeCountdownLabel.Text = formatCountdown(endsIn)
+                if endsIn <= 5 then
+                    themeCountdownLabel.TextColor3 = Color3.fromRGB(255, 120, 140)
+                elseif endsIn <= 15 then
+                    themeCountdownLabel.TextColor3 = Color3.fromRGB(255, 200, 120)
                 else
-                    themeCountdownLabel.Text = "Stemmen sluiten nu"
+                    themeCountdownLabel.TextColor3 = Color3.fromRGB(220, 230, 255)
                 end
             else
-                themeCountdownLabel.Text = readyCount > 0 and "Stemming geopend" or "Wachten op spelers"
+                themeCountdownLabel.Text = readyCount > 0 and "OPEN" or "WACHT"
+                themeCountdownLabel.TextColor3 = readyCount > 0 and Color3.fromRGB(180, 220, 255) or Color3.fromRGB(200, 210, 240)
             end
-            themeCountdownLabel.TextColor3 = Color3.fromRGB(200, 210, 240)
         else
-            themeCountdownLabel.Text = "Thema bevestigd"
+            themeCountdownLabel.Text = "KLAAR"
             themeCountdownLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
         end
     end
@@ -1465,6 +1554,9 @@ local function renderState(state)
         local changed = wasReady ~= nil and wasReady ~= info.ready
         applyReadyVisuals(entry, info.ready, changed)
         readyStates[info.userId] = info.ready
+        if info.userId == localPlayer.UserId then
+            pendingAutoReady = false
+        end
         seen[info.userId] = true
     end
 
@@ -1477,13 +1569,13 @@ local function renderState(state)
     if readySummary then
         local readyCount = state.readyCount or 0
         local total = state.total or 0
-        readySummary.Text = string.format("%d/%d klaar", readyCount, total)
+        readySummary.Text = string.format("Gereed: %d/%d", readyCount, total)
     end
 
     if billboardSummary then
         local readyCount = state.readyCount or 0
         local total = state.total or 0
-        billboardSummary.Text = string.format("%d/%d klaar", readyCount, total)
+        billboardSummary.Text = string.format("Gereed: %d/%d", readyCount, total)
     end
 
     updatePrompts(state)
