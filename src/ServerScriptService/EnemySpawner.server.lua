@@ -259,6 +259,23 @@ local function pickSentryRouteName(routes, resolvedConfig, spawnIndex)
         return routes.__order[((spawnIndex - 1) % #routes.__order) + 1]
 end
 
+local function resolveInstanceName(typeName, resolvedConfig)
+        if typeof(resolvedConfig) ~= "table" then
+                return typeName
+        end
+
+        local instanceName = resolvedConfig.InstanceName
+        if typeof(instanceName) == "string" then
+                if instanceName ~= "" then
+                        return instanceName
+                end
+        elseif typeof(instanceName) == "number" then
+                return tostring(instanceName)
+        end
+
+        return typeName
+end
+
 local function spawnBasicClones(typeName, resolvedConfig, context, prefab)
         local count = resolvedConfig.Count or 0
         if count <= 0 then
@@ -273,7 +290,7 @@ local function spawnBasicClones(typeName, resolvedConfig, context, prefab)
         for _ = 1, count do
                 local clone = prefab:Clone()
                 clone:SetAttribute("EnemyType", typeName)
-                clone.Name = resolvedConfig.InstanceName or clone.Name or typeName
+                clone.Name = resolveInstanceName(typeName, resolvedConfig)
                 clone.Parent = context.Workspace
 
                 local primary = ensureModelPrimaryPart(clone)
@@ -316,12 +333,15 @@ local function mergeConfig(base, overrides)
 end
 
 local function clearExisting(typeName, resolvedConfig)
-	local targetName = resolvedConfig.InstanceName or resolvedConfig.PrefabName or typeName
-	for _, model in ipairs(Workspace:GetChildren()) do
-		if model:IsA("Model") then
-			local enemyType = model:GetAttribute("EnemyType")
-			if enemyType == typeName then
-				model:Destroy()
+        local targetName = resolveInstanceName(typeName, resolvedConfig)
+        if not targetName or targetName == "" then
+                targetName = resolvedConfig.PrefabName or typeName
+        end
+        for _, model in ipairs(Workspace:GetChildren()) do
+                if model:IsA("Model") then
+                        local enemyType = model:GetAttribute("EnemyType")
+                        if enemyType == typeName then
+                                model:Destroy()
 			elseif targetName and model.Name == targetName and enemyType == nil then
 				model:Destroy()
 			end
@@ -374,7 +394,7 @@ local function spawnWithController(controllerClass, typeName, resolved, context,
         for spawnIndex = 1, count do
                 local enemy = prefab:Clone()
                 enemy:SetAttribute("EnemyType", typeName)
-                enemy.Name = resolved.InstanceName or enemy.Name or typeName
+                enemy.Name = resolveInstanceName(typeName, resolved)
                 enemy.Parent = context.Workspace
 
                 local primary = ensureModelPrimaryPart(enemy)
