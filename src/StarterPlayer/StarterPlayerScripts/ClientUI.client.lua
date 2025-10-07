@@ -1173,10 +1173,42 @@ local function worldToMap(pos)
 	return UDim2.fromScale(x, z)
 end
 
+local function getModelPosition(model)
+        if not model or not model:IsA("Model") then
+                return nil
+        end
+
+        local primary = model.PrimaryPart
+        if primary and primary:IsA("BasePart") then
+                return primary.Position
+        end
+
+        local ok, pivot = pcall(function()
+                return model:GetPivot()
+        end)
+        if ok and typeof(pivot) == "CFrame" then
+                return pivot.Position
+        end
+
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if root and root:IsA("BasePart") then
+                return root.Position
+        end
+
+        local part = model:FindFirstChildWhichIsA("BasePart")
+        if part then
+                return part.Position
+        end
+
+        return nil
+end
+
 local function hunters()
         local list = {}
         for _, m in ipairs(workspace:GetChildren()) do
-                if m:IsA("Model") and m.Name == "Hunter" and m.PrimaryPart then table.insert(list, m) end
+                if m:IsA("Model") and m.Name == "Hunter" then
+                        list[#list + 1] = m
+                end
         end
         return list
 end
@@ -1184,8 +1216,8 @@ end
 local function sentries()
         local list = {}
         for _, m in ipairs(workspace:GetChildren()) do
-                if m:IsA("Model") and m.Name == "Sentry" and m.PrimaryPart then
-                        table.insert(list, m)
+                if m:IsA("Model") and m.Name == "Sentry" then
+                        list[#list + 1] = m
                 end
         end
         return list
@@ -1203,21 +1235,36 @@ game:GetService("RunService").Heartbeat:Connect(function()
 
         for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
         for i, h in ipairs(hunters()) do
-                local d = Instance.new("Frame"); d.Size = UDim2.new(0,5,0,5); d.AnchorPoint = Vector2.new(0.5,0.5)
-                d.BackgroundColor3 = Color3.fromRGB(255,0,0); d.BorderSizePixel = 0; d.Name = "H"..i; d.Parent = dotHuntersFolder
-                d.Position = worldToMap(h.PrimaryPart.Position)
+                local position = getModelPosition(h)
+                if position then
+                        local d = Instance.new("Frame")
+                        d.Size = UDim2.new(0,5,0,5)
+                        d.AnchorPoint = Vector2.new(0.5,0.5)
+                        d.BackgroundColor3 = Color3.fromRGB(255,0,0)
+                        d.BorderSizePixel = 0
+                        d.Name = "H"..i
+                        d.Parent = dotHuntersFolder
+                        d.Position = worldToMap(position)
+                end
         end
 
         for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
         for i, s in ipairs(sentries()) do
-                local d = Instance.new("Frame")
-                d.Size = UDim2.new(0,5,0,5)
-                d.AnchorPoint = Vector2.new(0.5,0.5)
-                d.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
-                d.BorderSizePixel = 0
-                d.Name = "S"..i
-                d.Parent = dotSentriesFolder
-                d.Position = worldToMap(s.PrimaryPart.Position)
+                local position = getModelPosition(s)
+                if position then
+                        local isCloaked = s:GetAttribute("IsCloaked") == true
+                        local d = Instance.new("Frame")
+                        d.Size = UDim2.new(0,5,0,5)
+                        d.AnchorPoint = Vector2.new(0.5,0.5)
+                        d.BackgroundColor3 = isCloaked and Color3.fromRGB(140, 190, 255) or Color3.fromRGB(50, 150, 255)
+                        d.BorderSizePixel = isCloaked and 1 or 0
+                        if isCloaked then
+                                d.BorderColor3 = Color3.fromRGB(200, 230, 255)
+                        end
+                        d.Name = "S"..i
+                        d.Parent = dotSentriesFolder
+                        d.Position = worldToMap(position)
+                end
         end
 end)
 
