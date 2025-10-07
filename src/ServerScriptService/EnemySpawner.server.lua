@@ -15,6 +15,69 @@ local function findEnemyModelsFolder()
                 or nil
 end
 
+local fallbackSentryTemplate
+
+local function buildSentryFallbackTemplate()
+        if fallbackSentryTemplate then
+                return fallbackSentryTemplate
+        end
+
+        print("[Sentry] Bouw in-memory fallback prefab op")
+
+        local model = Instance.new("Model")
+        model.Name = "Sentry"
+
+        local root = Instance.new("Part")
+        root.Name = "HumanoidRootPart"
+        root.Size = Vector3.new(2.2, 2.6, 2.2)
+        root.Color = Color3.fromRGB(13, 105, 172)
+        root.Material = Enum.Material.Metal
+        root.CastShadow = true
+        root.Anchored = false
+        root.CanCollide = true
+        root.Massless = false
+        root.TopSurface = Enum.SurfaceType.Smooth
+        root.BottomSurface = Enum.SurfaceType.Smooth
+        root.Parent = model
+        model.PrimaryPart = root
+
+        local head = Instance.new("Part")
+        head.Name = "Head"
+        head.Size = Vector3.new(1.6, 1.2, 1.6)
+        head.Color = Color3.fromRGB(91, 155, 213)
+        head.Material = Enum.Material.Neon
+        head.Anchored = false
+        head.CanCollide = false
+        head.TopSurface = Enum.SurfaceType.Smooth
+        head.BottomSurface = Enum.SurfaceType.Smooth
+        head.CFrame = root.CFrame * CFrame.new(0, (root.Size.Y * 0.5) + (head.Size.Y * 0.5), 0)
+        head.Parent = model
+
+        local neck = Instance.new("Motor6D")
+        neck.Name = "Neck"
+        neck.Part0 = root
+        neck.Part1 = head
+        neck.C0 = CFrame.new(0, root.Size.Y * 0.5, 0)
+        neck.C1 = CFrame.new(0, -head.Size.Y * 0.5, 0)
+        neck.Parent = root
+
+        local humanoid = Instance.new("Humanoid")
+        humanoid.Name = "Humanoid"
+        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+        humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+        humanoid.MaxHealth = 150
+        humanoid.Health = humanoid.MaxHealth
+        humanoid.WalkSpeed = 8
+        humanoid.JumpPower = 0
+        humanoid.AutoRotate = true
+        humanoid.RequiresNeck = false
+        humanoid.HipHeight = 1.1
+        humanoid.Parent = model
+
+        fallbackSentryTemplate = model
+        return fallbackSentryTemplate
+end
+
 local function formatVector3(position)
         if typeof(position) ~= "Vector3" then
                 return "(nil)"
@@ -44,18 +107,22 @@ local function getEnemyTemplate(typeName, prefabName)
         end
 
         local enemyModelsFolder = findEnemyModelsFolder()
-        if not enemyModelsFolder then
-                warn("[Sentry] Enemy model folder 'Enemies' ontbreekt; val terug op Prefabs")
-                return nil
-        end
-
-        local fallback = enemyModelsFolder:FindFirstChild(prefabName) or enemyModelsFolder:FindFirstChild(typeName)
-        if not fallback then
+        if enemyModelsFolder then
+                local fallback = enemyModelsFolder:FindFirstChild(prefabName) or enemyModelsFolder:FindFirstChild(typeName)
+                if fallback then
+                        return fallback, enemyModelsFolder:GetFullName()
+                end
                 local folderPath = enemyModelsFolder:GetFullName()
                 warn(string.format("[Sentry] Enemy model '%s' ontbreekt in %s", tostring(prefabName), folderPath))
-                return nil
+        else
+                warn("[Sentry] Enemy model folder 'Enemies' ontbreekt; genereer fallback")
         end
-        return fallback, enemyModelsFolder:GetFullName()
+
+        local generated = buildSentryFallbackTemplate()
+        if generated then
+                return generated, "[SentryFallback]"
+        end
+        return nil
 end
 
 local function ensureModelPrimaryPart(model)
@@ -574,8 +641,11 @@ local function spawnType(typeName, entry)
 	end
 
         if not prefabsFolder then
-                warn("[EnemySpawner] Prefabs-map ontbreekt in ServerStorage")
-                return
+                if typeName ~= "Sentry" then
+                        warn("[EnemySpawner] Prefabs-map ontbreekt in ServerStorage")
+                        return
+                end
+                warn("[Sentry] Prefabs-map ontbreekt; gebruik in-memory fallback")
         end
 
         local prefab, prefabSource = getEnemyTemplate(typeName, resolved.PrefabName)
