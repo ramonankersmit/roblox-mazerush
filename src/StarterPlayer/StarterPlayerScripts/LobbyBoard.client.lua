@@ -118,6 +118,17 @@ local RANDOM_THEME_COLOR = Color3.fromRGB(200, 215, 255)
 local RANDOM_THEME_NAME = "Kies willekeurig"
 local RANDOM_THEME_DESCRIPTION = "Laat Maze Rush een willekeurig thema kiezen."
 
+local function formatCountdown(seconds)
+    seconds = math.max(0, math.floor(seconds or 0))
+    local minutes = math.floor(seconds / 60)
+    local secs = seconds % 60
+    return string.format("%02d:%02d", minutes, secs)
+end
+
+local lastVoteActive = false
+local lastCountdownActive = false
+local lastCountdownSeconds = nil
+
 local function ensureConsoleGui()
     if consoleGui then
         return
@@ -743,6 +754,29 @@ ensureReadyAfterVote = function()
     end
 end
 
+local function handleCountdownState(activeVote, countdownActive, endsIn)
+    endsIn = math.max(0, math.floor(endsIn or 0))
+
+    if lastVoteActive and not activeVote then
+        if consoleOpen and setConsoleOpen then
+            setConsoleOpen(false)
+        end
+    end
+
+    if lastCountdownActive and activeVote and countdownActive and (lastCountdownSeconds or 0) > 0 and endsIn <= 0 then
+        if consoleOpen and setConsoleOpen then
+            setConsoleOpen(false)
+        end
+        if not isLocalReady() then
+            ensureReadyAfterVote()
+        end
+    end
+
+    lastVoteActive = activeVote
+    lastCountdownActive = activeVote and countdownActive
+    lastCountdownSeconds = endsIn
+end
+
 local function updateConsoleDisplay(state, themeState)
     ensureConsoleGui()
     if not state then
@@ -983,23 +1017,25 @@ local function updateThemePanel(themeState, state)
         return
     end
 
-    applyThemePanelVisibility(themeState)
-
-    if not themePanel.Visible then
-        return
-    end
-
     state = state or {}
     themeState = themeState or {}
+
+    applyThemePanelVisibility(themeState)
 
     local readyCount = state.readyCount or 0
     local totalPlayers = state.total or 0
     local totalVotes = themeState.totalVotes or 0
     local randomVotes = themeState.randomVotes or 0
     local votePool = totalVotes + randomVotes
+    local activeVote = themeState.active == true
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
-    local activeVote = themeState.active == true
+
+    handleCountdownState(activeVote, countdownActive, endsIn)
+
+    if not themePanel.Visible then
+        return
+    end
 
     local votesByPlayer = {}
     if themeState.votesByPlayer then
@@ -1098,17 +1134,20 @@ local function updateThemePanel(themeState, state)
     if themeCountdownLabel and themeCountdownLabel:IsA("TextLabel") then
         if activeVote then
             if countdownActive then
-                if endsIn > 0 then
-                    themeCountdownLabel.Text = string.format("Stemmen sluiten over %ds", endsIn)
+                themeCountdownLabel.Text = formatCountdown(endsIn)
+                if endsIn <= 5 then
+                    themeCountdownLabel.TextColor3 = Color3.fromRGB(255, 120, 140)
+                elseif endsIn <= 15 then
+                    themeCountdownLabel.TextColor3 = Color3.fromRGB(255, 200, 120)
                 else
-                    themeCountdownLabel.Text = "Stemmen sluiten nu"
+                    themeCountdownLabel.TextColor3 = Color3.fromRGB(220, 230, 255)
                 end
             else
-                themeCountdownLabel.Text = readyCount > 0 and "Stemming geopend" or "Wachten op spelers"
+                themeCountdownLabel.Text = readyCount > 0 and "OPEN" or "WACHT"
+                themeCountdownLabel.TextColor3 = readyCount > 0 and Color3.fromRGB(180, 220, 255) or Color3.fromRGB(200, 210, 240)
             end
-            themeCountdownLabel.TextColor3 = Color3.fromRGB(200, 210, 240)
         else
-            themeCountdownLabel.Text = "Thema bevestigd"
+            themeCountdownLabel.Text = "KLAAR"
             themeCountdownLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
         end
     end

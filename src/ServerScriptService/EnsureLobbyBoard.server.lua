@@ -158,7 +158,7 @@ local function applyAnchorAttributes(anchor, boardStand, wallHeight)
     if anchor:IsA("BasePart") then
         local anchorCF = anchor.CFrame
         local anchorHeight = anchor.Size.Y
-        local targetCenterOffset = -anchorHeight * 0.5 + wallHeight * 0.5
+        local targetCenterOffset = -anchorHeight * 0.5 + wallHeight * boardCenterRatio
         local depthOffset = -(anchor.Size.Z * 0.5 + boardStand.Size.Z * 0.5 + 0.1)
         adjusted = anchorCF * CFrame.new(0, targetCenterOffset, depthOffset)
     end
@@ -213,7 +213,7 @@ local function computeDefaultPivot(lobby, boardStand, wallHeight, lobbyBase)
         interiorClearance = math.max(interiorClearance, boardStand.Size.Z * 0.5 + 1.25)
     end
 
-    local centerY = floorY + wallHeight * 0.5
+    local centerY = floorY + wallHeight * boardCenterRatio
     local position = Vector3.new(basePosition.X, centerY, basePosition.Z) + forward * interiorClearance
     local lookAt = Vector3.new(basePosition.X, centerY, basePosition.Z)
     local lobbyCenter = Vector3.new(basePosition.X, floorY + wallHeight * 0.75, basePosition.Z)
@@ -222,7 +222,7 @@ local function computeDefaultPivot(lobby, boardStand, wallHeight, lobbyBase)
 end
 
 local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardStand, defaultCenter, defaultFloorY)
-    local floorY = defaultFloorY or (pivot.Position.Y - wallHeight * 0.5)
+    local floorY = defaultFloorY or (pivot.Position.Y - wallHeight * boardCenterRatio)
     local targetHeight = floorY + wallHeight * 0.95
 
     if anchor then
@@ -270,20 +270,15 @@ local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardSta
     return Vector3.new(pivotPos.X, targetHeight, pivotPos.Z)
 end
 
-local boardHeightRatio = 0.5
-local boardHeightScale = 2.1
-local maxWallCoverage = 0.92
+local boardHeightCoverage = 0.8
+local boardBottomPadding = 0.1
+local boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
 local boardWidthScale = 2.2
 
 local function resolveBoardHeight(wallHeight)
     wallHeight = wallHeight or 12
-    local baseHeight = math.max(4, wallHeight * boardHeightRatio)
-    local scaledHeight = baseHeight * boardHeightScale
-    local maxHeight = wallHeight * maxWallCoverage
-    if maxHeight > 0 then
-        scaledHeight = math.min(scaledHeight, maxHeight)
-    end
-    return math.max(baseHeight, scaledHeight)
+    local desiredHeight = wallHeight * boardHeightCoverage
+    return math.max(1, desiredHeight)
 end
 
 local function ensureLobbyBoard()
@@ -304,6 +299,36 @@ local function ensureLobbyBoard()
         local themeSurfaceExisting = themeStandExisting and themeStandExisting:FindFirstChild("ThemeSurface")
         local themePanelExisting = themeSurfaceExisting and themeSurfaceExisting:FindFirstChild("ThemePanel")
         if themePanelExisting then
+            local themeHeaderExisting = themePanelExisting:FindFirstChild("ThemeHeader")
+            if themeHeaderExisting and themeHeaderExisting:IsA("TextLabel") then
+                themeHeaderExisting.Size = UDim2.new(0.6, -40, 0, 44)
+                themeHeaderExisting.Position = UDim2.new(0, 20, 0, 16)
+                themeHeaderExisting.TextSize = scaleTextSize(24)
+                themeHeaderExisting.TextXAlignment = Enum.TextXAlignment.Left
+            end
+
+            local themeCountdownExisting = themePanelExisting:FindFirstChild("ThemeCountdown")
+            if themeCountdownExisting and themeCountdownExisting:IsA("TextLabel") then
+                themeCountdownExisting.Size = UDim2.new(0, 160, 0, 44)
+                themeCountdownExisting.Position = UDim2.new(1, -24, 0, 16)
+                themeCountdownExisting.AnchorPoint = Vector2.new(1, 0)
+                themeCountdownExisting.Font = Enum.Font.GothamBold
+                themeCountdownExisting.TextSize = scaleTextSize(30)
+                themeCountdownExisting.TextXAlignment = Enum.TextXAlignment.Right
+                themeCountdownExisting.TextColor3 = Color3.fromRGB(220, 230, 255)
+                if themeCountdownExisting.Text == "" or themeCountdownExisting.Text == nil then
+                    themeCountdownExisting.Text = "00:00"
+                end
+            end
+
+            local themeStatusExisting = themePanelExisting:FindFirstChild("ThemeStatus")
+            if themeStatusExisting and themeStatusExisting:IsA("TextLabel") then
+                themeStatusExisting.Size = UDim2.new(1, -44, 0, 32)
+                themeStatusExisting.Position = UDim2.new(0, 22, 0, 120)
+                themeStatusExisting.TextSize = scaleTextSize(18)
+                themeStatusExisting.TextXAlignment = Enum.TextXAlignment.Left
+            end
+
             local themeOptionsExisting = themePanelExisting:FindFirstChild("ThemeOptions")
             if themeOptionsExisting and themeOptionsExisting:IsA("ScrollingFrame") then
                 themeOptionsExisting.Size = UDim2.new(1, -44, 1, -248)
@@ -444,7 +469,7 @@ local function ensureLobbyBoard()
     themeStroke.Color = Color3.fromRGB(90, 110, 160)
     themeStroke.Parent = themePanel
 
-    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(1, -40, 0, 44), UDim2.new(0, 20, 0, 16), {
+    createTextLabel(themePanel, "ThemeHeader", "Thema stemming", UDim2.new(0.6, -40, 0, 44), UDim2.new(0, 20, 0, 16), {
         Font = Enum.Font.GothamSemibold,
         TextSize = 24,
         TextColor3 = Color3.fromRGB(220, 226, 255),
@@ -458,18 +483,19 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    createTextLabel(themePanel, "ThemeCountdown", "Wacht op spelers", UDim2.new(0.5, -24, 0, 32), UDim2.new(0, 20, 0, 120), {
-        Font = Enum.Font.Gotham,
-        TextSize = 18,
-        TextColor3 = Color3.fromRGB(200, 210, 240),
-        TextXAlignment = Enum.TextXAlignment.Left,
+    createTextLabel(themePanel, "ThemeCountdown", "00:00", UDim2.new(0, 160, 0, 44), UDim2.new(1, -24, 0, 16), {
+        AnchorPoint = Vector2.new(1, 0),
+        Font = Enum.Font.GothamBold,
+        TextSize = 30,
+        TextColor3 = Color3.fromRGB(220, 230, 255),
+        TextXAlignment = Enum.TextXAlignment.Right,
     })
 
-    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(0.5, -24, 0, 32), UDim2.new(0.5, 0, 0, 120), {
+    createTextLabel(themePanel, "ThemeStatus", "Stemmen: 0 · Gereed: 0/0", UDim2.new(1, -44, 0, 32), UDim2.new(0, 22, 0, 120), {
         Font = Enum.Font.Gotham,
         TextSize = 18,
         TextColor3 = Color3.fromRGB(170, 180, 210),
-        TextXAlignment = Enum.TextXAlignment.Right,
+        TextXAlignment = Enum.TextXAlignment.Left,
     })
 
     local themeOptions = Instance.new("ScrollingFrame")
