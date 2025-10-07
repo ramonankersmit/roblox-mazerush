@@ -675,38 +675,64 @@ local function clamp(value, minValue, maxValue)
     return value
 end
 
-local function computeStartPanelOffset(pivot, anchor)
+local function computeStartPanelOffset(pivot, anchor, lobbyBase)
     local pivotRight = pivot.RightVector
     local themeLeftEdgeCoord = -(playerStand.Size.X * 0.5 + boardSpacing + themeStand.Size.X)
     local leftEdge = themeLeftEdgeCoord - startPanel.Size.X - startButtonBaseGap
 
-    if anchor and anchor:IsA("BasePart") then
-        local anchorCF = anchor.CFrame
-        local anchorAxes = {
-            anchorCF.RightVector,
-            anchorCF.UpVector,
-            anchorCF.LookVector,
-        }
-        local anchorHalfExtents = {
-            anchor.Size.X * 0.5,
-            anchor.Size.Y * 0.5,
-            anchor.Size.Z * 0.5,
-        }
-
-        local anchorCenterCoord = pivotRight:Dot(anchorCF.Position - pivot.Position)
-        local anchorExtent = 0
-        for index = 1, 3 do
-            anchorExtent += math.abs(pivotRight:Dot(anchorAxes[index])) * anchorHalfExtents[index]
+    local function computeBoundaryCoordinate(part)
+        if not part or not part:IsA("BasePart") then
+            return nil
         end
 
-        local anchorMinCoord = anchorCenterCoord - anchorExtent
-        local minLeftEdge = anchorMinCoord + startButtonMinGap
-        local maxLeftEdge = themeLeftEdgeCoord - startPanel.Size.X - startButtonMinGap
+        local partCF = part.CFrame
+        local axes = {
+            partCF.RightVector,
+            partCF.UpVector,
+            partCF.LookVector,
+        }
+        local halfExtents = {
+            part.Size.X * 0.5,
+            part.Size.Y * 0.5,
+            part.Size.Z * 0.5,
+        }
 
-        if maxLeftEdge < minLeftEdge then
-            leftEdge = (minLeftEdge + maxLeftEdge) * 0.5
-        else
-            leftEdge = clamp(leftEdge, minLeftEdge, maxLeftEdge)
+        local centerCoord = pivotRight:Dot(partCF.Position - pivot.Position)
+        local extent = 0
+        for index = 1, 3 do
+            extent += math.abs(pivotRight:Dot(axes[index])) * halfExtents[index]
+        end
+
+        return centerCoord - extent
+    end
+
+    if anchor and anchor:IsA("BasePart") then
+        local anchorMinCoord = computeBoundaryCoordinate(anchor)
+        if anchorMinCoord then
+            local minLeftEdge = anchorMinCoord + startButtonMinGap
+            local maxLeftEdge = themeLeftEdgeCoord - startPanel.Size.X - startButtonMinGap
+
+            if maxLeftEdge < minLeftEdge then
+                leftEdge = (minLeftEdge + maxLeftEdge) * 0.5
+            else
+                local midpointCoord = (anchorMinCoord + themeLeftEdgeCoord) * 0.5
+                local desiredLeftEdge = midpointCoord - startPanel.Size.X * 0.5
+                leftEdge = clamp(desiredLeftEdge, minLeftEdge, maxLeftEdge)
+            end
+        end
+    elseif lobbyBase and lobbyBase:IsA("BasePart") then
+        local boundaryCoord = computeBoundaryCoordinate(lobbyBase)
+        if boundaryCoord then
+            local minLeftEdge = boundaryCoord + startButtonMinGap
+            local maxLeftEdge = themeLeftEdgeCoord - startPanel.Size.X - startButtonMinGap
+
+            if maxLeftEdge < minLeftEdge then
+                leftEdge = (minLeftEdge + maxLeftEdge) * 0.5
+            else
+                local midpointCoord = (boundaryCoord + themeLeftEdgeCoord) * 0.5
+                local desiredLeftEdge = midpointCoord - startPanel.Size.X * 0.5
+                leftEdge = clamp(desiredLeftEdge, minLeftEdge, maxLeftEdge)
+            end
         end
     end
 
@@ -781,7 +807,7 @@ local function updateBoardPlacement()
     local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
     themeStand.CFrame = pivot * CFrame.new(-leftOffset, 0, 0)
 
-    local buttonOffsetX = computeStartPanelOffset(pivot, anchor)
+    local buttonOffsetX = computeStartPanelOffset(pivot, anchor, lobbyBase)
     local buttonDepth = -(playerStand.Size.Z * 0.5 - startPanel.Size.Z * 0.5 - 0.02)
     local buttonHeightOffset = 0
     startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
