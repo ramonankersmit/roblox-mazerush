@@ -5,24 +5,25 @@ local activeControllers = {}
 local sharedContext
 
 local DEFAULTS = {
-        PatrolSpeed = 12,
-        PlayerSpeedFactor = 0.5,
-        ChaseSpeedMultiplier = 1.6,
-        SightRange = 120,
-        ProximityRange = 30,
-        SightCheckInterval = 0.2,
-        SightPersistence = 2.5,
-        PatrolRepathInterval = 2,
-        ChaseRepathInterval = 0.5,
-        MoveTimeout = 2.5,
-        MoveRetryDelay = 0.3,
-        PatrolWaypointTolerance = 3,
-        HearingRadius = 48,
-        HearingCooldown = 1.5,
-        SearchDuration = 8,
-        SearchWaypointRadius = 24,
-        TeamAggressionRadius = 72,
-        TeamAggressionCooldown = 4,
+PatrolSpeed = 12, -- Standaard loopsnelheid tijdens patrouilles.
+PlayerSpeedFactor = 0.5, -- Fractie van spelersnelheid die de jager kan bijhouden.
+ChaseSpeedMultiplier = 1.6, -- Vermenigvuldiger voor snelheid tijdens achtervolgingen.
+SightRange = 120, -- Maximale afstand waarop de jager spelers kan zien.
+ProximityRange = 30, -- Afstand waarop nabijheidsdetectie activeert.
+SightCheckInterval = 0.2, -- Interval tussen zichtcontroles.
+SightPersistence = 2.5, -- Tijd dat zicht behouden blijft na contact.
+PatrolRepathInterval = 2, -- Tussenpoze voordat patrouillepaden worden ververst.
+ChaseRepathInterval = 0.5, -- Tussenpoze voor padupdates tijdens achtervolging.
+MoveTimeout = 2.5, -- Maximale tijd om een bestemming te bereiken.
+MoveRetryDelay = 0.3, -- Wachttijd voordat een mislukte verplaatsing opnieuw wordt geprobeerd.
+PatrolWaypointTolerance = 3, -- Toegestane afwijking bij patrouille waypoints.
+HearingRadius = 48, -- Straal waarin geluiden worden gehoord.
+HearingCooldown = 1.5, -- Wachttijd tussen opeenvolgende gehooracties.
+SearchDuration = 8, -- Duur van de zoekfase na verlies van zicht.
+SearchWaypointRadius = 24, -- Straal voor willekeurige zoek waypoints.
+TeamAggressionRadius = 72, -- Afstand waarop andere jagers gealarmeerd worden.
+TeamAggressionCooldown = 4, -- Tijd tussen teamwaarschuwingen.
+DestinationUpdateTolerance = 6, -- Afwijking die wordt toegestaan voor herberekenen van bestemming.
 }
 
 local function getConfigValue(config, key)
@@ -171,6 +172,14 @@ local function generateSearchWaypoints(center, radius)
         return waypoints
 end
 
+local function resolveDestinationTolerance(config)
+        local tolerance = getConfigValue(config, "DestinationUpdateTolerance")
+        if tolerance == nil then
+                tolerance = getConfigValue(config, "PatrolWaypointTolerance")
+        end
+        return tolerance or DEFAULTS.DestinationUpdateTolerance
+end
+
 local function attachHunterDamage(enemy)
         local root = ensurePrimaryPart(enemy)
         if not root or not root:IsA("BasePart") then
@@ -238,6 +247,10 @@ function HunterController.new(enemyModel, config, context)
         self.active = true
         self.loopInterval = 0.15
         self.patrolDestination = nil
+        self.lastChaseDestinationUpdate = 0
+        self.lastInvestigateDestinationUpdate = 0
+        self.lastSearchDestinationUpdate = 0
+        self.lastPatrolDestinationUpdate = 0
 
         self.baseSpeed = getConfigValue(self.config, "PatrolSpeed")
         local speedFactor = getConfigValue(self.config, "PlayerSpeedFactor")
@@ -264,6 +277,37 @@ function HunterController.new(enemyModel, config, context)
         end)
 
         return self
+end
+
+function HunterController:_updateDestinationThrottled(targetPosition, intervalKey, lastUpdateField, tolerance)
+        if not targetPosition then
+                return false
+        end
+
+        local now = os.clock()
+        local interval = getConfigValue(self.config, intervalKey) or 0
+        local current = self.currentDestination
+        local lastUpdate = self[lastUpdateField] or 0
+        local destinationTolerance = tolerance or resolveDestinationTolerance(self.config)
+        local distance = current and (current - targetPosition).Magnitude or math.huge
+
+        local shouldUpdate = (not current)
+        if not shouldUpdate and distance > destinationTolerance then
+                shouldUpdate = true
+        end
+        if not shouldUpdate and interval > 0 then
+                shouldUpdate = (now - lastUpdate) >= interval
+        elseif not shouldUpdate and interval <= 0 then
+                shouldUpdate = true
+        end
+
+        if not shouldUpdate then
+                return false
+        end
+
+        self[lastUpdateField] = now
+        self:_setDestination(targetPosition)
+        return true
 end
 
 function HunterController:Destroy()
@@ -515,17 +559,17 @@ function HunterController:_updateDestination(now)
                         if hrp then
                                 self.lastKnownPosition = hrp.Position
                                 self.lastObservationTime = now
-                                self:_setDestination(hrp.Position)
+                                self:_updateDestinationThrottled(hrp.Position, "ChaseRepathInterval", "lastChaseDestinationUpdate")
                                 return
                         end
                 end
                 if self.lastKnownPosition then
-                        self:_setDestination(self.lastKnownPosition)
+                        self:_updateDestinationThrottled(self.lastKnownPosition, "ChaseRepathInterval", "lastChaseDestinationUpdate")
                         return
                 end
         elseif self.state == "Investigate" then
                 if self.lastKnownPosition then
-                        self:_setDestination(self.lastKnownPosition)
+                        self:_updateDestinationThrottled(self.lastKnownPosition, "PatrolRepathInterval", "lastInvestigateDestinationUpdate")
                         return
                 end
         elseif self.state == "Search" then
@@ -546,7 +590,7 @@ function HunterController:_updateDestination(now)
                         end
                         local target = self.searchWaypoints[self.searchIndex]
                         if target then
-                                self:_setDestination(target)
+                                self:_updateDestinationThrottled(target, "PatrolRepathInterval", "lastSearchDestinationUpdate")
                                 return
                         end
                 end
@@ -557,7 +601,7 @@ function HunterController:_updateDestination(now)
         if not self.patrolDestination or (root.Position - self.patrolDestination).Magnitude <= tolerance then
                 self.patrolDestination = randomCellPosition(self.globalConfig)
         end
-        self:_setDestination(self.patrolDestination)
+        self:_updateDestinationThrottled(self.patrolDestination, "PatrolRepathInterval", "lastPatrolDestinationUpdate")
 end
 
 function HunterController:_logicLoop()
