@@ -106,6 +106,7 @@ local consoleStatusLabel
 local consoleHintLabel
 local consoleThemeEntries = {}
 local consoleOpen = false
+local ensureReadyAfterVote
 
 local readyColor = Color3.fromRGB(105, 255, 180)
 local notReadyColor = Color3.fromRGB(255, 110, 130)
@@ -141,7 +142,7 @@ local function ensureConsoleGui()
     consoleWindow.Name = "ConsoleWindow"
     consoleWindow.AnchorPoint = Vector2.new(0.5, 0.5)
     consoleWindow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    consoleWindow.Size = UDim2.new(0, 560, 0, 440)
+    consoleWindow.Size = UDim2.new(0, 1120, 0, 880)
     consoleWindow.BackgroundColor3 = Color3.fromRGB(26, 32, 48)
     consoleWindow.BackgroundTransparency = 0.05
     consoleWindow.Parent = consoleBackdrop
@@ -359,6 +360,7 @@ local function ensureConsoleThemeEntry(themeId)
         else
             ThemeVote:FireServer(themeId)
         end
+        ensureReadyAfterVote()
     end)
 
     local entry = {
@@ -711,6 +713,35 @@ local readyStates = {}
 local lastPhase = nil
 local latestState = nil
 local latestThemeState = nil
+local pendingAutoReady = false
+
+local function isLocalReady()
+    local stored = readyStates[localPlayer.UserId]
+    if stored ~= nil then
+        return stored
+    end
+
+    if latestState then
+        for _, info in ipairs(latestState.players or {}) do
+            if info.userId == localPlayer.UserId then
+                return info.ready == true
+            end
+        end
+    end
+
+    return false
+end
+
+ensureReadyAfterVote = function()
+    if pendingAutoReady then
+        return
+    end
+
+    if not isLocalReady() then
+        pendingAutoReady = true
+        ToggleReady:FireServer()
+    end
+end
 
 local function updateConsoleDisplay(state, themeState)
     ensureConsoleGui()
@@ -912,6 +943,7 @@ local function ensureThemeOptionEntry(themeId)
     button.MouseButton1Click:Connect(function()
         local voteId = themeId == "random" and RANDOM_THEME_ID or themeId
         ThemeVote:FireServer(voteId)
+        ensureReadyAfterVote()
     end)
 
     local entry = {
@@ -1465,6 +1497,9 @@ local function renderState(state)
         local changed = wasReady ~= nil and wasReady ~= info.ready
         applyReadyVisuals(entry, info.ready, changed)
         readyStates[info.userId] = info.ready
+        if info.userId == localPlayer.UserId then
+            pendingAutoReady = false
+        end
         seen[info.userId] = true
     end
 

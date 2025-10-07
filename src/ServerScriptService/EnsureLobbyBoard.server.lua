@@ -260,6 +260,8 @@ local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardSta
     return Vector3.new(pivotPos.X, targetHeight, pivotPos.Z)
 end
 
+local consoleHeightRatio = 0.5
+
 local function ensureLobbyBoard()
     local lobby = Workspace:FindFirstChild("Lobby")
     if not lobby then
@@ -280,10 +282,10 @@ local function ensureLobbyBoard()
     end
 
     local wallHeight = getWallHeight(lobby, nil)
-    local boardHeight = math.max(4, wallHeight * 0.5)
+    local boardHeight = math.max(4, wallHeight * consoleHeightRatio)
     local boardThickness = 0.8
-    local playerWidth = 6.5
-    local themeWidth = 6.25
+    local playerWidth = 6.5 * 2
+    local themeWidth = 6.25 * 2
 
     local boardModel = Instance.new("Model")
     boardModel.Name = "LobbyStatusBoard"
@@ -580,8 +582,8 @@ end
 
 local boardSpacing = 0.8
 local boardThickness = 0.8
-local playerWidth = 6.5
-local themeWidth = 6.25
+local playerWidth = 6.5 * 2
+local themeWidth = 6.25 * 2
 
 local trackedLobbyBase = nil
 local trackedBaseConnections = {}
@@ -618,7 +620,7 @@ local function updateBoardPlacement()
     end
 
     local wallHeight = getWallHeight(currentLobby, anchor)
-    local boardHeight = math.max(4, wallHeight * 0.5)
+    local boardHeight = math.max(4, wallHeight * consoleHeightRatio)
 
     playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
     themeStand.Size = Vector3.new(themeWidth, boardHeight, boardThickness)
@@ -651,7 +653,7 @@ local function updateBoardPlacement()
     local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
     themeStand.CFrame = pivot * CFrame.new(-leftOffset, 0, 0)
 
-    local buttonOffsetX = playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + 0.55
+    local buttonOffsetX = playerStand.Size.X * 0.5 + startPanel.Size.X * 0.5 + 1.1
     local buttonDepth = -(playerStand.Size.Z * 0.5 - startPanel.Size.Z * 0.5 - 0.02)
     local buttonHeightOffset = -boardHeight * 0.12
     startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
