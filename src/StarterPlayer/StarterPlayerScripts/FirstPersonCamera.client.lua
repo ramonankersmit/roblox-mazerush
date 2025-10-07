@@ -59,6 +59,26 @@ local originalMode = player.CameraMode
 local originalMinZoom = player.CameraMinZoomDistance
 local originalMaxZoom = player.CameraMaxZoomDistance
 
+local function restoreCameraMode()
+    if originalMode == Enum.CameraMode.LockFirstPerson then
+        player.CameraMode = Enum.CameraMode.Classic
+    else
+        player.CameraMode = originalMode
+    end
+end
+
+local function getLobbyZoomBounds()
+    local minZoom = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
+    local maxZoom = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
+    return minZoom, maxZoom
+end
+
+local function applyLobbyZoomBounds()
+    local minZoom, maxZoom = getLobbyZoomBounds()
+    player.CameraMinZoomDistance = minZoom
+    player.CameraMaxZoomDistance = maxZoom
+end
+
 local firstPersonActive = false
 local currentPhase = "IDLE"
 
@@ -149,7 +169,7 @@ local function enableFirstPerson()
     setCameraSubject(player.Character)
 end
 
-local function snapCameraBehindCharacter()
+local function snapCameraBehindCharacter(forceDesiredDistance)
     local camera = workspace.CurrentCamera
     if not camera then
         return
@@ -161,8 +181,7 @@ local function snapCameraBehindCharacter()
         return
     end
 
-    local minZoom = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
-    local maxZoom = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
+    local minZoom, maxZoom = getLobbyZoomBounds()
     local desiredDistance = math.clamp(LOBBY_DEFAULT_DISTANCE, minZoom, maxZoom)
 
     local heightOffset = math.clamp(desiredDistance * 0.4, 2, 8)
@@ -172,26 +191,48 @@ local function snapCameraBehindCharacter()
 
     camera.CameraType = Enum.CameraType.Custom
     camera.CameraSubject = humanoid
+    if forceDesiredDistance then
+        local previousMin = player.CameraMinZoomDistance
+        local previousMax = player.CameraMaxZoomDistance
+
+        player.CameraMinZoomDistance = desiredDistance
+        player.CameraMaxZoomDistance = math.max(previousMax, maxZoom)
+
+        camera.CFrame = CFrame.new(cameraPosition, lookAtPosition)
+        camera.Focus = CFrame.new(lookAtPosition)
+
+        task.defer(function()
+            if not firstPersonActive and not shouldLockFirstPerson() then
+                applyLobbyZoomBounds()
+            else
+                player.CameraMinZoomDistance = previousMin
+                player.CameraMaxZoomDistance = previousMax
+            end
+        end)
+
+        return
+    end
+
+    applyLobbyZoomBounds()
     camera.CFrame = CFrame.new(cameraPosition, lookAtPosition)
+    camera.Focus = CFrame.new(lookAtPosition)
 end
 
 local function disableFirstPerson()
     if not firstPersonActive then
-        player.CameraMode = originalMode
-        player.CameraMinZoomDistance = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
-        player.CameraMaxZoomDistance = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
+        restoreCameraMode()
+        applyLobbyZoomBounds()
         if not shouldLockFirstPerson() then
-            snapCameraBehindCharacter()
+            snapCameraBehindCharacter(true)
         end
         return
     end
 
     firstPersonActive = false
-    player.CameraMode = originalMode
-    player.CameraMinZoomDistance = math.min(originalMinZoom, LOBBY_DEFAULT_DISTANCE)
-    player.CameraMaxZoomDistance = math.max(originalMaxZoom, LOBBY_DEFAULT_DISTANCE)
+    restoreCameraMode()
+    applyLobbyZoomBounds()
     if not shouldLockFirstPerson() then
-        snapCameraBehindCharacter()
+        snapCameraBehindCharacter(true)
     end
 end
 
