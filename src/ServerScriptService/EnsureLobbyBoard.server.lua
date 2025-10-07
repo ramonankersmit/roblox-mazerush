@@ -185,7 +185,30 @@ local function readNumberAttribute(instance, attributeNames)
     return nil
 end
 
-local function resolveBoardLayoutOverrides(lobby, anchor)
+local function normalizeBoardFraction(value, wallHeight)
+    if typeof(value) ~= "number" then
+        return nil
+    end
+
+    local result = value
+    local absValue = math.abs(value)
+
+    if wallHeight and wallHeight > 0 then
+        if absValue > 1 then
+            if absValue <= wallHeight then
+                result = value / wallHeight
+            else
+                result = value / 100
+            end
+        end
+    elseif absValue > 1 and absValue <= 100 then
+        result = value / 100
+    end
+
+    return result
+end
+
+local function resolveBoardLayoutOverrides(lobby, anchor, wallHeight)
     local heightCoverage = DEFAULT_BOARD_HEIGHT_COVERAGE
     local bottomPadding = DEFAULT_BOARD_BOTTOM_PADDING
 
@@ -204,6 +227,16 @@ local function resolveBoardLayoutOverrides(lobby, anchor)
         bottomPadding = anchorBottomPadding
     elseif lobbyBottomPadding ~= nil then
         bottomPadding = lobbyBottomPadding
+    end
+
+    local normalizedHeightCoverage = normalizeBoardFraction(heightCoverage, wallHeight)
+    if normalizedHeightCoverage ~= nil then
+        heightCoverage = normalizedHeightCoverage
+    end
+
+    local normalizedBottomPadding = normalizeBoardFraction(bottomPadding, wallHeight)
+    if normalizedBottomPadding ~= nil then
+        bottomPadding = normalizedBottomPadding
     end
 
     bottomPadding = math.clamp(bottomPadding, 0, 1)
@@ -834,7 +867,7 @@ local function updateBoardPlacement()
     end
 
     local wallHeight = getWallHeight(currentLobby, anchor)
-    boardHeightCoverage, boardBottomPadding = resolveBoardLayoutOverrides(currentLobby, anchor)
+    boardHeightCoverage, boardBottomPadding = resolveBoardLayoutOverrides(currentLobby, anchor, wallHeight)
     boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
 
     local boardHeight = resolveBoardHeight(wallHeight)
