@@ -49,6 +49,25 @@ local difficultyPresets = Config.DifficultyPresets or {}
 local sentryCloakValue = State:FindFirstChild("SentryCanCloak") or Instance.new("BoolValue", State)
 sentryCloakValue.Name = "SentryCanCloak"; sentryCloakValue.Value = false
 
+local MINIMUM_SENTRY_COUNT = 2
+
+local function enforceMinimumSentryCount()
+        local enemiesConfig = Config.Enemies
+        if type(enemiesConfig) ~= "table" then
+                return
+        end
+
+        local sentryConfig = enemiesConfig.Sentry
+        if type(sentryConfig) ~= "table" then
+                return
+        end
+
+        local currentCount = tonumber(sentryConfig.Count) or 0
+        if currentCount < MINIMUM_SENTRY_COUNT then
+                sentryConfig.Count = MINIMUM_SENTRY_COUNT
+        end
+end
+
 local function sentryAllowsCloak(sentryConfig)
         if type(sentryConfig) ~= "table" then
                 return false
@@ -85,6 +104,7 @@ local function updateEnemyStateFlags()
         sentryCloakValue.Value = sentryAllowsCloak(sentryConfig)
 end
 
+enforceMinimumSentryCount()
 updateEnemyStateFlags()
 
 local function selectRandomDifficulty()
@@ -743,6 +763,7 @@ local function runRound()
         placeExit()
 
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
+        enforceMinimumSentryCount()
         updateEnemyStateFlags()
         if _G.SpawnEnemies then
                 task.spawn(_G.SpawnEnemies, Config.Enemies)

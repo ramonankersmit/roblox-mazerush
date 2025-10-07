@@ -48,7 +48,7 @@ local Config = {
                         TeamAggressionCooldown = 4,
                 },
                 Sentry = {
-                        Count = 0,
+                        Count = 2,
                         PrefabName = "Sentry",
                         Controller = "Sentry",
                         PatrolSpeed = 8,
