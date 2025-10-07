@@ -125,6 +125,7 @@ countdownLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
 countdownLabel.BackgroundTransparency = 0.35
 countdownLabel.Text = ""
 countdownLabel.TextScaled = true
+countdownLabel.TextWrapped = true
 countdownLabel.Font = Enum.Font.GothamBlack
 countdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 countdownLabel.Visible = false
@@ -144,6 +145,26 @@ local COUNTDOWN_SHOW_THRESHOLD = 10
 local COUNTDOWN_EMPHASIS_THRESHOLD = 3
 local COUNTDOWN_DEFAULT_SIZE = countdownLabel.Size
 local COUNTDOWN_EMPHASIS_SIZE = UDim2.new(0, 320, 0, 160)
+
+local difficultyValue = State:FindFirstChild("Difficulty")
+
+if not difficultyValue then
+        difficultyValue = State:WaitForChild("Difficulty", 3)
+end
+
+local function getDifficultyLabel()
+        if difficultyValue and difficultyValue:IsA("StringValue") then
+                return difficultyValue.Value
+        end
+
+        local candidate = State:FindFirstChild("Difficulty")
+        if candidate and candidate:IsA("StringValue") then
+                difficultyValue = candidate
+                return candidate.Value
+        end
+
+        return nil
+end
 
 local function hideCountdown()
         countdownLabel.Visible = false
@@ -166,7 +187,17 @@ local function updateCountdownDisplay(seconds)
         end
 
         countdownLabel.Visible = true
-        countdownLabel.Text = tostring(seconds)
+
+        local difficultyLabel = nil
+        if seconds <= COUNTDOWN_EMPHASIS_THRESHOLD then
+                difficultyLabel = getDifficultyLabel()
+        end
+
+        if difficultyLabel and #difficultyLabel > 0 and seconds <= COUNTDOWN_EMPHASIS_THRESHOLD then
+                countdownLabel.Text = string.format("%d\nDifficulty: %s", seconds, difficultyLabel)
+        else
+                countdownLabel.Text = tostring(seconds)
+        end
 
         if seconds <= COUNTDOWN_EMPHASIS_THRESHOLD then
                 countdownLabel.Size = COUNTDOWN_EMPHASIS_SIZE
@@ -318,6 +349,16 @@ local inventoryState = {
         hasKeyFinder = false,
 }
 
+local function ensureFinderAutoActivation()
+        if setExitFinderEnabled and inventoryState.hasExitFinder and not exitFinderEnabled then
+                setExitFinderEnabled(true)
+        end
+
+        if setHunterFinderEnabled and inventoryState.hasHunterFinder and not hunterFinderEnabled then
+                setHunterFinderEnabled(true)
+        end
+end
+
 local exitPadTouchedConnection
 local exitVictoryTriggered = false
 
@@ -373,7 +414,9 @@ RoundState.OnClientEvent:Connect(function(state)
         if updateMinimapVisibility then
                 updateMinimapVisibility()
         end
-        updateFinderVisibility()
+        if updateFinderVisibility then
+                updateFinderVisibility()
+        end
 
         if currentRoundState == "ACTIVE" then
                 exitVictoryTriggered = false
@@ -423,18 +466,19 @@ InventoryUpdate.OnClientEvent:Connect(function(data)
         if data and data.keyFinder ~= nil then
                 inventoryState.hasKeyFinder = data.keyFinder
         end
-        if not inventoryState.hasExitFinder and exitFinderEnabled then
+        if not inventoryState.hasExitFinder and exitFinderEnabled and setExitFinderEnabled then
                 setExitFinderEnabled(false)
         end
-        if not inventoryState.hasHunterFinder and hunterFinderEnabled then
+        if not inventoryState.hasHunterFinder and hunterFinderEnabled and setHunterFinderEnabled then
                 setHunterFinderEnabled(false)
         end
-        if not inventoryState.hasKeyFinder and keyFinderEnabled then
+        if not inventoryState.hasKeyFinder and keyFinderEnabled and setKeyFinderEnabled then
                 setKeyFinderEnabled(false)
         end
         if updateFinderButtonStates then
                 updateFinderButtonStates()
         end
+        ensureFinderAutoActivation()
 end)
 
 
@@ -937,22 +981,14 @@ keyDistanceLbl.Parent = finderFrame
 
 updateFinderButtonStates()
 
+ensureFinderAutoActivation()
+
 UIS.InputBegan:Connect(function(input, processed)
         if processed then
                 return
         end
 
-        if input.KeyCode == Enum.KeyCode.One then
-                if not inventoryState.hasExitFinder then
-                        return
-                end
-                setExitFinderEnabled(not exitFinderEnabled)
-        elseif input.KeyCode == Enum.KeyCode.Two then
-                if not inventoryState.hasHunterFinder then
-                        return
-                end
-                setHunterFinderEnabled(not hunterFinderEnabled)
-        elseif input.KeyCode == Enum.KeyCode.Three then
+        if input.KeyCode == Enum.KeyCode.Three then
                 if not inventoryState.hasKeyFinder then
                         return
                 end
@@ -964,9 +1000,15 @@ end)
 
 RoundState.OnClientEvent:Connect(function(state)
         if state == "PREP" or state == "END" then
-                setExitFinderEnabled(false)
-                setHunterFinderEnabled(false)
-                setKeyFinderEnabled(false)
+                if setExitFinderEnabled then
+                        setExitFinderEnabled(false)
+                end
+                if setHunterFinderEnabled then
+                        setHunterFinderEnabled(false)
+                end
+                if setKeyFinderEnabled then
+                        setKeyFinderEnabled(false)
+                end
         end
 end)
 
