@@ -9,7 +9,11 @@ local Config = require(Replicated.Modules.RoundConfig)
 
 local controllersFolder = Replicated.Modules:FindFirstChild("Enemies")
 local prefabsFolder = ServerStorage:FindFirstChild("Prefabs") or ServerStorage:WaitForChild("Prefabs")
-local enemyModelsFolder = ServerStorage:FindFirstChild("Enemies")
+local function findEnemyModelsFolder()
+        return ServerStorage:FindFirstChild("Enemies")
+                or (prefabsFolder and prefabsFolder:FindFirstChild("Enemies"))
+                or nil
+end
 
 local function formatVector3(position)
         if typeof(position) ~= "Vector3" then
@@ -27,17 +31,31 @@ local function getEnemyTemplate(typeName, prefabName)
                 return template, "Prefabs"
         end
 
+        local prefabsEnemies = prefabsFolder and prefabsFolder:FindFirstChild("Enemies")
+        if prefabsEnemies then
+                local nested = prefabsEnemies:FindFirstChild(prefabName) or prefabsEnemies:FindFirstChild(typeName)
+                if nested then
+                        return nested, "Prefabs/Enemies"
+                end
+        end
+
         if typeName ~= "Sentry" then
                 return nil
         end
 
+        local enemyModelsFolder = findEnemyModelsFolder()
         if not enemyModelsFolder then
-                error("[Sentry] Enemy model folder 'ServerStorage/Enemies' ontbreekt")
+                warn("[Sentry] Enemy model folder 'Enemies' ontbreekt; val terug op Prefabs")
+                return nil
         end
 
         local fallback = enemyModelsFolder:FindFirstChild(prefabName) or enemyModelsFolder:FindFirstChild(typeName)
-        assert(fallback, string.format("[Sentry] Enemy model '%s' ontbreekt in ServerStorage/Enemies", tostring(prefabName)))
-        return fallback, "ServerStorage/Enemies"
+        if not fallback then
+                local folderPath = enemyModelsFolder:GetFullName()
+                warn(string.format("[Sentry] Enemy model '%s' ontbreekt in %s", tostring(prefabName), folderPath))
+                return nil
+        end
+        return fallback, enemyModelsFolder:GetFullName()
 end
 
 local function ensureModelPrimaryPart(model)
