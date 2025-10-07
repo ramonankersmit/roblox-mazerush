@@ -146,6 +146,7 @@ local ThemeList = {
                 Brightness = 3.2,
             },
         },
+    },
 }
 
 local ThemeMap = {}
