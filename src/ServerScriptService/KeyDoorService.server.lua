@@ -257,7 +257,7 @@ local function configureKeyPrompt(keyModel)
     prompt.ActionText = "Pick Up Key"
     prompt.ObjectText = "Key"
     prompt.HoldDuration = 0
-    prompt.RequiresLineOfSight = false
+    prompt.RequiresLineOfSight = true
     prompt.MaxActivationDistance = 12
 
     prompt.Triggered:Connect(function(plr)
@@ -308,7 +308,7 @@ local function configureFinderPrompt(model, options)
     prompt.ActionText = options.actionText or ("Pick Up " .. displayName)
     prompt.ObjectText = options.objectText or displayName
     prompt.HoldDuration = 0
-    prompt.RequiresLineOfSight = false
+    prompt.RequiresLineOfSight = true
     prompt.MaxActivationDistance = options.maxDistance or 12
 
     prompt.Triggered:Connect(function(plr)
@@ -375,7 +375,7 @@ local function configureDoorPrompt(door, lockedValue)
     prompt.Parent = panel
     prompt.ActionText = "Unlock Door"
     prompt.ObjectText = "Exit Door"
-    prompt.RequiresLineOfSight = false
+    prompt.RequiresLineOfSight = true
     prompt.MaxActivationDistance = 10
 
     prompt.Triggered:Connect(function(plr)
