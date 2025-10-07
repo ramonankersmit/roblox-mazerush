@@ -39,6 +39,7 @@ if not themeStand or not themeStand:IsA("BasePart") then
     return
 end
 
+local startPanel = boardModel:FindFirstChild("StartPanel")
 local playerSurface = playerStand:FindFirstChild("PlayerSurface")
 if not playerSurface or not playerSurface:IsA("SurfaceGui") then
     warn("[LobbyBoard] PlayerSurface SurfaceGui missing")
@@ -76,7 +77,7 @@ local themeHeaderLabel = themePanel and themePanel:FindFirstChild("ThemeHeader")
 local themeOptionsFrame = themePanel and themePanel:FindFirstChild("ThemeOptions")
 local themeHintLabel = themePanel and themePanel:FindFirstChild("ThemeHint")
 
-local billboardAttachment = playerStand:FindFirstChild("BillboardAttachment")
+local billboardAttachment = boardModel:FindFirstChild("BillboardAttachment", true)
 local billboardGui = billboardAttachment and billboardAttachment:FindFirstChild("PlayerBillboard")
 local billboardFrame = billboardGui and billboardGui:FindFirstChild("BillboardFrame")
 local billboardList = billboardFrame and billboardFrame:FindFirstChild("PlayerEntries")
@@ -93,6 +94,7 @@ if startClickDetector then
 end
 
 local setConsoleOpen
+local setConsoleOpenImpl
 
 local consoleGui
 local consoleBackdrop
@@ -244,6 +246,8 @@ local function ensureConsoleGui()
     consoleCloseButton.MouseButton1Click:Connect(function()
         if setConsoleOpen then
             setConsoleOpen(false)
+        elseif setConsoleOpenImpl then
+            setConsoleOpenImpl(false)
         end
     end)
 
@@ -252,7 +256,7 @@ local function ensureConsoleGui()
     end)
 end
 
-local function setConsoleOpenImpl(open)
+setConsoleOpenImpl = function(open)
     ensureConsoleGui()
     if consoleOpen == open then
         if open then
@@ -367,6 +371,62 @@ local function ensureConsoleThemeEntry(themeId)
 
     consoleThemeEntries[themeId] = entry
     return entry
+end
+
+local boardVisible
+
+local function setPartVisible(part, visible)
+    if not part or not part:IsA("BasePart") then
+        return
+    end
+    if visible then
+        part.LocalTransparencyModifier = 0
+    else
+        part.LocalTransparencyModifier = 1
+    end
+end
+
+local function updateBoardVisibility(state)
+    local phase = state and state.phase
+    local shouldShow = phase == "IDLE" or phase == "PREP"
+    if boardVisible == shouldShow then
+        return
+    end
+    boardVisible = shouldShow
+
+    setPartVisible(playerStand, shouldShow)
+    setPartVisible(themeStand, shouldShow)
+    setPartVisible(startPanel, shouldShow)
+    setPartVisible(startButton, shouldShow)
+
+    if playerSurface then
+        playerSurface.Enabled = shouldShow
+    end
+    if themeSurface then
+        themeSurface.Enabled = shouldShow
+    end
+
+    if billboardGui then
+        billboardGui.Enabled = shouldShow
+    end
+
+    if startButton then
+        local buttonGui = startButton:FindFirstChildWhichIsA("SurfaceGui")
+        if buttonGui then
+            buttonGui.Enabled = shouldShow
+        end
+    end
+
+    if consoleGui then
+        consoleGui.Enabled = shouldShow and consoleOpen
+    end
+    if consoleBackdrop then
+        consoleBackdrop.Visible = shouldShow and consoleOpen
+    end
+
+    if not shouldShow and consoleOpen and setConsoleOpen then
+        setConsoleOpen(false)
+    end
 end
 
 local function gatherThemeOptions(themeState)
@@ -1394,6 +1454,8 @@ local function renderState(state)
 
     latestState = state
     latestThemeState = state.themes
+
+    updateBoardVisibility(state)
 
     local seen = {}
     for index, info in ipairs(state.players or {}) do

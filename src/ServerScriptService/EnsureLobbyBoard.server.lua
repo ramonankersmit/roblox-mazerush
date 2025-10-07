@@ -163,20 +163,30 @@ local function applyAnchorAttributes(anchor, boardStand, wallHeight)
     return adjusted
 end
 
-local function computeDefaultPivot(lobby, boardStand, wallHeight)
+local function getLobbyBase()
     local spawns = Workspace:FindFirstChild("Spawns")
-    local lobbyBase = spawns and spawns:FindFirstChild("LobbyBase")
-    local floorY = 0
+    if not spawns then
+        return nil
+    end
+    local basePart = spawns:FindFirstChild("LobbyBase")
+    if basePart and basePart:IsA("BasePart") then
+        return basePart
+    end
+    return nil
+end
+
+local function computeDefaultPivot(lobby, boardStand, wallHeight, lobbyBase)
+    local floorY = boardStand.Size.Y * 0.25
     local forward = Vector3.new(0, 0, -1)
+    local basePosition = Vector3.new()
 
     if lobbyBase and lobbyBase:IsA("BasePart") then
         local baseCFrame = lobbyBase.CFrame
-        floorY = baseCFrame.Position.Y + lobbyBase.Size.Y * 0.5
+        basePosition = baseCFrame.Position
+        floorY = basePosition.Y + lobbyBase.Size.Y * 0.5
         if baseCFrame.LookVector.Magnitude >= 0.05 then
             forward = baseCFrame.LookVector.Unit
         end
-    else
-        floorY = boardStand.Size.Y * 0.25
     end
 
     local interiorClearance = 8
@@ -186,11 +196,60 @@ local function computeDefaultPivot(lobby, boardStand, wallHeight)
     end
 
     local centerY = floorY + wallHeight * 0.5
-    local basePosition = lobbyBase and lobbyBase.Position or Vector3.new()
     local position = Vector3.new(basePosition.X, centerY, basePosition.Z) + forward * interiorClearance
     local lookAt = Vector3.new(basePosition.X, centerY, basePosition.Z)
+    local lobbyCenter = Vector3.new(basePosition.X, floorY + wallHeight * 0.75, basePosition.Z)
 
-    return CFrame.lookAt(position, lookAt)
+    return CFrame.lookAt(position, lookAt), lobbyCenter, floorY
+end
+
+local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardStand, defaultCenter, defaultFloorY)
+    local floorY = defaultFloorY or (pivot.Position.Y - wallHeight * 0.5)
+    local targetHeight = floorY + wallHeight * 0.95
+
+    if anchor then
+        local explicit = anchor:GetAttribute("LobbyCenter") or anchor:GetAttribute("BoardCenter")
+        if typeof(explicit) == "Vector3" then
+            return Vector3.new(explicit.X, targetHeight, explicit.Z)
+        end
+
+        local offset = anchor:GetAttribute("LobbyCenterOffset") or anchor:GetAttribute("BoardCenterOffset")
+        if typeof(offset) == "Vector3" then
+            local world = anchor:GetPivot() * CFrame.new(offset)
+            return Vector3.new(world.Position.X, targetHeight, world.Position.Z)
+        end
+
+        if defaultCenter then
+            return Vector3.new(defaultCenter.X, targetHeight, defaultCenter.Z)
+        end
+
+        local anchorCF = anchor:GetPivot()
+        local forward = anchorCF.LookVector
+        if forward.Magnitude < 0.05 then
+            forward = pivot.LookVector
+        else
+            forward = forward.Unit
+        end
+
+        local distance = 6
+        if anchor:IsA("BasePart") then
+            distance = math.max(anchor.Size.Z * 0.5 + (boardStand and boardStand.Size.Z * 0.5 or 0) + 3, 6)
+        end
+        local guess = anchorCF.Position + forward * distance
+        return Vector3.new(guess.X, targetHeight, guess.Z)
+    end
+
+    if lobbyBase and lobbyBase:IsA("BasePart") then
+        local basePos = lobbyBase.Position
+        return Vector3.new(basePos.X, targetHeight, basePos.Z)
+    end
+
+    if defaultCenter then
+        return Vector3.new(defaultCenter.X, targetHeight, defaultCenter.Z)
+    end
+
+    local pivotPos = pivot.Position + pivot.LookVector * 4
+    return Vector3.new(pivotPos.X, targetHeight, pivotPos.Z)
 end
 
 local function ensureLobbyBoard()
@@ -216,6 +275,7 @@ local function ensureLobbyBoard()
     local playerWidth = 6.5
     local themeWidth = 6.25
     local boardSpacing = 0.8
+    local lobbyBase = getLobbyBase()
 
     local playerStand = Instance.new("Part")
     playerStand.Name = "PlayerStand"
@@ -376,10 +436,18 @@ local function ensureLobbyBoard()
         TextWrapped = true,
     })
 
+    local billboardAnchor = Instance.new("Part")
+    billboardAnchor.Name = "BillboardAnchor"
+    billboardAnchor.Anchored = true
+    billboardAnchor.CanCollide = false
+    billboardAnchor.CastShadow = false
+    billboardAnchor.Transparency = 1
+    billboardAnchor.Size = Vector3.new(0.4, 0.4, 0.4)
+    billboardAnchor.Parent = boardModel
+
     local attachment = Instance.new("Attachment")
     attachment.Name = "BillboardAttachment"
-    attachment.Position = Vector3.new(0, playerStand.Size.Y * 0.45, -(playerStand.Size.Z * 0.5) - 0.05)
-    attachment.Parent = playerStand
+    attachment.Parent = billboardAnchor
 
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "PlayerBillboard"
@@ -387,7 +455,8 @@ local function ensureLobbyBoard()
     billboard.Size = UDim2.new(0, 360, 0, 240)
     billboard.ExtentsOffsetWorldSpace = Vector3.new(0, 0.25, 0)
     billboard.LightInfluence = 0
-    billboard.AlwaysOnTop = true
+    billboard.AlwaysOnTop = false
+    billboard.MaxDistance = 90
     billboard.Parent = attachment
 
     local billboardFrame = createFrame(billboard, "BillboardFrame", UDim2.new(1, 0, 1, 0), UDim2.new(), {
@@ -446,12 +515,19 @@ local function ensureLobbyBoard()
     startClickDetector.MaxActivationDistance = 14
     startClickDetector.Parent = startButton
 
+    local defaultCenter
+    local defaultFloorY
     local pivot
     if anchor then
         pivot = applyAnchorAttributes(anchor, playerStand, wallHeight)
+        local computedPivot, computedCenter, computedFloor = computeDefaultPivot(lobby, playerStand, wallHeight, lobbyBase)
+        defaultCenter = computedCenter
+        defaultFloorY = computedFloor
     else
-        pivot = computeDefaultPivot(lobby, playerStand, wallHeight)
+        pivot, defaultCenter, defaultFloorY = computeDefaultPivot(lobby, playerStand, wallHeight, lobbyBase)
     end
+
+    local lobbyCenterPosition = resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, playerStand, defaultCenter, defaultFloorY)
 
     playerStand.CFrame = pivot
     local leftOffset = (playerStand.Size.X * 0.5) + boardSpacing + (themeStand.Size.X * 0.5)
@@ -465,6 +541,16 @@ local function ensureLobbyBoard()
 
     boardModel.PrimaryPart = playerStand
     boardModel:PivotTo(pivot)
+
+    if billboardAnchor and lobbyCenterPosition then
+        local lookTarget = pivot.Position
+        local direction = lookTarget - lobbyCenterPosition
+        if direction.Magnitude < 0.01 then
+            direction = pivot.LookVector
+        end
+        local orientation = CFrame.lookAt(lobbyCenterPosition, lobbyCenterPosition + direction.Unit)
+        billboardAnchor.CFrame = orientation
+    end
 
     local buttonGui = Instance.new("SurfaceGui")
     buttonGui.Name = "ButtonLabel"

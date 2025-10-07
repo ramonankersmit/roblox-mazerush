@@ -1235,10 +1235,8 @@ local lastLobbyState = nil
 
 local function applyLobbyBoardVisibility()
         local hideLegacy = lobbyBoardActive
-        if hideLegacy then
-                lobby.Visible = false
-                themePanel.Visible = false
-        end
+        lobby.Visible = not hideLegacy
+        themePanel.Visible = not hideLegacy
         listLbl.Visible = not hideLegacy
         btnReady.Visible = not hideLegacy
         btnStart.Visible = not hideLegacy
