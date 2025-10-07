@@ -49,6 +49,11 @@ end
 
 local TEXT_SCALE = 1.35
 
+local boardHeightCoverage = 0.8
+local boardBottomPadding = 0.1
+local boardWidthScale = 2.2
+local boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
+
 local function scaleTextSize(value)
     return math.floor((value or 24) * TEXT_SCALE + 0.5)
 end
@@ -269,11 +274,6 @@ local function resolveLobbyCenter(lobbyBase, anchor, pivot, wallHeight, boardSta
     local pivotPos = pivot.Position + pivot.LookVector * 4
     return Vector3.new(pivotPos.X, targetHeight, pivotPos.Z)
 end
-
-local boardHeightCoverage = 0.8
-local boardBottomPadding = 0.1
-local boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
-local boardWidthScale = 2.2
 
 local function resolveBoardHeight(wallHeight)
     wallHeight = wallHeight or 12
