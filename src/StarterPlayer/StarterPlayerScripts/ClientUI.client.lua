@@ -1507,7 +1507,134 @@ mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDi
 mapFrame.Position = UDim2.new(1, -220, 0, 220); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
 mapFrame.Active = true
 local mapBtn = Instance.new("TextButton"); mapBtn.Size = UDim2.new(1,0,0,24); mapBtn.Text = "Minimap (perk) ON"; mapBtn.Parent = mapFrame
-local mapCanvas = Instance.new("Frame"); mapCanvas.Size = UDim2.new(1, -8, 1, -32); mapCanvas.Position = UDim2.new(0,4,0,28); mapCanvas.BackgroundTransparency = 1; mapCanvas.Parent = mapFrame
+local mapCanvas = Instance.new("Frame"); mapCanvas.Size = UDim2.new(1, -8, 1, -32); mapCanvas.Position = UDim2.new(0,4,0,28); mapCanvas.BackgroundTransparency = 1; mapCanvas.ClipsDescendants = true; mapCanvas.Parent = mapFrame
+
+local mazeWallFolder = Instance.new("Folder"); mazeWallFolder.Name = "MazeWalls"; mazeWallFolder.Parent = mapCanvas
+
+local function styleMazeWallFrame(frame)
+        frame.BackgroundColor3 = Color3.fromRGB(170, 180, 210)
+        frame.BackgroundTransparency = 0.15
+        frame.BorderSizePixel = 0
+        frame.ZIndex = 1
+end
+
+local function clearMazeWalls()
+        for _, child in ipairs(mazeWallFolder:GetChildren()) do
+                child:Destroy()
+        end
+end
+
+local function layoutMazeWall(frame, cellX, cellY, dir)
+        local width = RoundConfig.GridWidth
+        local height = RoundConfig.GridHeight
+        if width < 1 or height < 1 then
+                frame.Visible = false
+                return
+        end
+
+        local thickness = 2
+        frame.Visible = true
+
+        if dir == "N" then
+                local centerX = (cellX - 0.5) / width
+                local centerY = (cellY - 1) / height
+                frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                frame.Size = UDim2.new(1 / width, 0, 0, thickness)
+        elseif dir == "S" then
+                local centerX = (cellX - 0.5) / width
+                local centerY = cellY / height
+                frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                frame.Size = UDim2.new(1 / width, 0, 0, thickness)
+        elseif dir == "E" then
+                local centerX = cellX / width
+                local centerY = (cellY - 0.5) / height
+                frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                frame.Size = UDim2.new(0, thickness, 1 / height, 0)
+        elseif dir == "W" then
+                local centerX = (cellX - 1) / width
+                local centerY = (cellY - 0.5) / height
+                frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                frame.Size = UDim2.new(0, thickness, 1 / height, 0)
+        end
+end
+
+local function refreshMazeWalls(mazeFolder)
+        clearMazeWalls()
+        local folder = mazeFolder or workspace:FindFirstChild("Maze")
+        if not folder then
+                return
+        end
+
+        for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("BasePart") then
+                        local cellX, cellY, dir = child.Name:match("^W_(%d+)_(%d+)_([NSEW])$")
+                        if cellX and cellY and dir then
+                                local frame = Instance.new("Frame")
+                                frame.Name = child.Name
+                                styleMazeWallFrame(frame)
+                                layoutMazeWall(frame, tonumber(cellX), tonumber(cellY), dir)
+                                frame.Parent = mazeWallFolder
+                        end
+                end
+        end
+end
+
+local mazeFolderConnections = {}
+local currentMazeFolder = nil
+local pendingMazeRefresh = false
+
+local function disconnectMazeFolderConnections()
+        for _, conn in ipairs(mazeFolderConnections) do
+                conn:Disconnect()
+        end
+        table.clear(mazeFolderConnections)
+end
+
+local function scheduleMazeRefresh()
+        if pendingMazeRefresh then
+                return
+        end
+        pendingMazeRefresh = true
+        task.delay(0.05, function()
+                pendingMazeRefresh = false
+                refreshMazeWalls(currentMazeFolder)
+        end)
+end
+
+local function setMazeFolder(folder)
+        if currentMazeFolder == folder then
+                scheduleMazeRefresh()
+                return
+        end
+
+        disconnectMazeFolderConnections()
+        currentMazeFolder = folder
+
+        if currentMazeFolder then
+                table.insert(mazeFolderConnections, currentMazeFolder.ChildAdded:Connect(scheduleMazeRefresh))
+                table.insert(mazeFolderConnections, currentMazeFolder.ChildRemoved:Connect(scheduleMazeRefresh))
+        end
+
+        scheduleMazeRefresh()
+end
+
+setMazeFolder(workspace:FindFirstChild("Maze"))
+
+workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Maze" then
+                setMazeFolder(child)
+        end
+end)
+
+workspace.ChildRemoved:Connect(function(child)
+        if child == currentMazeFolder then
+                setMazeFolder(nil)
+        end
+end)
 
 local draggingMap = false
 local dragInput
@@ -1552,7 +1679,7 @@ UIS.InputChanged:Connect(function(input)
 end)
 
 local function makeDot(name, color)
-        local d = mapCanvas:FindFirstChild(name) or Instance.new("Frame"); d.Name = name; d.Size = UDim2.new(0,6,0,6); d.AnchorPoint = Vector2.new(0.5,0.5); d.BackgroundColor3 = color; d.BorderSizePixel = 0; d.Parent = mapCanvas
+        local d = mapCanvas:FindFirstChild(name) or Instance.new("Frame"); d.Name = name; d.Size = UDim2.new(0,6,0,6); d.AnchorPoint = Vector2.new(0.5,0.5); d.BackgroundColor3 = color; d.BorderSizePixel = 0; d.ZIndex = 3; d.Parent = mapCanvas
         return d
 end
 local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
@@ -1683,6 +1810,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
                         d.AnchorPoint = Vector2.new(0.5,0.5)
                         d.BackgroundColor3 = Color3.fromRGB(255,0,0)
                         d.BorderSizePixel = 0
+                        d.ZIndex = 3
                         d.Name = "H"..i
                         d.Parent = dotHuntersFolder
                         d.Position = worldToMap(position)
@@ -1702,6 +1830,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
                         if isCloaked then
                                 d.BorderColor3 = Color3.fromRGB(200, 230, 255)
                         end
+                        d.ZIndex = 3
                         d.Name = "S"..i
                         d.Parent = dotSentriesFolder
                         d.Position = worldToMap(position)
@@ -1718,6 +1847,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
                         dot.BackgroundColor3 = Color3.fromRGB(255, 40, 200)
                         dot.BorderSizePixel = 1
                         dot.BorderColor3 = Color3.fromRGB(255, 220, 255)
+                        dot.ZIndex = 3
                         dot.Name = "EV"..i
                         dot.Parent = dotEventsFolder
                         dot.Position = worldToMap(position)
