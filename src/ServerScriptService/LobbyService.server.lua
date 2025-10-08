@@ -36,6 +36,12 @@ local ThemeVotes = {}
 local Ready = {} -- [userid] = boolean
 local HostUserId = nil
 
+local AUTO_START_DELAY = 3
+local pendingAutoStartAt = nil
+local selectionFlashInfo = nil
+local selectionFlashExpireAt = nil
+local selectionFlashSequence = 0
+
 local function anyPlayersReady()
         for _, isReady in pairs(Ready) do
                 if isReady then
@@ -177,6 +183,22 @@ local function broadcast(precomputedCounts)
                 endsInValue = math.max(0, math.ceil(voteDeadline - os.clock()))
         end
 
+        local flashPayload = nil
+        if selectionFlashInfo then
+                if not selectionFlashExpireAt or os.clock() <= selectionFlashExpireAt then
+                        flashPayload = {
+                                sequence = selectionFlashInfo.sequence,
+                                themeId = selectionFlashInfo.themeId,
+                                themeName = selectionFlashInfo.themeName,
+                                color = selectionFlashInfo.color,
+                                autoStartDelay = selectionFlashInfo.autoStartDelay,
+                        }
+                else
+                        selectionFlashInfo = nil
+                        selectionFlashExpireAt = nil
+                end
+        end
+
         LobbyState:FireAllClients({
                 host = HostUserId,
                 players = list,
@@ -197,6 +219,7 @@ local function broadcast(precomputedCounts)
                         current = currentTheme,
                         currentName = currentInfo and currentInfo.displayName or currentTheme,
                         votesByPlayer = votesByPlayer,
+                        selectionFlash = flashPayload,
                 }
         })
 end
@@ -205,6 +228,9 @@ local function startVoteCycle()
         ThemeVotes = {}
         voteActive = true
         clearVoteCountdown()
+        selectionFlashInfo = nil
+        selectionFlashExpireAt = nil
+        pendingAutoStartAt = nil
         broadcast()
         if tryActivateVoteCountdown() then
                 broadcast()
@@ -227,16 +253,35 @@ local function tryStartVoteCycle()
         startVoteCycle()
 end
 
-local function finalizeVote()
+local function finalizeVote(autoStart)
         local counts = tallyVotes()
         voteActive = false
         clearVoteCountdown()
         voteDeadline = os.clock()
         local winner = determineLeader(counts)
+        if autoStart then
+                selectionFlashSequence += 1
+                local info = ThemeConfig.Themes[winner]
+                local flashColor = info and (info.primaryColor or info.lobbyColor or info.accentColor) or RANDOM_THEME_COLOR
+                selectionFlashInfo = {
+                        sequence = selectionFlashSequence,
+                        themeId = winner,
+                        themeName = info and info.displayName or winner,
+                        color = flashColor,
+                        autoStartDelay = AUTO_START_DELAY,
+                }
+                selectionFlashExpireAt = os.clock() + math.max(AUTO_START_DELAY, 3)
+                pendingAutoStartAt = os.clock() + AUTO_START_DELAY
+        else
+                pendingAutoStartAt = nil
+                selectionFlashInfo = nil
+                selectionFlashExpireAt = nil
+        end
         local changed = applyThemeSelection(winner)
         if not changed then
                 broadcast(counts)
         end
+        return winner
 end
 
 ThemeValue:GetPropertyChangedSignal("Value"):Connect(function()
@@ -258,12 +303,24 @@ task.spawn(function()
                 if voteActive then
                         if voteCountdownActive and voteDeadline then
                                 if os.clock() >= voteDeadline then
-                                        finalizeVote()
+                                        finalizeVote(true)
                                 else
                                         broadcast()
                                 end
                         else
                                 broadcast()
+                        end
+                end
+                if pendingAutoStartAt then
+                        if Phase.Value ~= "IDLE" then
+                                pendingAutoStartAt = nil
+                        elseif os.clock() >= pendingAutoStartAt then
+                                if anyPlayersReady() and _G.StartRound then
+                                        pendingAutoStartAt = nil
+                                        _G.StartRound()
+                                else
+                                        pendingAutoStartAt = nil
+                                end
                         end
                 end
         end
@@ -336,10 +393,11 @@ StartGameRequest.OnServerEvent:Connect(function(plr)
         if not anyReady then return end
 
         if voteActive then
-                finalizeVote()
+                finalizeVote(false)
         end
 
         if _G.StartRound then
+                pendingAutoStartAt = nil
                 _G.StartRound()
         end
 end)
@@ -353,10 +411,13 @@ Phase:GetPropertyChangedSignal("Value"):Connect(function()
                 ThemeVotes = {}
                 voteActive = false
                 clearVoteCountdown()
+                pendingAutoStartAt = nil
+                selectionFlashInfo = nil
+                selectionFlashExpireAt = nil
                 tryStartVoteCycle()
         else
                 if voteActive then
-                        finalizeVote()
+                        finalizeVote(false)
                 else
                         broadcast()
                 end
