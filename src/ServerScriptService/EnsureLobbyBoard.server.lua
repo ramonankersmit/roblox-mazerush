@@ -586,12 +586,21 @@ local function ensureLobbyBoard()
     billboardLayout.Padding = UDim.new(0, 10)
     billboardLayout.Parent = billboardList
 
-    createTextLabel(billboardFrame, "Hint", "Gebruik de console voor klaarstatus en stemming.", UDim2.new(1, -30, 0, 32), UDim2.new(0, 15, 1, -40), {
-        Font = Enum.Font.Gotham,
-        TextSize = 18,
-        TextColor3 = Color3.fromRGB(140, 210, 255),
-        TextXAlignment = Enum.TextXAlignment.Left,
-    })
+    local hintLabel = createTextLabel(
+        billboardFrame,
+        "Hint",
+        "Gebruik de console voor klaarstatus en stemming.",
+        UDim2.new(1, -60, 0, 24),
+        UDim2.new(0, 30, 1, -36),
+        {
+            Font = Enum.Font.Gotham,
+            TextSize = 16,
+            TextColor3 = Color3.fromRGB(140, 210, 255),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = false,
+        }
+    )
+    hintLabel.ZIndex = 2
 
     local consolePrompt = createPrompt(playerStand, "ConsolePrompt", "Open console", "Lobbyconsole", Enum.KeyCode.E, 0, Vector2.new(0, -28))
     consolePrompt.GamepadKeyCode = Enum.KeyCode.ButtonX

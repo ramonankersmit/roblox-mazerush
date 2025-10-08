@@ -610,13 +610,23 @@ local function createSurfaceTemplate()
     hostTag.TextSize = 16
     hostTag.Text = "HOST"
     hostTag.Visible = false
-    hostTag.Position = UDim2.new(0, 124, 0, -8)
-    hostTag.Size = UDim2.new(0, 72, 0, 26)
+    hostTag.Position = UDim2.new(0, 124, 0, -6)
+    hostTag.Size = UDim2.new(0, 74, 0, 26)
+    hostTag.TextXAlignment = Enum.TextXAlignment.Center
+    hostTag.ZIndex = 3
     hostTag.Parent = frame
 
     local hostCorner = Instance.new("UICorner")
     hostCorner.CornerRadius = UDim.new(0, 6)
     hostCorner.Parent = hostTag
+
+    local hostStroke = Instance.new("UIStroke")
+    hostStroke.Name = "Outline"
+    hostStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    hostStroke.Thickness = 1
+    hostStroke.Color = Color3.fromRGB(236, 198, 80)
+    hostStroke.Transparency = 0.2
+    hostStroke.Parent = hostTag
 
     local readyIndicator = Instance.new("Frame")
     readyIndicator.Name = "ReadyIndicator"
@@ -677,17 +687,31 @@ local function createBillboardTemplate()
 
     local hostTag = Instance.new("TextLabel")
     hostTag.Name = "HostTag"
-    hostTag.BackgroundTransparency = 1
+    hostTag.BackgroundTransparency = 0
+    hostTag.BackgroundColor3 = Color3.fromRGB(255, 223, 94)
     hostTag.Font = Enum.Font.GothamSemibold
-    hostTag.TextColor3 = Color3.fromRGB(255, 223, 94)
+    hostTag.TextColor3 = Color3.fromRGB(74, 52, 10)
     hostTag.TextSize = 16
     hostTag.Text = "HOST"
     hostTag.Visible = false
-    hostTag.Position = UDim2.new(1, -96, 0, 0)
-    hostTag.Size = UDim2.new(0, 72, 1, 0)
-    hostTag.TextXAlignment = Enum.TextXAlignment.Right
+    hostTag.AnchorPoint = Vector2.new(1, 0.5)
+    hostTag.Position = UDim2.new(1, -64, 0.5, 0)
+    hostTag.Size = UDim2.new(0, 74, 0, 26)
+    hostTag.TextXAlignment = Enum.TextXAlignment.Center
+    hostTag.ZIndex = 3
     hostTag.Parent = frame
 
+    local hostCorner = Instance.new("UICorner")
+    hostCorner.CornerRadius = UDim.new(0, 8)
+    hostCorner.Parent = hostTag
+
+    local hostStroke = Instance.new("UIStroke")
+    hostStroke.Name = "Outline"
+    hostStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    hostStroke.Thickness = 1
+    hostStroke.Color = Color3.fromRGB(236, 198, 80)
+    hostStroke.Transparency = 0.2
+    hostStroke.Parent = hostTag
     local voteTag = Instance.new("TextLabel")
     voteTag.Name = "VoteTag"
     voteTag.BackgroundTransparency = 1
