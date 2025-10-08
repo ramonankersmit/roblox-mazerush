@@ -1,6 +1,7 @@
 local Replicated = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local PhysicsService = game:GetService("PhysicsService")
 
 local Config = require(Replicated.Modules.RoundConfig)
 local Remotes = Replicated:FindFirstChild("Remotes")
@@ -9,6 +10,10 @@ local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
+local CollisionGroups = require(ServerScriptService:WaitForChild("CollisionGroups"))
+
+CollisionGroups.Ensure()
+local COLLISION_GROUPS = CollisionGroups.Groups
 
 local DEFAULT_BARRIER_COLOR = Color3.fromRGB(60, 60, 60)
 
@@ -180,12 +185,58 @@ local function ensureExitPadBarrier()
         return nil
     end
 
-    local existing = spawns:FindFirstChild("ExitPadBarrier")
-    if existing and existing:IsA("BasePart") then
-        existing:Destroy()
+    local exitPad = spawns:FindFirstChild("ExitPad")
+    if not (exitPad and exitPad:IsA("BasePart")) then
+        return nil
     end
 
-    return nil
+    local barrier = spawns:FindFirstChild("ExitPadBarrier")
+    if not (barrier and barrier:IsA("BasePart")) then
+        barrier = Instance.new("Part")
+        barrier.Name = "ExitPadBarrier"
+        barrier.Anchored = true
+        barrier.CanTouch = false
+        barrier.CanQuery = false
+        barrier.Transparency = 1
+        barrier.Parent = spawns
+    end
+
+    local exitRoom = spawns:FindFirstChild("ExitRoom")
+    local floor = exitRoom and exitRoom:FindFirstChild("Floor")
+    local width = floor and floor.Size.X or (Config.CellSize * 2)
+    local height = Config.WallHeight
+    local thickness = math.max(2, math.floor(Config.CellSize * 0.25))
+
+    barrier.Size = Vector3.new(width, height, thickness)
+
+    local positionX = exitPad.Position.X
+    local positionZ
+    if floor then
+        positionX = floor.Position.X
+        positionZ = floor.Position.Z - (floor.Size.Z / 2) + (thickness / 2)
+    else
+        positionZ = exitPad.Position.Z - (exitPad.Size.Z / 2) - (thickness / 2)
+    end
+    positionZ = positionZ or (exitPad.Position.Z - Config.CellSize + thickness / 2)
+
+    barrier.CFrame = CFrame.new(positionX, height / 2, positionZ)
+    barrier.CanCollide = true
+
+    local ok, err = pcall(function()
+        PhysicsService:SetPartCollisionGroup(barrier, COLLISION_GROUPS.ExitBarrier)
+    end)
+    if not ok then
+        warn(string.format("KeyDoorService: Failed to assign collision group to exit pad barrier: %s", tostring(err)))
+    end
+
+    local modifier = barrier:FindFirstChildOfClass("PathfindingModifier")
+    if not modifier then
+        modifier = Instance.new("PathfindingModifier")
+        modifier.Parent = barrier
+    end
+    modifier.PassThroughCost = math.huge
+
+    return barrier
 end
 
 local function updateExitDoorForWallHeight()
