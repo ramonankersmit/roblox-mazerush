@@ -316,6 +316,8 @@ local function clampedTransparency(value)
         return math.clamp(value, 0, 1)
 end
 
+local lobbyDefaultTransparency = lobbyBase and lobbyBase.Transparency or 0.2
+
 local function applyPartTheme(part, color, material, transparency, fallbackTransparency)
         if color then
                 part.Color = color
@@ -355,6 +357,7 @@ local function applyTheme(themeId)
                 lobbyBase.Color = DEFAULT_LOBBY_COLOR
                 lobbyBase.Material = Enum.Material.Glass
                 lobbyBase.Transparency = 0.2
+                lobbyDefaultTransparency = lobbyBase.Transparency
         end
 
         if exitPad then
@@ -368,18 +371,6 @@ local function applyTheme(themeId)
                         else
                                 applyPartTheme(part, data.floorColor, data.floorMaterial, data.floorTransparency, floorTransparency)
                         end
-                end
-        end
-end
-
-local function setMazeFloorTransparency(transparency)
-        local clamped = clampedTransparency(transparency)
-        if clamped == nil then
-                return
-        end
-        for _, part in ipairs(mazeFolder:GetChildren()) do
-                if part:IsA("BasePart") and part.Name == "Floor" then
-                        part.Transparency = clamped
                 end
         end
 end
@@ -671,8 +662,7 @@ local function runRound()
         roundActive = true
         local activeThemeId = resolvedThemeValue()
         applyTheme(activeThemeId)
-        local activeThemeData = ThemeConfig.Themes[activeThemeId] or ThemeConfig.Themes[ThemeConfig.Default] or {}
-        local defaultFloorTransparency = clampedTransparency(activeThemeData.floorTransparency) or 0
+        local previousLobbyTransparency = lobbyDefaultTransparency
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
         teleportToLobby()
 
@@ -687,7 +677,9 @@ local function runRound()
         MazeBuilder.Clear(mazeFolder)
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
-        setMazeFloorTransparency(1)
+        if lobbyBase then
+                lobbyBase.Transparency = 1
+        end
         layoutExitRoom()
         local buildDuration = math.max(Config.PrepBuildDuration or Config.PrepTime or 0, 0)
         local overviewDuration = math.max(Config.PrepOverviewDuration or 0, 0)
@@ -738,7 +730,9 @@ local function runRound()
                 task.wait(overviewDuration - overviewSeconds)
         end
 
-        setMazeFloorTransparency(defaultFloorTransparency)
+        if lobbyBase then
+                lobbyBase.Transparency = previousLobbyTransparency or 0.2
+        end
 
         if roundActive then
                 -- Teleport naar start in de maze (cel 1,1)
