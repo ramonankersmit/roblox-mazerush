@@ -63,11 +63,11 @@ local actionHint = playerBoard:FindFirstChild("ActionHint")
 local boardBaseColor = playerBoard.BackgroundColor3
 
 if actionHint then
-    actionHint.Size = UDim2.new(1, -56, 0, 32)
-    actionHint.Position = UDim2.new(0, 28, 0, 116)
+    actionHint.Size = UDim2.new(1, -40, 0, 32)
+    actionHint.Position = UDim2.new(0, 20, 0, 116)
     actionHint.TextWrapped = false
     actionHint.TextTruncate = Enum.TextTruncate.AtEnd
-    actionHint.TextSize = 16
+    actionHint.TextSize = 15
     actionHint.TextYAlignment = Enum.TextYAlignment.Top
 end
 local playerGui = localPlayer:WaitForChild("PlayerGui")
