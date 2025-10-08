@@ -2,6 +2,7 @@ local Replicated = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
+local InsertService = game:GetService("InsertService")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 local CollectionService = game:GetService("CollectionService")
@@ -206,12 +207,81 @@ end
 
 ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
 ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
-if not prefabs:FindFirstChild("Key") then
-        local keyModel = Instance.new("Model"); keyModel.Name = "Key"; keyModel.Parent = prefabs
-        local part = Instance.new("Part"); part.Name = "Handle"; part.Size = Vector3.new(1,1,1); part.Anchored = true; part.Parent = keyModel
-        local pp = Instance.new("ProximityPrompt"); pp.Parent = part
+local KEY_ASSET_ID = 9297062616
+
+local function applyKeyDefaults(model)
+        for _, descendant in ipairs(model:GetDescendants()) do
+                if descendant:IsA("BasePart") then
+                        descendant.Anchored = true
+                        descendant.CanCollide = false
+                end
+        end
+
+        if not model.PrimaryPart then
+                local primary = model:FindFirstChildWhichIsA("BasePart")
+                if primary then
+                        model.PrimaryPart = primary
+                end
+        end
+end
+
+local function ensureKeyPrefab()
+        if prefabs:FindFirstChild("Key") then
+                return
+        end
+
+        local success, asset = pcall(function()
+                return InsertService:LoadAsset(KEY_ASSET_ID)
+        end)
+
+        if success and asset then
+                local keyModel = asset:FindFirstChild("Key")
+                if not (keyModel and keyModel:IsA("Model")) then
+                        keyModel = asset:FindFirstChildWhichIsA("Model")
+                end
+
+                if keyModel then
+                        keyModel.Parent = prefabs
+                        keyModel.Name = "Key"
+                        applyKeyDefaults(keyModel)
+                        asset:Destroy()
+                        return
+                end
+
+                local basePart = asset:FindFirstChildWhichIsA("BasePart")
+                if basePart then
+                        local wrapper = Instance.new("Model")
+                        wrapper.Name = "Key"
+                        for _, child in ipairs(asset:GetChildren()) do
+                                child.Parent = wrapper
+                        end
+                        wrapper.Parent = prefabs
+                        applyKeyDefaults(wrapper)
+                        asset:Destroy()
+                        return
+                end
+
+                asset:Destroy()
+        end
+
+        local keyModel = Instance.new("Model")
+        keyModel.Name = "Key"
+        keyModel.Parent = prefabs
+
+        local part = Instance.new("Part")
+        part.Name = "Handle"
+        part.Size = Vector3.new(1, 1, 1)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Parent = keyModel
+
+        local pp = Instance.new("ProximityPrompt")
+        pp.Parent = part
+
         keyModel.PrimaryPart = part
 end
+
+ensureKeyPrefab()
 if not prefabs:FindFirstChild("Door") then
         local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
         local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door

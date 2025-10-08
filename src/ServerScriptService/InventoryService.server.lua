@@ -12,6 +12,7 @@ local TOOL_DEFINITIONS = {
                 name = "Maze Key",
                 tooltip = "Gebruik deze sleutel om deuren in Maze Rush te openen.",
                 requiresHandle = false,
+                textureId = "rbxassetid://9297062616",
                 canBeDropped = false,
                 getDesiredCount = function(inv)
                         return math.max(0, inv.keys or 0)
@@ -121,6 +122,9 @@ local function syncToolDefinition(plr, inv, definition)
                         tool.Name = definition.name
                         tool.RequiresHandle = definition.requiresHandle == true
                         tool.CanBeDropped = definition.canBeDropped == true
+                        if definition.textureId then
+                                tool.TextureId = definition.textureId
+                        end
                         tool:SetAttribute(definition.attribute, true)
                         if definition.tooltip then
                                 tool.ToolTip = definition.tooltip
