@@ -8,6 +8,14 @@ local RoundConfig = require(Modules:WaitForChild("RoundConfig"))
 
 local State = ReplicatedStorage:WaitForChild("State")
 local ThemeValue = State:WaitForChild("Theme")
+local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
+if not LobbyPreviewThemeValue then
+    LobbyPreviewThemeValue = Instance.new("StringValue")
+    LobbyPreviewThemeValue.Name = "LobbyPreviewTheme"
+    local defaultPreview = ThemeValue.Value ~= "" and ThemeValue.Value or ThemeConfig.Default
+    LobbyPreviewThemeValue.Value = defaultPreview
+    LobbyPreviewThemeValue.Parent = State
+end
 
 local ThemeLightingFolder = Workspace:FindFirstChild("ThemeLighting")
 if not ThemeLightingFolder then
@@ -35,7 +43,8 @@ local GRID_HEIGHT = RoundConfig.GridHeight or 20
 local CELL_SIZE = RoundConfig.CellSize or 16
 local WALL_HEIGHT = RoundConfig.WallHeight or 24
 
-local currentThemeId = nil
+local currentMazeThemeId = nil
+local currentLobbyThemeId = nil
 local flickerConnection = nil
 local flickerLights = {}
 
@@ -182,6 +191,77 @@ local function getContext()
     }
 end
 
+local function createSpookySconceFixtures(folder, baseCFrame, suffix)
+    if not folder then
+        return
+    end
+
+    local bracket = Instance.new("Part")
+    bracket.Name = string.format("SpookySconceBracket_%s", tostring(suffix))
+    bracket.Anchored = true
+    bracket.CanCollide = false
+    bracket.CanTouch = false
+    bracket.CanQuery = false
+    bracket.CastShadow = false
+    bracket.Material = Enum.Material.Metal
+    bracket.Color = Color3.fromRGB(45, 32, 28)
+    bracket.Size = Vector3.new(0.7, 1.5, 0.25)
+    bracket.CFrame = baseCFrame * CFrame.new(0, -0.7, 0.12)
+    bracket.Parent = folder
+
+    local candle = Instance.new("Part")
+    candle.Name = string.format("SpookySconceCandle_%s", tostring(suffix))
+    candle.Anchored = true
+    candle.CanCollide = false
+    candle.CanTouch = false
+    candle.CanQuery = false
+    candle.CastShadow = false
+    candle.Material = Enum.Material.SmoothPlastic
+    candle.Color = Color3.fromRGB(255, 244, 220)
+    candle.Shape = Enum.PartType.Cylinder
+    candle.Size = Vector3.new(0.36, 1.05, 0.36)
+    candle.CFrame = baseCFrame * CFrame.new(0, 0.15, 0)
+    candle.Parent = folder
+
+    local flameAnchor = Instance.new("Part")
+    flameAnchor.Name = string.format("SpookySconceFlame_%s", tostring(suffix))
+    flameAnchor.Anchored = true
+    flameAnchor.CanCollide = false
+    flameAnchor.CanTouch = false
+    flameAnchor.CanQuery = false
+    flameAnchor.CastShadow = false
+    flameAnchor.Transparency = 1
+    flameAnchor.Size = Vector3.new(0.2, 0.2, 0.2)
+    flameAnchor.CFrame = baseCFrame * CFrame.new(0, 0.65, 0)
+    flameAnchor.Parent = folder
+
+    local particle = createParticle(flameAnchor, {
+        Texture = "rbxassetid://241594314",
+        LightInfluence = 0,
+        Speed = NumberRange.new(1.5, 2.2),
+        Lifetime = NumberRange.new(0.4, 0.8),
+        Size = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.45),
+            NumberSequenceKeypoint.new(0.35, 0.35),
+            NumberSequenceKeypoint.new(1, 0.05),
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.3),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+        Color = ColorSequence.new(Color3.fromRGB(255, 215, 160), Color3.fromRGB(255, 120, 50)),
+        Rotation = NumberRange.new(-45, 45),
+        RotSpeed = NumberRange.new(-90, 90),
+        Drag = 2,
+        EmissionDirection = Enum.NormalId.Front,
+        Acceleration = Vector3.new(0, 10, 0),
+        Rate = 12,
+    })
+    if particle then
+        particle.LockedToPart = true
+    end
+end
+
 local function createSconceLights(context)
     local mazeFolder = context.mazeFolder
     if not mazeFolder then
@@ -199,7 +279,7 @@ local function createSconceLights(context)
 
     local created = 0
     for index, wall in ipairs(walls) do
-        if index % 3 == 0 then
+        if index % 2 == 0 then
             local wallHeight = wall.Size.Y
             local forward = wall.CFrame.LookVector
             local up = wall.CFrame.UpVector
@@ -210,35 +290,12 @@ local function createSconceLights(context)
 
             local light = createPointLight(anchor, {
                 Color = Color3.fromRGB(255, 190, 120),
-                Brightness = 1.8,
-                Range = math.max(10, wall.Size.X * 0.85),
+                Brightness = 2.1,
+                Range = math.max(12, wall.Size.X * 0.9),
                 Shadows = true,
             })
             addFlicker(light, light.Brightness, light.Brightness * 0.22, 1.15 + (index % 5) * 0.18, index * 0.21)
-
-            local particle = createParticle(anchor, {
-                Texture = "rbxassetid://241594314",
-                LightInfluence = 0,
-                Speed = NumberRange.new(1.5, 2.2),
-                Lifetime = NumberRange.new(0.4, 0.8),
-                Size = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.45),
-                    NumberSequenceKeypoint.new(0.35, 0.35),
-                    NumberSequenceKeypoint.new(1, 0.05),
-                }),
-                Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.3),
-                    NumberSequenceKeypoint.new(1, 1),
-                }),
-                Color = ColorSequence.new(Color3.fromRGB(255, 215, 160), Color3.fromRGB(255, 120, 50)),
-                Rotation = NumberRange.new(-45, 45),
-                RotSpeed = NumberRange.new(-90, 90),
-                Drag = 2,
-                EmissionDirection = Enum.NormalId.Front,
-                Acceleration = Vector3.new(0, 10, 0),
-                Rate = 12,
-            })
-            particle.LockedToPart = true
+            createSpookySconceFixtures(context.mazeLights, anchor.CFrame, string.format("Maze_%d", index))
             created += 1
             if created >= 80 then
                 break
@@ -288,16 +345,35 @@ local function createSpookyLobbyLights(context)
     }
 
     for index, offset in ipairs(offsets) do
-        local worldPosition = baseCFrame:PointToWorldSpace(offset + Vector3.new(0, 0, 0))
+        local worldPosition = baseCFrame:PointToWorldSpace(offset)
         local anchor = createAnchor(context.lobbyLights, worldPosition + Vector3.new(0, 8, 0), string.format("SpookyCorner_%d", index))
         local spot = createSpotLight(anchor, {
             Face = Enum.NormalId.Bottom,
-            Brightness = 1.6,
-            Angle = 60,
-            Range = 28,
+            Brightness = 1.9,
+            Angle = 70,
+            Range = 32,
             Color = Color3.fromRGB(120, 150, 255),
         })
         spot.Shadows = true
+    end
+
+    local radius = math.max(baseSize.X, baseSize.Z) * 0.52
+    local lookTarget = baseCFrame.Position + Vector3.new(0, baseSize.Y * 0.5 + 2, 0)
+    local height = baseSize.Y * 0.5 + 6
+    local sconceCount = 8
+    for i = 1, sconceCount do
+        local angle = ((i - 1) / sconceCount) * math.pi * 2
+        local offset = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+        local worldPosition = baseCFrame.Position + offset + Vector3.new(0, height, 0)
+        local anchor = createAnchor(context.lobbyLights, worldPosition, string.format("SpookyLobbySconce_%d", i))
+        anchor.CFrame = CFrame.lookAt(worldPosition, lookTarget, Vector3.new(0, 1, 0))
+        createPointLight(anchor, {
+            Color = Color3.fromRGB(255, 195, 140),
+            Brightness = 1.6,
+            Range = 20,
+            Shadows = true,
+        })
+        createSpookySconceFixtures(context.lobbyLights, anchor.CFrame, string.format("Lobby_%d", i))
     end
 
     local boardModel = context.boardModel
@@ -312,12 +388,31 @@ local function createSpookyLobbyLights(context)
             Color = Color3.fromRGB(255, 200, 140),
         })
         surface.Shadows = true
+
+        local boardCFrame = boardModel.PrimaryPart.CFrame
+        local forward = boardCFrame.LookVector
+        local right = boardCFrame.RightVector
+        local up = boardCFrame.UpVector
+        for i = -1, 1, 2 do
+            local offsetDir = right * (boardModel.PrimaryPart.Size.X * 0.55 * i)
+            local heightOffset = up * (boardModel.PrimaryPart.Size.Y * 0.45)
+            local depthOffset = forward * 0.3
+            local sconcePosition = boardCFrame.Position + offsetDir + heightOffset + depthOffset
+            local sconceAnchor = createAnchor(context.lobbyLights, sconcePosition, string.format("SpookyBoardSconce_%d", i))
+            sconceAnchor.CFrame = CFrame.lookAt(sconcePosition, sconcePosition + forward, up)
+            createPointLight(sconceAnchor, {
+                Color = Color3.fromRGB(255, 210, 150),
+                Brightness = 1.8,
+                Range = 18,
+                Shadows = true,
+            })
+            createSpookySconceFixtures(context.lobbyLights, sconceAnchor.CFrame, string.format("Board_%d", i))
+        end
     end
 end
 
-local function applySpooky(context)
+local function applySpookyMaze(context)
     createSconceLights(context)
-    createSpookyLobbyLights(context)
     local exitPad = context.exitPad
     if exitPad then
         local anchor = createAnchor(context.mazeLights, exitPad.Position + Vector3.new(0, 8, 0), "SpookyExitSpot")
@@ -330,6 +425,10 @@ local function applySpooky(context)
         })
         spot.Shadows = true
     end
+end
+
+local function applySpookyLobby(context)
+    createSpookyLobbyLights(context)
 end
 
 local function createJungleMazeLights(context)
@@ -410,8 +509,11 @@ local function createJungleLobbyLights(context)
     end
 end
 
-local function applyJungle(context)
+local function createJungleMaze(context)
     createJungleMazeLights(context)
+end
+
+local function applyJungleLobby(context)
     createJungleLobbyLights(context)
 end
 
@@ -478,8 +580,11 @@ local function createFrostLobbyLights(context)
     end
 end
 
-local function applyFrost(context)
+local function applyFrostMaze(context)
     createFrostMazeLights(context)
+end
+
+local function applyFrostLobby(context)
     createFrostLobbyLights(context)
 end
 
@@ -594,36 +699,75 @@ local function createGlazeLobbyLights(context)
     end
 end
 
-local function applyGlaze(context)
+local function applyGlazeMaze(context)
     createGlazeMazeLights(context)
+end
+
+local function applyGlazeLobby(context)
     createGlazeLobbyLights(context)
 end
 
-local THEME_PLANS = {
-    Spooky = applySpooky,
-    Jungle = applyJungle,
-    Frost = applyFrost,
-    Glaze = applyGlaze,
+local MAZE_PLANS = {
+    Spooky = applySpookyMaze,
+    Jungle = createJungleMaze,
+    Frost = applyFrostMaze,
+    Glaze = applyGlazeMaze,
 }
 
-local function applyTheme(themeId)
+local LOBBY_PLANS = {
+    Spooky = applySpookyLobby,
+    Jungle = applyJungleLobby,
+    Frost = applyFrostLobby,
+    Glaze = applyGlazeLobby,
+}
+
+local function resolveThemeId(themeId)
+    if not themeId or themeId == "" or not ThemeConfig.Themes[themeId] then
+        return ThemeConfig.Default
+    end
+    return themeId
+end
+
+local function getPreviewThemeId()
+    if LobbyPreviewThemeValue and LobbyPreviewThemeValue.Value ~= "" then
+        return LobbyPreviewThemeValue.Value
+    end
+    return ThemeValue.Value
+end
+
+local function applyMazeTheme(themeId)
     stopFlicker()
     clearFolder(MazeLightsFolder)
-    clearFolder(LobbyLightsFolder)
 
-    local resolved = themeId
-    if not resolved or resolved == "" then
-        resolved = ThemeConfig.Default
-    end
-    currentThemeId = resolved
+    local resolved = resolveThemeId(themeId)
+    currentMazeThemeId = resolved
 
     local context = getContext()
-    local plan = THEME_PLANS[resolved]
+    local plan = MAZE_PLANS[resolved]
+    if not plan and resolved ~= ThemeConfig.Default then
+        plan = MAZE_PLANS[ThemeConfig.Default]
+    end
     if plan then
         plan(context)
     end
 
     startFlicker()
+end
+
+local function applyLobbyTheme(themeId)
+    clearFolder(LobbyLightsFolder)
+
+    local resolved = resolveThemeId(themeId)
+    currentLobbyThemeId = resolved
+
+    local context = getContext()
+    local plan = LOBBY_PLANS[resolved]
+    if not plan and resolved ~= ThemeConfig.Default then
+        plan = LOBBY_PLANS[ThemeConfig.Default]
+    end
+    if plan then
+        plan(context)
+    end
 end
 
 local pendingRefresh = false
@@ -634,13 +778,21 @@ local function scheduleRefresh()
     pendingRefresh = true
     task.delay(0.25, function()
         pendingRefresh = false
-        applyTheme(currentThemeId or ThemeValue.Value)
+        applyMazeTheme(currentMazeThemeId or ThemeValue.Value)
+        applyLobbyTheme(currentLobbyThemeId or getPreviewThemeId())
     end)
 end
 
 ThemeValue.Changed:Connect(function()
-    applyTheme(ThemeValue.Value)
+    applyMazeTheme(ThemeValue.Value)
+    applyLobbyTheme(getPreviewThemeId())
 end)
+
+if LobbyPreviewThemeValue then
+    LobbyPreviewThemeValue:GetPropertyChangedSignal("Value"):Connect(function()
+        applyLobbyTheme(LobbyPreviewThemeValue.Value)
+    end)
+end
 
 local mazeFolder = Workspace:FindFirstChild("Maze")
 if mazeFolder then
@@ -675,4 +827,5 @@ if Workspace:FindFirstChild("Spawns") then
     Workspace.Spawns.ChildRemoved:Connect(scheduleRefresh)
 end
 
-applyTheme(ThemeValue.Value)
+applyMazeTheme(ThemeValue.Value)
+applyLobbyTheme(getPreviewThemeId())

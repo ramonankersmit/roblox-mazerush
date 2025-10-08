@@ -27,6 +27,29 @@ end
 local currentTheme = ThemeValue.Value ~= "" and ThemeValue.Value or ThemeConfig.Default
 RoundConfig.Theme = currentTheme
 
+local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
+if not LobbyPreviewThemeValue then
+        LobbyPreviewThemeValue = Instance.new("StringValue")
+        LobbyPreviewThemeValue.Name = "LobbyPreviewTheme"
+        LobbyPreviewThemeValue.Value = currentTheme
+        LobbyPreviewThemeValue.Parent = State
+end
+
+local function setLobbyPreviewTheme(themeId)
+        local resolved = themeId
+        if not ThemeConfig.Themes[resolved] then
+                resolved = ThemeConfig.Default
+        end
+        if resolved == "" then
+                resolved = ThemeConfig.Default
+        end
+        if LobbyPreviewThemeValue.Value ~= resolved then
+                LobbyPreviewThemeValue.Value = resolved
+        end
+end
+
+setLobbyPreviewTheme(currentTheme)
+
 local VOTE_DURATION = 30
 local voteDeadline = nil
 local voteActive = false
@@ -132,6 +155,12 @@ local function broadcast(precomputedCounts)
         end
 
         local counts = precomputedCounts or tallyVotes()
+        local leaderId, leaderVotes = determineLeader(counts)
+        if voteActive then
+                setLobbyPreviewTheme(leaderId)
+        else
+                setLobbyPreviewTheme(currentTheme)
+        end
         local options = {}
         local orderedThemes = ThemeConfig.GetOrderedThemes and ThemeConfig.GetOrderedThemes() or nil
         if orderedThemes and #orderedThemes > 0 then
@@ -220,6 +249,8 @@ local function broadcast(precomputedCounts)
                         currentName = currentInfo and currentInfo.displayName or currentTheme,
                         votesByPlayer = votesByPlayer,
                         selectionFlash = flashPayload,
+                        leader = voteActive and leaderId or currentTheme,
+                        leaderVotes = leaderVotes or 0,
                 }
         })
 end
@@ -281,6 +312,7 @@ local function finalizeVote(autoStart)
         if not changed then
                 broadcast(counts)
         end
+        setLobbyPreviewTheme(currentTheme)
         return winner
 end
 
@@ -288,6 +320,9 @@ ThemeValue:GetPropertyChangedSignal("Value"):Connect(function()
         local resolved = ThemeValue.Value ~= "" and ThemeValue.Value or ThemeConfig.Default
         currentTheme = resolved
         RoundConfig.Theme = resolved
+        if not voteActive then
+                setLobbyPreviewTheme(currentTheme)
+        end
         broadcast()
 end)
 

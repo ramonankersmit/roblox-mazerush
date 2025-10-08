@@ -7,6 +7,7 @@ local ThemeConfig = require(Modules.ThemeConfig)
 
 local State = ReplicatedStorage:WaitForChild("State")
 local ThemeValue = State:WaitForChild("Theme")
+local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
 
 local function ensureLobbyFolder()
     local lobby = Workspace:FindFirstChild("Lobby")
@@ -79,13 +80,15 @@ local function applyEffectOverrides(overrides)
                         local instance = ensureEffectInstance(effectName)
                         if instance then
                                 active[effectName] = true
-                                if instance:IsA("PostEffect") or instance:IsA("Atmosphere") then
+                                if instance:IsA("PostEffect") then
                                         local ok, err = pcall(function()
                                                 instance.Enabled = true
                                         end)
                                         if not ok then
                                                 warn(string.format("[LobbyPreviewService] Unable to enable %s: %s", tostring(instance.Name), tostring(err)))
                                         end
+                                elseif instance:IsA("Atmosphere") then
+                                        instance.Parent = Lighting
                                 end
                                 if props then
                                         for prop, value in pairs(props) do
@@ -103,13 +106,15 @@ local function applyEffectOverrides(overrides)
 
         for effectName, instance in pairs(effectInstances) do
                 if not active[effectName] then
-                        if instance:IsA("PostEffect") or instance:IsA("Atmosphere") then
+                        if instance:IsA("PostEffect") then
                                 local ok, err = pcall(function()
                                         instance.Enabled = false
                                 end)
                                 if not ok then
                                         warn(string.format("[LobbyPreviewService] Unable to disable %s: %s", tostring(instance.Name), tostring(err)))
                                 end
+                        elseif instance:IsA("Atmosphere") then
+                                instance.Parent = nil
                         end
                 end
         end
@@ -608,7 +613,7 @@ end
 local function applyTheme(themeId)
     ensurePreviewsExist()
     local resolved = themeId
-    if resolved == nil or resolved == "" then
+    if resolved == nil or resolved == "" or not ThemeConfig.Themes[resolved] then
         resolved = ThemeConfig.Default
     end
     clearInactiveAmbient()
@@ -624,12 +629,21 @@ local function applyTheme(themeId)
     applyLightingOverrides(overrides)
 end
 
+local function getActiveThemeId()
+    if LobbyPreviewThemeValue and LobbyPreviewThemeValue.Value ~= "" then
+        return LobbyPreviewThemeValue.Value
+    end
+    return ThemeValue.Value
+end
+
 local function onThemeChanged()
-    local themeId = ThemeValue.Value
-    applyTheme(themeId)
+    applyTheme(getActiveThemeId())
 end
 
 monitorLobbyBase()
 ensurePreviewsExist()
 ThemeValue.Changed:Connect(onThemeChanged)
+if LobbyPreviewThemeValue then
+    LobbyPreviewThemeValue.Changed:Connect(onThemeChanged)
+end
 onThemeChanged()
