@@ -433,10 +433,11 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local actionHint = createTextLabel(playerBoard, "ActionHint", "Gebruik [E] bij de console om klaar te melden en een thema te kiezen.", UDim2.new(1, -40, 0, 64), UDim2.new(0, 20, 0, 116), {
+    local actionHint = createTextLabel(playerBoard, "ActionHint", "Open de console om klaar te melden en te stemmen.", UDim2.new(1, -56, 0, 32), UDim2.new(0, 28, 0, 116), {
         Font = Enum.Font.Gotham,
-        TextSize = 18,
-        TextWrapped = true,
+        TextSize = 12,
+        TextWrapped = false,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         TextYAlignment = Enum.TextYAlignment.Top,
         TextColor3 = Color3.fromRGB(140, 210, 255),
         TextXAlignment = Enum.TextXAlignment.Left,

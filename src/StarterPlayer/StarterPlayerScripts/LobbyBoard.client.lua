@@ -61,6 +61,15 @@ end
 local readySummary = playerBoard:FindFirstChild("ReadySummary")
 local actionHint = playerBoard:FindFirstChild("ActionHint")
 local boardBaseColor = playerBoard.BackgroundColor3
+
+if actionHint then
+    actionHint.Size = UDim2.new(1, -56, 0, 32)
+    actionHint.Position = UDim2.new(0, 28, 0, 116)
+    actionHint.TextWrapped = false
+    actionHint.TextTruncate = Enum.TextTruncate.AtEnd
+    actionHint.TextSize = 16
+    actionHint.TextYAlignment = Enum.TextYAlignment.Top
+end
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 local themeSurface = themeStand:FindFirstChild("ThemeSurface")
@@ -1452,15 +1461,15 @@ local function updatePrompts(state)
 
     if actionHint then
         if not showPrompts then
-            actionHint.Text = "Maze bezig - klaarstatus en stemming zijn vergrendeld."
+            actionHint.Text = "Maze bezig – console tijdelijk vergrendeld."
         elseif myReady then
             if isHost then
-                actionHint.Text = "Je bent klaar. Gebruik [E] om te stemmen en druk op de startknop als iedereen klaar is."
+                actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
             else
-                actionHint.Text = "Je staat als klaar. Gebruik de console om je stem of status te wijzigen."
+                actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
             end
         else
-            actionHint.Text = "Gebruik [E] bij de themaconsole om je stem te kiezen of willekeurig te gaan."
+            actionHint.Text = "Open de console om klaar te melden en te stemmen."
         end
     end
 
