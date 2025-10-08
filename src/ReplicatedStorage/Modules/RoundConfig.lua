@@ -103,6 +103,7 @@ local Config = {
                         ChaseSpeed = 22,
                         RepathInterval = 0.5,
                         EliminationCooldown = 6,
+                        EliminationRadius = 4,
                         SpecialEffects = {
                                 WarningMessage = "Let op! Een eventmonster jaagt rond in het doolhof.",
                                 FlickerInterval = 0.3,

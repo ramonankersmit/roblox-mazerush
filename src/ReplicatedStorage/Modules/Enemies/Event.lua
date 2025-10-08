@@ -10,6 +10,7 @@ local DEFAULTS = {
         ActiveDuration = 20,
         RepathInterval = 0.6,
         EliminationCooldown = 6,
+        EliminationRadius = 4,
 }
 
 local function randomCellPosition(globalConfig)
@@ -233,20 +234,34 @@ function EventController:_onTouched(hit)
         if not player then
                 return
         end
+        local humanoidRoot = character:FindFirstChild("HumanoidRootPart")
+        local root = ensurePrimaryPart(self.model)
+        local hitPosition = humanoidRoot and humanoidRoot.Position or (root and root.Position)
+        self:_attemptElimination(player, hitPosition)
+end
+
+function EventController:_attemptElimination(player, position)
+        if self._destroyed or not player then
+                return false
+        end
         local now = os.clock()
         local last = self._touchCooldown[player]
         local cooldown = math.max(getConfigValue(self.config, "EliminationCooldown"), 0)
         if last and now - last < cooldown then
-                return
+                return false
         end
         self._touchCooldown[player] = now
 
         local eliminate = _G.GameEliminatePlayer
         if typeof(eliminate) == "function" then
-                local humanoidRoot = character:FindFirstChild("HumanoidRootPart")
-                local position = humanoidRoot and humanoidRoot.Position or root.Position
+                if position == nil then
+                        local root = ensurePrimaryPart(self.model)
+                        position = root and root.Position or position
+                end
                 eliminate(player, position)
+                return true
         end
+        return false
 end
 
 function EventController:_startChaseLoop()
@@ -275,6 +290,7 @@ function EventController:_startChaseLoop()
                                         end
                                 end
                         end
+                        self:_checkProximityEliminations()
                         task.wait(moveInterval)
                 end
                 self:Destroy("Timeout")
@@ -286,9 +302,13 @@ function EventController:_selectTarget()
         if not root then
                 return nil, nil
         end
+        local playersService = self.playersService
+        if not playersService or typeof(playersService.GetPlayers) ~= "function" then
+                return nil, nil
+        end
         local closestPlayer
         local closestDistance = math.huge
-        for _, player in ipairs(self.playersService:GetPlayers()) do
+        for _, player in ipairs(playersService:GetPlayers()) do
                 local character = player.Character
                 if character then
                         local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -316,6 +336,36 @@ function EventController:_selectTarget()
         return closestPlayer, hrp.Position
 end
 
+function EventController:_checkProximityEliminations()
+        local radius = math.max(getConfigValue(self.config, "EliminationRadius"), 0)
+        if radius <= 0 then
+                return
+        end
+        local playersService = self.playersService
+        if not playersService or typeof(playersService.GetPlayers) ~= "function" then
+                return
+        end
+        local root = ensurePrimaryPart(self.model)
+        if not root then
+                return
+        end
+        local radiusSquared = radius * radius
+        for _, player in ipairs(playersService:GetPlayers()) do
+                local character = player.Character
+                if character then
+                        local humanoid = character:FindFirstChildOfClass("Humanoid")
+                        local humanoidRoot = character:FindFirstChild("HumanoidRootPart")
+                        if humanoid and humanoid.Health > 0 and humanoidRoot then
+                                local offset = humanoidRoot.Position - root.Position
+                                local distanceSquared = offset.X * offset.X + offset.Y * offset.Y + offset.Z * offset.Z
+                                if distanceSquared <= radiusSquared then
+                                        self:_attemptElimination(player, humanoidRoot.Position)
+                                end
+                        end
+                end
+        end
+end
+
 function EventController:OnFinished(callback)
         if typeof(callback) ~= "function" then
                 return nil
@@ -332,7 +382,10 @@ function EventController:Destroy(reason)
                 if connection and typeof(connection) == "RBXScriptConnection" then
                         connection:Disconnect()
                 elseif type(connection) == "thread" then
-                        task.cancel(connection)
+                        local status = coroutine.status(connection)
+                        if status ~= "dead" and connection ~= coroutine.running() then
+                                task.cancel(connection)
+                        end
                 end
         end
         self._connections = {}
