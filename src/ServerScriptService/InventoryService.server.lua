@@ -12,7 +12,7 @@ local TOOL_DEFINITIONS = {
                 name = "Maze Key",
                 tooltip = "Gebruik deze sleutel om deuren in Maze Rush te openen.",
                 requiresHandle = false,
-                textureId = "rbxassetid://9297062616",
+                textureId = "rbxthumb://type=Asset&id=9297062616&w=420&h=420",
                 canBeDropped = false,
                 getDesiredCount = function(inv)
                         return math.max(0, inv.keys or 0)

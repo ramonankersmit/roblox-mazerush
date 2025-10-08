@@ -208,6 +208,7 @@ end
 ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
 ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
 local KEY_ASSET_ID = 9297062616
+local KEY_SOURCE_ATTRIBUTE = "SourceAssetId"
 
 local function applyKeyDefaults(model)
         for _, descendant in ipairs(model:GetDescendants()) do
@@ -225,9 +226,40 @@ local function applyKeyDefaults(model)
         end
 end
 
+local function finalizeKeyModel(model, sourceAssetId)
+        model.Name = "Key"
+        applyKeyDefaults(model)
+
+        local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if primary and not model.PrimaryPart then
+                model.PrimaryPart = primary
+        end
+
+        local hasPrompt = false
+        for _, descendant in ipairs(model:GetDescendants()) do
+                if descendant:IsA("ProximityPrompt") then
+                        hasPrompt = true
+                        break
+                end
+        end
+
+        if not hasPrompt and primary then
+                local prompt = Instance.new("ProximityPrompt")
+                prompt.Parent = primary
+        end
+
+        model:SetAttribute(KEY_SOURCE_ATTRIBUTE, sourceAssetId or 0)
+        model.Parent = prefabs
+end
+
 local function ensureKeyPrefab()
-        if prefabs:FindFirstChild("Key") then
-                return
+        local existing = prefabs:FindFirstChild("Key")
+        if existing then
+                local sourceId = existing:GetAttribute(KEY_SOURCE_ATTRIBUTE)
+                if sourceId == KEY_ASSET_ID then
+                        return
+                end
+                existing:Destroy()
         end
 
         local success, asset = pcall(function()
@@ -241,9 +273,7 @@ local function ensureKeyPrefab()
                 end
 
                 if keyModel then
-                        keyModel.Parent = prefabs
-                        keyModel.Name = "Key"
-                        applyKeyDefaults(keyModel)
+                        finalizeKeyModel(keyModel, KEY_ASSET_ID)
                         asset:Destroy()
                         return
                 end
@@ -251,12 +281,10 @@ local function ensureKeyPrefab()
                 local basePart = asset:FindFirstChildWhichIsA("BasePart")
                 if basePart then
                         local wrapper = Instance.new("Model")
-                        wrapper.Name = "Key"
                         for _, child in ipairs(asset:GetChildren()) do
                                 child.Parent = wrapper
                         end
-                        wrapper.Parent = prefabs
-                        applyKeyDefaults(wrapper)
+                        finalizeKeyModel(wrapper, KEY_ASSET_ID)
                         asset:Destroy()
                         return
                 end
@@ -265,8 +293,6 @@ local function ensureKeyPrefab()
         end
 
         local keyModel = Instance.new("Model")
-        keyModel.Name = "Key"
-        keyModel.Parent = prefabs
 
         local part = Instance.new("Part")
         part.Name = "Handle"
@@ -279,6 +305,8 @@ local function ensureKeyPrefab()
         pp.Parent = part
 
         keyModel.PrimaryPart = part
+
+        finalizeKeyModel(keyModel, 0)
 end
 
 ensureKeyPrefab()
