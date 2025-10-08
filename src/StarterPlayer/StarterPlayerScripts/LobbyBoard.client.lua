@@ -598,20 +598,21 @@ local function createSurfaceTemplate()
     statusLabel.TextColor3 = Color3.fromRGB(182, 188, 210)
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
     statusLabel.Position = UDim2.new(0, 124, 0, 60)
-    statusLabel.Size = UDim2.new(1, -240, 0, 24)
+    statusLabel.Size = UDim2.new(1, -320, 0, 24)
     statusLabel.Parent = frame
 
     local hostTag = Instance.new("TextLabel")
     hostTag.Name = "HostTag"
+    hostTag.AnchorPoint = Vector2.new(1, 0.5)
     hostTag.BackgroundTransparency = 0.1
     hostTag.BackgroundColor3 = Color3.fromRGB(255, 223, 94)
     hostTag.Font = Enum.Font.GothamSemibold
     hostTag.TextColor3 = Color3.fromRGB(74, 52, 10)
-    hostTag.TextSize = 16
+    hostTag.TextSize = 15
     hostTag.Text = "HOST"
     hostTag.Visible = false
-    hostTag.Position = UDim2.new(0, 124, 0, -6)
-    hostTag.Size = UDim2.new(0, 74, 0, 26)
+    hostTag.Position = UDim2.new(1, -72, 0.5, 0)
+    hostTag.Size = UDim2.new(0, 68, 0, 26)
     hostTag.TextXAlignment = Enum.TextXAlignment.Center
     hostTag.ZIndex = 3
     hostTag.Parent = frame
@@ -682,21 +683,21 @@ local function createBillboardTemplate()
     nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Position = UDim2.new(0, 52, 0, 0)
-    nameLabel.Size = UDim2.new(1, -140, 0, 22)
+    nameLabel.Size = UDim2.new(1, -180, 0, 22)
     nameLabel.Parent = frame
 
     local hostTag = Instance.new("TextLabel")
     hostTag.Name = "HostTag"
+    hostTag.AnchorPoint = Vector2.new(1, 0.5)
     hostTag.BackgroundTransparency = 0
     hostTag.BackgroundColor3 = Color3.fromRGB(255, 223, 94)
     hostTag.Font = Enum.Font.GothamSemibold
     hostTag.TextColor3 = Color3.fromRGB(74, 52, 10)
-    hostTag.TextSize = 16
+    hostTag.TextSize = 15
     hostTag.Text = "HOST"
     hostTag.Visible = false
-    hostTag.AnchorPoint = Vector2.new(1, 0.5)
-    hostTag.Position = UDim2.new(1, -64, 0.5, 0)
-    hostTag.Size = UDim2.new(0, 74, 0, 26)
+    hostTag.Position = UDim2.new(1, -54, 0.5, 0)
+    hostTag.Size = UDim2.new(0, 68, 0, 26)
     hostTag.TextXAlignment = Enum.TextXAlignment.Center
     hostTag.ZIndex = 3
     hostTag.Parent = frame
@@ -720,7 +721,7 @@ local function createBillboardTemplate()
     voteTag.TextColor3 = Color3.fromRGB(200, 210, 240)
     voteTag.TextXAlignment = Enum.TextXAlignment.Left
     voteTag.Position = UDim2.new(0, 52, 0, 22)
-    voteTag.Size = UDim2.new(1, -140, 0, 20)
+    voteTag.Size = UDim2.new(1, -180, 0, 20)
     voteTag.Visible = false
     voteTag.Parent = frame
 
