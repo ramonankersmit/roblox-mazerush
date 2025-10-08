@@ -20,14 +20,14 @@ end
 
 local SOUND_LIBRARY = {
         HunterChase = {
-                SoundId = "rbxassetid://1843522437",
+                SoundId = "rbxassetid://7188240609",
                 Volume = 0.55,
                 MinDistance = 12,
                 MaxDistance = 120,
         },
         SentryChase = {
-                SoundId = "rbxassetid://9124401028",
-                Volume = 0.4,
+                SoundId = "rbxassetid://9041812129",
+                Volume = 0.45,
                 MinDistance = 10,
                 MaxDistance = 110,
         },
@@ -58,16 +58,22 @@ local originalCameraOffset = Vector3.new()
 local function ensureSoundTemplate(name, data)
         local existing = soundFolder:FindFirstChild(name)
         if existing then
+                existing.SoundId = data.SoundId or existing.SoundId
+                existing.Volume = data.Volume or existing.Volume
+                existing.RollOffMode = Enum.RollOffMode.Inverse
+                existing.RollOffMinDistance = data.MinDistance or existing.RollOffMinDistance
+                existing.RollOffMaxDistance = data.MaxDistance or existing.RollOffMaxDistance
+                existing.Looped = data.Looped ~= nil and data.Looped or true
                 return existing
         end
         local sound = Instance.new("Sound")
         sound.Name = name
-        sound.SoundId = data.SoundId
+        sound.SoundId = data.SoundId or ""
         sound.Volume = data.Volume or 0.5
         sound.RollOffMode = Enum.RollOffMode.Inverse
         sound.RollOffMinDistance = data.MinDistance or 10
         sound.RollOffMaxDistance = data.MaxDistance or 100
-        sound.Looped = data.Looped or true
+        sound.Looped = data.Looped ~= nil and data.Looped or true
         sound.Parent = soundFolder
         return sound
 end

@@ -11,19 +11,19 @@ local ANIMATION_LIBRARY = {
                 Idle = "rbxassetid://507766951",
                 Walk = "rbxassetid://507777826",
                 Chase = "rbxassetid://891617961",
-                Disappear = "rbxassetid://616006195",
+                Disappear = "rbxassetid://616005863",
         },
         Event = {
                 Idle = "rbxassetid://7546373645",
                 Walk = "rbxassetid://7546567407",
                 Chase = "rbxassetid://7546569817",
-                Disappear = "rbxassetid://616006195",
+                Disappear = "rbxassetid://616005863",
         },
         Default = {
                 Idle = "rbxassetid://507766666",
                 Walk = "rbxassetid://913402848",
                 Chase = "rbxassetid://913376220",
-                Disappear = "rbxassetid://616006195",
+                Disappear = "rbxassetid://616005863",
         },
 }
 
