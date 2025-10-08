@@ -176,6 +176,35 @@ local eliminationCameraToken
 
 local sentryWarningValue = State:FindFirstChild("SentryCanCloak")
 local sentryWarningConnection
+local SENTRY_WARNING_COUNTDOWN_DURATION = 7
+local currentCountdownSeconds
+local lastCountdownSeconds
+local sentryWarningCountdownStartSeconds
+local sentryWarningCountdownHideAtSeconds
+
+local function resetSentryWarningCountdownWindow()
+        currentCountdownSeconds = nil
+        lastCountdownSeconds = nil
+        sentryWarningCountdownStartSeconds = nil
+        sentryWarningCountdownHideAtSeconds = nil
+end
+
+local function isSentryWarningCountdownWindowActive()
+        if not sentryWarningCountdownStartSeconds then
+                return false
+        end
+        if not currentCountdownSeconds then
+                return false
+        end
+
+        local hideAt = sentryWarningCountdownHideAtSeconds
+        if hideAt == nil then
+                hideAt = math.max(sentryWarningCountdownStartSeconds - SENTRY_WARNING_COUNTDOWN_DURATION, 0)
+                sentryWarningCountdownHideAtSeconds = hideAt
+        end
+
+        return currentCountdownSeconds > hideAt
+end
 
 local function isRoundActiveForWarning(state)
         state = state or currentRoundState
@@ -186,11 +215,19 @@ local function updateSentryWarningVisibility()
         if not sentryWarningFrame then
                 return
         end
-        if not sentryWarningValue then
+        if not sentryWarningValue or not sentryWarningValue.Value then
                 sentryWarningFrame.Visible = false
                 return
         end
-        sentryWarningFrame.Visible = sentryWarningValue.Value and isRoundActiveForWarning()
+        if not isRoundActiveForWarning() then
+                sentryWarningFrame.Visible = false
+                return
+        end
+        if not isSentryWarningCountdownWindowActive() then
+                sentryWarningFrame.Visible = false
+                return
+        end
+        sentryWarningFrame.Visible = true
 end
 
 local function attachSentryWarningValue(value)
@@ -244,6 +281,8 @@ end
 
 local function hideCountdown()
         countdownLabel.Visible = false
+        resetSentryWarningCountdownWindow()
+        updateSentryWarningVisibility()
 end
 
 local function updateCountdownDisplay(seconds)
@@ -261,6 +300,14 @@ local function updateCountdownDisplay(seconds)
                 hideCountdown()
                 return
         end
+
+        if not lastCountdownSeconds or seconds > lastCountdownSeconds then
+                sentryWarningCountdownStartSeconds = seconds
+                sentryWarningCountdownHideAtSeconds = math.max(seconds - SENTRY_WARNING_COUNTDOWN_DURATION, 0)
+        end
+
+        currentCountdownSeconds = seconds
+        lastCountdownSeconds = seconds
 
         countdownLabel.Visible = true
 
@@ -290,6 +337,8 @@ local function updateCountdownDisplay(seconds)
                 countdownStroke.Thickness = 2
                 countdownStroke.Color = Color3.fromRGB(0, 0, 0)
         end
+
+        updateSentryWarningVisibility()
 end
 
 local function isLobbyPhase(phase)
