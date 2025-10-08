@@ -209,18 +209,21 @@ local function normalizeBoardFraction(value, wallHeight, baseline)
 
     local candidates = {}
     local function pushCandidate(candidateValue)
-        local withinRange = candidateValue >= 0 and candidateValue <= 1 and 0 or 1
+        local clampedValue = math.clamp(candidateValue, 0, 1)
+        local clampOffset = math.abs(candidateValue - clampedValue)
+        local withinRange = clampedValue >= 0 and clampedValue <= 1 and 0 or 1
         local deviation
         if typeof(baseline) == "number" then
-            deviation = math.abs(candidateValue - baseline)
+            deviation = math.abs(clampedValue - baseline)
         else
-            deviation = math.abs(candidateValue)
+            deviation = math.abs(clampedValue)
         end
         candidates[#candidates + 1] = {
-            value = candidateValue,
+            value = clampedValue,
             withinRange = withinRange,
             deviation = deviation,
-            magnitude = math.abs(candidateValue),
+            magnitude = math.abs(clampedValue),
+            clampOffset = clampOffset,
         }
     end
 
@@ -234,14 +237,17 @@ local function normalizeBoardFraction(value, wallHeight, baseline)
 
     if #candidates == 0 then
         if wallHeight and wallHeight > 0 then
-            return value / wallHeight
+            return math.clamp(value / wallHeight, 0, 1)
         end
-        return value / 100
+        return math.clamp(value / 100, 0, 1)
     end
 
     table.sort(candidates, function(a, b)
         if a.withinRange ~= b.withinRange then
             return a.withinRange < b.withinRange
+        end
+        if a.clampOffset ~= b.clampOffset then
+            return a.clampOffset < b.clampOffset
         end
         if a.deviation ~= b.deviation then
             return a.deviation < b.deviation
