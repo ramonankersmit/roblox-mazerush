@@ -45,6 +45,9 @@
         },
         "ThemeVote": {
           "$className": "RemoteEvent"
+        },
+        "EventMonsterEffects": {
+          "$className": "RemoteEvent"
         }
       },
       "State": {

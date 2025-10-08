@@ -9,6 +9,7 @@ local Pickup = Remotes:WaitForChild("Pickup")
 local DoorOpened = Remotes:WaitForChild("DoorOpened")
 local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
+local EventMonsterEffects = Remotes:WaitForChild("EventMonsterEffects")
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local ThemeConfig = require(game.ReplicatedStorage.Modules.ThemeConfig)
@@ -147,6 +148,102 @@ sentryWarningLabel.TextScaled = true
 sentryWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
 sentryWarningLabel.Text = "Let op: Sentry's kunnen tijdelijk onzichtbaar worden!"
 sentryWarningLabel.Parent = sentryWarningFrame
+
+local eventWarningFrame = Instance.new("Frame")
+eventWarningFrame.Name = "EventMonsterWarning"
+eventWarningFrame.Size = UDim2.new(0, 360, 0, 58)
+eventWarningFrame.Position = UDim2.new(0.5, -180, 0, 84)
+eventWarningFrame.BackgroundTransparency = 0.15
+eventWarningFrame.BackgroundColor3 = Color3.fromRGB(160, 30, 30)
+eventWarningFrame.BorderSizePixel = 0
+eventWarningFrame.Visible = false
+eventWarningFrame.Parent = gui
+
+local eventWarningCorner = Instance.new("UICorner")
+eventWarningCorner.CornerRadius = UDim.new(0, 14)
+eventWarningCorner.Parent = eventWarningFrame
+
+local eventWarningStroke = Instance.new("UIStroke")
+eventWarningStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+eventWarningStroke.Thickness = 2
+eventWarningStroke.Color = Color3.fromRGB(255, 120, 120)
+eventWarningStroke.Parent = eventWarningFrame
+
+local eventWarningLabel = Instance.new("TextLabel")
+eventWarningLabel.Name = "Label"
+eventWarningLabel.Size = UDim2.new(1, -24, 1, -16)
+eventWarningLabel.Position = UDim2.new(0, 12, 0, 8)
+eventWarningLabel.BackgroundTransparency = 1
+eventWarningLabel.TextWrapped = true
+eventWarningLabel.Font = Enum.Font.GothamBlack
+eventWarningLabel.TextScaled = true
+eventWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
+eventWarningLabel.Text = ""
+eventWarningLabel.Parent = eventWarningFrame
+
+local defaultEventWarningColor = eventWarningFrame.BackgroundColor3
+local eventWarningToken
+
+local function stopEventMonsterWarning()
+        eventWarningToken = nil
+        eventWarningFrame.Visible = false
+        eventWarningFrame.BackgroundColor3 = defaultEventWarningColor
+        eventWarningStroke.Color = Color3.fromRGB(255, 120, 120)
+end
+
+local function applyEventWarning(payload)
+        payload = payload or {}
+        local message = payload.message or "Gevaar! Een eventmonster is actief."
+        eventWarningLabel.Text = message
+        eventWarningFrame.Visible = true
+
+        local color = payload.color
+        if typeof(color) == "Color3" then
+                eventWarningFrame.BackgroundColor3 = color
+                eventWarningStroke.Color = color:Lerp(Color3.new(1, 1, 1), 0.35)
+        else
+                eventWarningFrame.BackgroundColor3 = defaultEventWarningColor
+                eventWarningStroke.Color = Color3.fromRGB(255, 120, 120)
+        end
+
+        if payload.soundId then
+                playUISound(payload.soundId)
+        end
+
+        local interval = tonumber(payload.flickerInterval)
+        local token = {}
+        eventWarningToken = token
+
+        if interval and interval > 0 then
+                local baseColor = eventWarningFrame.BackgroundColor3
+                task.spawn(function()
+                        local bright = true
+                        while eventWarningToken == token do
+                                bright = not bright
+                                local lerpFactor = bright and 0.15 or 0.45
+                                eventWarningFrame.BackgroundColor3 = baseColor:Lerp(Color3.new(0, 0, 0), lerpFactor)
+                                task.wait(interval)
+                        end
+                end)
+        end
+
+        local duration = tonumber(payload.duration)
+        if duration and duration > 0 then
+                task.delay(duration, function()
+                        if eventWarningToken == token then
+                                stopEventMonsterWarning()
+                        end
+                end)
+        end
+end
+
+EventMonsterEffects.OnClientEvent:Connect(function(stage, payload)
+        if stage == "Warn" or stage == "Start" then
+                applyEventWarning(payload)
+        elseif stage == "Stop" then
+                stopEventMonsterWarning()
+        end
+end)
 
 local countdownLabel = Instance.new("TextLabel")
 countdownLabel.Name = "RoundCountdown"
