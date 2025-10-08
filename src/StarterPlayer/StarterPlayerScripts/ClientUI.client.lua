@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local Replicated = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local Remotes = Replicated:WaitForChild("Remotes")
 local RoundState = Remotes:WaitForChild("RoundState")
@@ -168,6 +169,38 @@ countdownStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 countdownStroke.Thickness = 2
 countdownStroke.Color = Color3.fromRGB(0, 0, 0)
 countdownStroke.Parent = countdownLabel
+
+local themeFlashLabel = Instance.new("TextLabel")
+themeFlashLabel.Name = "ThemeFlash"
+themeFlashLabel.Size = UDim2.new(0, 420, 0, 120)
+themeFlashLabel.Position = UDim2.new(0.5, 0, 0.2, 0)
+themeFlashLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+themeFlashLabel.BackgroundColor3 = Color3.fromRGB(24, 28, 42)
+themeFlashLabel.BackgroundTransparency = 1
+themeFlashLabel.Text = ""
+themeFlashLabel.TextScaled = true
+themeFlashLabel.TextWrapped = true
+themeFlashLabel.Font = Enum.Font.GothamBlack
+themeFlashLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+themeFlashLabel.Visible = false
+themeFlashLabel.ZIndex = 20
+themeFlashLabel.Parent = gui
+
+local themeFlashCorner = Instance.new("UICorner")
+themeFlashCorner.CornerRadius = UDim.new(0, 18)
+themeFlashCorner.Parent = themeFlashLabel
+
+local themeFlashStroke = Instance.new("UIStroke")
+themeFlashStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+themeFlashStroke.Thickness = 3
+themeFlashStroke.Transparency = 1
+themeFlashStroke.Color = Color3.fromRGB(210, 220, 255)
+themeFlashStroke.Parent = themeFlashLabel
+
+local themeFlashFadeInTween
+local themeFlashFadeOutTween
+local themeFlashStrokeFadeInTween
+local themeFlashStrokeFadeOutTween
 
 local scoreboardData
 local currentRoundState = "IDLE"
@@ -339,6 +372,112 @@ local function updateCountdownDisplay(seconds)
         end
 
         updateSentryWarningVisibility()
+end
+
+local themeFlashToken = 0
+local lastThemeFlashSequence = nil
+
+local function flashThemeSelection(info)
+        if not info or not themeFlashLabel then
+                return
+        end
+
+        themeFlashToken += 1
+        local token = themeFlashToken
+
+        if themeFlashFadeInTween then themeFlashFadeInTween:Cancel(); themeFlashFadeInTween = nil end
+        if themeFlashFadeOutTween then themeFlashFadeOutTween:Cancel(); themeFlashFadeOutTween = nil end
+        if themeFlashStrokeFadeInTween then themeFlashStrokeFadeInTween:Cancel(); themeFlashStrokeFadeInTween = nil end
+        if themeFlashStrokeFadeOutTween then themeFlashStrokeFadeOutTween:Cancel(); themeFlashStrokeFadeOutTween = nil end
+
+        local themeName = info.themeName or info.name or info.themeId or "?"
+        local color = info.color
+        if typeof(color) ~= "Color3" then
+                color = Color3.fromRGB(210, 220, 255)
+        end
+
+        local backgroundBase = Color3.fromRGB(24, 28, 42)
+        local backgroundColor = color:Lerp(backgroundBase, 0.6)
+        local lines = {string.format("Volgende thema: %s", themeName)}
+
+        local autoDelay = tonumber(info.autoStartDelay)
+        if autoDelay and autoDelay > 0 then
+                local seconds = math.max(1, math.floor(autoDelay + 0.5))
+                table.insert(lines, string.format("Ronde start over %ds", seconds))
+        else
+                table.insert(lines, "Ronde start automatisch")
+        end
+
+        themeFlashLabel.Text = table.concat(lines, "\n")
+        themeFlashLabel.BackgroundColor3 = backgroundColor
+        themeFlashLabel.TextTransparency = 1
+        themeFlashLabel.BackgroundTransparency = 1
+        themeFlashStroke.Color = color
+        themeFlashStroke.Transparency = 1
+        themeFlashLabel.Visible = true
+
+        local fadeInInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local fadeInTween = TweenService:Create(themeFlashLabel, fadeInInfo, {
+                BackgroundTransparency = 0.15,
+                TextTransparency = 0,
+        })
+        local strokeFadeInTween = TweenService:Create(themeFlashStroke, fadeInInfo, {
+                Transparency = 0.25,
+        })
+        themeFlashFadeInTween = fadeInTween
+        themeFlashStrokeFadeInTween = strokeFadeInTween
+        fadeInTween.Completed:Connect(function()
+                if themeFlashFadeInTween == fadeInTween and fadeInTween.PlaybackState == Enum.PlaybackState.Completed then
+                        themeFlashFadeInTween = nil
+                end
+        end)
+        strokeFadeInTween.Completed:Connect(function()
+                if themeFlashStrokeFadeInTween == strokeFadeInTween and strokeFadeInTween.PlaybackState == Enum.PlaybackState.Completed then
+                        themeFlashStrokeFadeInTween = nil
+                end
+        end)
+        fadeInTween:Play()
+        strokeFadeInTween:Play()
+
+        local displaySeconds = 3
+        if autoDelay and autoDelay > 0 then
+                displaySeconds = math.max(autoDelay, 3)
+        end
+
+        task.delay(displaySeconds, function()
+                if themeFlashToken ~= token then
+                        return
+                end
+
+                local fadeOutInfo = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+                local fadeOutTween = TweenService:Create(themeFlashLabel, fadeOutInfo, {
+                        BackgroundTransparency = 1,
+                        TextTransparency = 1,
+                })
+                local strokeFadeOutTween = TweenService:Create(themeFlashStroke, fadeOutInfo, {
+                        Transparency = 1,
+                })
+                themeFlashFadeOutTween = fadeOutTween
+                themeFlashStrokeFadeOutTween = strokeFadeOutTween
+
+                fadeOutTween.Completed:Connect(function()
+                        if themeFlashFadeOutTween == fadeOutTween and fadeOutTween.PlaybackState == Enum.PlaybackState.Completed then
+                                if themeFlashToken == token then
+                                        themeFlashLabel.Visible = false
+                                end
+                                themeFlashFadeOutTween = nil
+                        end
+                end)
+
+                strokeFadeOutTween.Completed:Connect(function()
+                        if themeFlashStrokeFadeOutTween == strokeFadeOutTween and strokeFadeOutTween.PlaybackState == Enum.PlaybackState.Completed then
+                                themeFlashStrokeFadeOutTween = nil
+                        end
+                end)
+
+                fadeOutTween:Play()
+                strokeFadeOutTween:Play()
+        end)
 end
 
 local function isLobbyPhase(phase)
@@ -1762,6 +1901,18 @@ local function renderThemeState(themeState, lobbyState)
         end
 
         updatePreviewHighlights(highlightId, accentColor)
+
+        local flashInfo = themeState.selectionFlash
+        if flashInfo and type(flashInfo) == "table" then
+                local sequence = flashInfo.sequence
+                if sequence == nil then
+                        sequence = string.format("%s:%s", tostring(flashInfo.themeId or ""), tostring(flashInfo.themeName or ""))
+                end
+                if lastThemeFlashSequence ~= sequence then
+                        lastThemeFlashSequence = sequence
+                        flashThemeSelection(flashInfo)
+                end
+        end
 
         for themeId, entry in pairs(themeButtons) do
                 if not seen[themeId] then
