@@ -1,4 +1,5 @@
 local RunService = game:GetService("RunService")
+local PathfindingService = game:GetService("PathfindingService")
 
 local SentryController = {}
 SentryController.__index = SentryController
@@ -23,6 +24,8 @@ local DEFAULTS = {
     AlertSoundVolume = 0.7,
     AlertSoundMinDistance = 6,
     AlertSoundMaxDistance = 120,
+    AgentRadius = 2.5,
+    AgentHeight = 6,
 }
 
 local function ensurePrimaryPart(model)
@@ -250,6 +253,7 @@ function SentryController.new(enemyModel, config, context)
     self.workspace = context.Workspace or game:GetService("Workspace")
     self.playersService = context.Players or game:GetService("Players")
     self.globalConfig = context.GlobalConfig or {}
+    self.pathfindingService = context.PathfindingService or PathfindingService
     self.humanoid = getHumanoid(enemyModel)
     self.rootPart = ensurePrimaryPart(enemyModel)
     self.state = "PATROL"
@@ -259,6 +263,7 @@ function SentryController.new(enemyModel, config, context)
     self.timeWithoutSight = 0
     self.sightAccumulator = 0
     self.currentDestination = nil
+    self.currentMoveTarget = nil
     self.currentIndex = 1
     self.returnIndex = nil
     self.routeLoop = true
@@ -270,6 +275,8 @@ function SentryController.new(enemyModel, config, context)
     self.cloakToken = 0
     self.isInvisible = false
     self.originalAppearances = {}
+    self.pathNodes = nil
+    self.pathNodeIndex = 0
 
     local routeMeta = config.RouteMeta
     local routeContext = config.RouteContext
@@ -359,8 +366,30 @@ function SentryController.new(enemyModel, config, context)
     self.alertSound = nil
     self.lastAlertTime = 0
 
+    local agentRadius = config.AgentRadius
+    if routeMeta and type(routeMeta.AgentRadius) == "number" then
+        agentRadius = routeMeta.AgentRadius
+    end
+    if type(agentRadius) ~= "number" then
+        agentRadius = DEFAULTS.AgentRadius
+    end
+    self.agentRadius = math.max(agentRadius, 0.5)
+
+    local agentHeight = config.AgentHeight
+    if routeMeta and type(routeMeta.AgentHeight) == "number" then
+        agentHeight = routeMeta.AgentHeight
+    end
+    if type(agentHeight) ~= "number" then
+        agentHeight = DEFAULTS.AgentHeight
+    end
+    self.agentHeight = math.max(agentHeight, 2)
+
     if self.humanoid then
         self.humanoid.WalkSpeed = self.patrolSpeed
+        local moveConn = self.humanoid.MoveToFinished:Connect(function(reached)
+            self:_onMoveFinished(reached)
+        end)
+        table.insert(self.connections, moveConn)
     end
 
     if #self.routePoints > 0 then
@@ -521,20 +550,158 @@ function SentryController:_setHumanoidSpeed(speed)
     self.humanoid.WalkSpeed = math.max(speed, 0)
 end
 
+function SentryController:_clearPath()
+    self.pathNodes = nil
+    self.pathNodeIndex = 0
+    self.currentMoveTarget = nil
+    self.lastMoveCommand = 0
+end
+
+function SentryController:_computePathNodes(targetPosition)
+    if not self.pathfindingService then
+        return nil
+    end
+    local root = self:_getRootPart()
+    if not root then
+        return nil
+    end
+    local success, path = pcall(function()
+        return self.pathfindingService:CreatePath({
+            AgentRadius = self.agentRadius,
+            AgentHeight = self.agentHeight,
+            AgentCanJump = false,
+            AgentCanClimb = false,
+        })
+    end)
+    if not success or not path then
+        return nil
+    end
+    local ok, err = pcall(function()
+        path:ComputeAsync(root.Position, targetPosition)
+    end)
+    if not ok or path.Status ~= Enum.PathStatus.Success then
+        if path.Destroy then
+            path:Destroy()
+        end
+        return nil
+    end
+    local waypoints = path:GetWaypoints()
+    if path.Destroy then
+        path:Destroy()
+    end
+    local nodes = {}
+    if type(waypoints) ~= "table" then
+        return nodes
+    end
+    for index, waypoint in ipairs(waypoints) do
+        if waypoint and waypoint.Position then
+            if index > 1 or (root.Position - waypoint.Position).Magnitude > 1 then
+                nodes[#nodes + 1] = {
+                    Position = waypoint.Position,
+                    Action = waypoint.Action,
+                }
+            end
+        end
+    end
+    return nodes
+end
+
+function SentryController:_beginPathTo(position)
+    if not self.humanoid then
+        return
+    end
+    local nodes = self:_computePathNodes(position)
+    if nodes and #nodes > 0 then
+        self.pathNodes = nodes
+        self.pathNodeIndex = 1
+        self.currentMoveTarget = nil
+        self:_moveToNextNode(true)
+    else
+        self.pathNodes = nil
+        self.pathNodeIndex = 0
+        self.currentMoveTarget = position
+        self.lastMoveCommand = os.clock()
+        self.humanoid:MoveTo(position)
+    end
+end
+
+function SentryController:_moveToNextNode(force)
+    if not self.humanoid then
+        return
+    end
+    local node
+    if self.pathNodes and self.pathNodeIndex > 0 then
+        node = self.pathNodes[self.pathNodeIndex]
+    end
+    local target = node and node.Position or self.currentDestination
+    if not target then
+        self.currentMoveTarget = nil
+        return
+    end
+    self.currentMoveTarget = target
+    if node and node.Action == Enum.PathWaypointAction.Jump then
+        self.humanoid.Jump = true
+    end
+    if force or os.clock() - self.lastMoveCommand >= 0.2 then
+        self.lastMoveCommand = os.clock()
+        self.humanoid:MoveTo(target)
+    end
+end
+
+function SentryController:_onMoveFinished(reached)
+    if self.destroyed or not self.humanoid then
+        return
+    end
+    if self.pathNodes and self.pathNodeIndex > 0 and self.pathNodeIndex <= #self.pathNodes then
+        if reached then
+            self.pathNodeIndex += 1
+            if self.pathNodeIndex > #self.pathNodes then
+                self.pathNodes = nil
+                self.pathNodeIndex = 0
+            end
+        else
+            local destination = self.currentDestination
+            self.pathNodes = nil
+            self.pathNodeIndex = 0
+            self.currentMoveTarget = nil
+            self.lastMoveCommand = 0
+            if destination then
+                self:_beginPathTo(destination)
+            end
+            return
+        end
+    elseif not reached and self.currentDestination then
+        self.lastMoveCommand = 0
+        self:_beginPathTo(self.currentDestination)
+        return
+    end
+
+    if self.currentDestination then
+        local root = self:_getRootPart()
+        if reached and root and (root.Position - self.currentDestination).Magnitude <= self.routeTolerance then
+            self.currentMoveTarget = nil
+            return
+        end
+        self:_moveToNextNode(true)
+    else
+        self.currentMoveTarget = nil
+    end
+end
+
 function SentryController:_setDestination(position)
     if not self.humanoid then
         return
     end
     if not position then
         self.currentDestination = nil
+        self:_clearPath()
         return
     end
     if self.currentDestination and (self.currentDestination - position).Magnitude < 0.25 then
         return
     end
     self.currentDestination = position
-    self.lastMoveCommand = os.clock()
-    self.humanoid:MoveTo(position)
+    self:_beginPathTo(position)
 end
 
 function SentryController:_ensureDestination(position)
@@ -547,6 +714,13 @@ function SentryController:_ensureDestination(position)
     end
     if (self.currentDestination - position).Magnitude > 0.5 then
         self:_setDestination(position)
+        return
+    end
+    if not self.currentMoveTarget then
+        local root = self:_getRootPart()
+        if root and (root.Position - position).Magnitude > (self.routeTolerance * 0.5) then
+            self:_beginPathTo(position)
+        end
     end
 end
 
@@ -575,6 +749,8 @@ function SentryController:_enterPatrol(resume)
     self.targetPlayer = nil
     self.returnIndex = nil
     self.timeWithoutSight = 0
+    self:_clearPath()
+    self.currentDestination = nil
     self:_cancelPendingCloak()
     self:_setInvisible(false)
     self:_setHumanoidSpeed(self.patrolSpeed)
@@ -600,6 +776,8 @@ function SentryController:_enterChase(player, character)
     self.timeWithoutSight = 0
     self.returnIndex = nil
     self.lastKnownPosition = nil
+    self:_clearPath()
+    self.currentDestination = nil
     self:_setHumanoidSpeed(self.patrolSpeed * self.chaseSpeedMultiplier)
     self:_playAlertSound()
     self:_requestCloak()
@@ -613,6 +791,8 @@ function SentryController:_enterReturn()
     self.targetPlayer = nil
     self.targetCharacter = nil
     self.timeWithoutSight = 0
+    self:_clearPath()
+    self.currentDestination = nil
     self:_cancelPendingCloak()
     self:_setInvisible(false)
     self:_setHumanoidSpeed(self.patrolSpeed * self.returnSpeedMultiplier)
@@ -848,12 +1028,17 @@ function SentryController:_update(dt)
             self:_scanForTargets()
         end
     end
-    if self.currentDestination and self.humanoid then
+    if self.humanoid then
         local root = self:_getRootPart()
-        if root and (root.Position - self.currentDestination).Magnitude > self.routeTolerance then
-            if os.clock() - self.lastMoveCommand >= 1 then
+        local target = self.currentMoveTarget or self.currentDestination
+        if root and target and (root.Position - target).Magnitude > (self.routeTolerance * 0.5) then
+            local sinceCommand = os.clock() - self.lastMoveCommand
+            if sinceCommand >= 1 then
                 self.lastMoveCommand = os.clock()
-                self.humanoid:MoveTo(self.currentDestination)
+                self.humanoid:MoveTo(target)
+            end
+            if sinceCommand >= 3 and self.currentDestination then
+                self:_beginPathTo(self.currentDestination)
             end
         end
     end
@@ -871,6 +1056,8 @@ function SentryController:Destroy()
         return
     end
     self.destroyed = true
+    self:_clearPath()
+    self.currentDestination = nil
     self:_setInvisible(false)
     for _, connection in ipairs(self.connections) do
         connection:Disconnect()
