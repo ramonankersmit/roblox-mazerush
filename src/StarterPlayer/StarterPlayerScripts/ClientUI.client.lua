@@ -711,8 +711,6 @@ local function isGameplayState(state)
 end
 
 local updateMinimapVisibility
-local minimapOn = true
-local mapFrame
 
 local function clearTextChildren(container)
         for _, child in ipairs(container:GetChildren()) do
@@ -1502,358 +1500,424 @@ RoundState.OnClientEvent:Connect(function(state)
         end
 end)
 
--- === Minimap (perk) ===
-mapFrame = Instance.new("Frame"); mapFrame.Name = "Minimap"; mapFrame.Size = UDim2.new(0, 200, 0, 200)
-mapFrame.Position = UDim2.new(1, -220, 0, 220); mapFrame.BackgroundColor3 = Color3.fromRGB(20,20,30); mapFrame.BackgroundTransparency = 0.25; mapFrame.Parent = gui
-mapFrame.Active = true
-local mapBtn = Instance.new("TextButton"); mapBtn.Size = UDim2.new(1,0,0,24); mapBtn.Text = "Minimap (perk) ON"; mapBtn.Parent = mapFrame
-local mapCanvas = Instance.new("Frame"); mapCanvas.Size = UDim2.new(1, -8, 1, -32); mapCanvas.Position = UDim2.new(0,4,0,28); mapCanvas.BackgroundTransparency = 1; mapCanvas.ClipsDescendants = true; mapCanvas.Parent = mapFrame
+local function initializeMinimap()
+        local minimapOn = true
 
-local mazeWallFolder = Instance.new("Folder"); mazeWallFolder.Name = "MazeWalls"; mazeWallFolder.Parent = mapCanvas
+        local mapFrame = Instance.new("Frame")
+        mapFrame.Name = "Minimap"
+        mapFrame.Size = UDim2.new(0, 200, 0, 200)
+        mapFrame.Position = UDim2.new(1, -220, 0, 220)
+        mapFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+        mapFrame.BackgroundTransparency = 0.25
+        mapFrame.Parent = gui
+        mapFrame.Active = true
 
-local function styleMazeWallFrame(frame)
-        frame.BackgroundColor3 = Color3.fromRGB(170, 180, 210)
-        frame.BackgroundTransparency = 0.15
-        frame.BorderSizePixel = 0
-        frame.ZIndex = 1
-end
+        local mapBtn = Instance.new("TextButton")
+        mapBtn.Size = UDim2.new(1, 0, 0, 24)
+        mapBtn.Text = "Minimap (perk) ON"
+        mapBtn.Parent = mapFrame
 
-local function clearMazeWalls()
-        for _, child in ipairs(mazeWallFolder:GetChildren()) do
-                child:Destroy()
-        end
-end
+        local mapCanvas = Instance.new("Frame")
+        mapCanvas.Size = UDim2.new(1, -8, 1, -32)
+        mapCanvas.Position = UDim2.new(0, 4, 0, 28)
+        mapCanvas.BackgroundTransparency = 1
+        mapCanvas.ClipsDescendants = true
+        mapCanvas.Parent = mapFrame
 
-local function layoutMazeWall(frame, cellX, cellY, dir)
-        local width = RoundConfig.GridWidth
-        local height = RoundConfig.GridHeight
-        if width < 1 or height < 1 then
-                frame.Visible = false
-                return
-        end
+        local mazeWallFolder = Instance.new("Folder")
+        mazeWallFolder.Name = "MazeWalls"
+        mazeWallFolder.Parent = mapCanvas
 
-        local thickness = 2
-        frame.Visible = true
-
-        if dir == "N" then
-                local centerX = (cellX - 0.5) / width
-                local centerY = (cellY - 1) / height
-                frame.AnchorPoint = Vector2.new(0.5, 0.5)
-                frame.Position = UDim2.new(centerX, 0, centerY, 0)
-                frame.Size = UDim2.new(1 / width, 0, 0, thickness)
-        elseif dir == "S" then
-                local centerX = (cellX - 0.5) / width
-                local centerY = cellY / height
-                frame.AnchorPoint = Vector2.new(0.5, 0.5)
-                frame.Position = UDim2.new(centerX, 0, centerY, 0)
-                frame.Size = UDim2.new(1 / width, 0, 0, thickness)
-        elseif dir == "E" then
-                local centerX = cellX / width
-                local centerY = (cellY - 0.5) / height
-                frame.AnchorPoint = Vector2.new(0.5, 0.5)
-                frame.Position = UDim2.new(centerX, 0, centerY, 0)
-                frame.Size = UDim2.new(0, thickness, 1 / height, 0)
-        elseif dir == "W" then
-                local centerX = (cellX - 1) / width
-                local centerY = (cellY - 0.5) / height
-                frame.AnchorPoint = Vector2.new(0.5, 0.5)
-                frame.Position = UDim2.new(centerX, 0, centerY, 0)
-                frame.Size = UDim2.new(0, thickness, 1 / height, 0)
-        end
-end
-
-local function refreshMazeWalls(mazeFolder)
-        clearMazeWalls()
-        local folder = mazeFolder or workspace:FindFirstChild("Maze")
-        if not folder then
-                return
+        local function styleMazeWallFrame(frame)
+                frame.BackgroundColor3 = Color3.fromRGB(170, 180, 210)
+                frame.BackgroundTransparency = 0.15
+                frame.BorderSizePixel = 0
+                frame.ZIndex = 1
         end
 
-        for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("BasePart") then
-                        local cellX, cellY, dir = child.Name:match("^W_(%d+)_(%d+)_([NSEW])$")
-                        if cellX and cellY and dir then
-                                local frame = Instance.new("Frame")
-                                frame.Name = child.Name
-                                styleMazeWallFrame(frame)
-                                layoutMazeWall(frame, tonumber(cellX), tonumber(cellY), dir)
-                                frame.Parent = mazeWallFolder
+        local function clearMazeWalls()
+                for _, child in ipairs(mazeWallFolder:GetChildren()) do
+                        child:Destroy()
+                end
+        end
+
+        local function layoutMazeWall(frame, cellX, cellY, dir)
+                local width = RoundConfig.GridWidth
+                local height = RoundConfig.GridHeight
+                if width < 1 or height < 1 then
+                        frame.Visible = false
+                        return
+                end
+
+                local thickness = 2
+                frame.Visible = true
+
+                if dir == "N" then
+                        local centerX = (cellX - 0.5) / width
+                        local centerY = (cellY - 1) / height
+                        frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                        frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                        frame.Size = UDim2.new(1 / width, 0, 0, thickness)
+                elseif dir == "S" then
+                        local centerX = (cellX - 0.5) / width
+                        local centerY = cellY / height
+                        frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                        frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                        frame.Size = UDim2.new(1 / width, 0, 0, thickness)
+                elseif dir == "E" then
+                        local centerX = cellX / width
+                        local centerY = (cellY - 0.5) / height
+                        frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                        frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                        frame.Size = UDim2.new(0, thickness, 1 / height, 0)
+                elseif dir == "W" then
+                        local centerX = (cellX - 1) / width
+                        local centerY = (cellY - 0.5) / height
+                        frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                        frame.Position = UDim2.new(centerX, 0, centerY, 0)
+                        frame.Size = UDim2.new(0, thickness, 1 / height, 0)
+                end
+        end
+
+        local function refreshMazeWalls(mazeFolder)
+                clearMazeWalls()
+                local folder = mazeFolder or workspace:FindFirstChild("Maze")
+                if not folder then
+                        return
+                end
+
+                for _, child in ipairs(folder:GetChildren()) do
+                        if child:IsA("BasePart") then
+                                local cellX, cellY, dir = child.Name:match("^W_(%d+)_(%d+)_([NSEW])$")
+                                if cellX and cellY and dir then
+                                        local frame = Instance.new("Frame")
+                                        frame.Name = child.Name
+                                        styleMazeWallFrame(frame)
+                                        layoutMazeWall(frame, tonumber(cellX), tonumber(cellY), dir)
+                                        frame.Parent = mazeWallFolder
+                                end
                         end
                 end
         end
-end
 
-local mazeFolderConnections = {}
-local currentMazeFolder = nil
-local pendingMazeRefresh = false
+        local mazeFolderConnections = {}
+        local currentMazeFolder = nil
+        local pendingMazeRefresh = false
 
-local function disconnectMazeFolderConnections()
-        for _, conn in ipairs(mazeFolderConnections) do
-                conn:Disconnect()
-        end
-        table.clear(mazeFolderConnections)
-end
-
-local function scheduleMazeRefresh()
-        if pendingMazeRefresh then
-                return
-        end
-        pendingMazeRefresh = true
-        task.delay(0.05, function()
-                pendingMazeRefresh = false
-                refreshMazeWalls(currentMazeFolder)
-        end)
-end
-
-local function setMazeFolder(folder)
-        if currentMazeFolder == folder then
-                scheduleMazeRefresh()
-                return
+        local function disconnectMazeFolderConnections()
+                for _, conn in ipairs(mazeFolderConnections) do
+                        conn:Disconnect()
+                end
+                table.clear(mazeFolderConnections)
         end
 
-        disconnectMazeFolderConnections()
-        currentMazeFolder = folder
-
-        if currentMazeFolder then
-                table.insert(mazeFolderConnections, currentMazeFolder.ChildAdded:Connect(scheduleMazeRefresh))
-                table.insert(mazeFolderConnections, currentMazeFolder.ChildRemoved:Connect(scheduleMazeRefresh))
-        end
-
-        scheduleMazeRefresh()
-end
-
-setMazeFolder(workspace:FindFirstChild("Maze"))
-
-workspace.ChildAdded:Connect(function(child)
-        if child.Name == "Maze" then
-                setMazeFolder(child)
-        end
-end)
-
-workspace.ChildRemoved:Connect(function(child)
-        if child == currentMazeFolder then
-                setMazeFolder(nil)
-        end
-end)
-
-local draggingMap = false
-local dragInput
-local dragStart
-local startPos
-
-local function toVector2(position)
-        return Vector2.new(position.X, position.Y)
-end
-
-local function updateDrag(input)
-        local delta = toVector2(input.Position) - dragStart
-        mapFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-mapFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                draggingMap = true
-                dragStart = toVector2(input.Position)
-                startPos = mapFrame.Position
-                dragInput = input
-
-                input.Changed:Connect(function()
-                        if input.UserInputState == Enum.UserInputState.End then
-                                draggingMap = false
-                                dragInput = nil
-                        end
+        local function scheduleMazeRefresh()
+                if pendingMazeRefresh then
+                        return
+                end
+                pendingMazeRefresh = true
+                task.delay(0.05, function()
+                        pendingMazeRefresh = false
+                        refreshMazeWalls(currentMazeFolder)
                 end)
         end
-end)
 
-mapFrame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                dragInput = input
+        local function setMazeFolder(folder)
+                if currentMazeFolder == folder then
+                        scheduleMazeRefresh()
+                        return
+                end
+
+                disconnectMazeFolderConnections()
+                currentMazeFolder = folder
+
+                if currentMazeFolder then
+                        table.insert(mazeFolderConnections, currentMazeFolder.ChildAdded:Connect(scheduleMazeRefresh))
+                        table.insert(mazeFolderConnections, currentMazeFolder.ChildRemoved:Connect(scheduleMazeRefresh))
+                end
+
+                scheduleMazeRefresh()
         end
-end)
 
-UIS.InputChanged:Connect(function(input)
-        if input == dragInput and draggingMap then
-                updateDrag(input)
+        setMazeFolder(workspace:FindFirstChild("Maze"))
+
+        workspace.ChildAdded:Connect(function(child)
+                if child.Name == "Maze" then
+                        setMazeFolder(child)
+                end
+        end)
+
+        workspace.ChildRemoved:Connect(function(child)
+                if child == currentMazeFolder then
+                        setMazeFolder(nil)
+                end
+        end)
+
+        local draggingMap = false
+        local dragInput
+        local dragStart
+        local startPos
+
+        local function toVector2(position)
+                return Vector2.new(position.X, position.Y)
         end
-end)
 
-local function makeDot(name, color)
-        local d = mapCanvas:FindFirstChild(name) or Instance.new("Frame"); d.Name = name; d.Size = UDim2.new(0,6,0,6); d.AnchorPoint = Vector2.new(0.5,0.5); d.BackgroundColor3 = color; d.BorderSizePixel = 0; d.ZIndex = 3; d.Parent = mapCanvas
-        return d
-end
-local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
-local dotExit   = makeDot("E", Color3.fromRGB(255,255,0))
-local dotHuntersFolder = mapCanvas:FindFirstChild("Hunters") or Instance.new("Folder", mapCanvas); dotHuntersFolder.Name = "Hunters"
-local dotSentriesFolder = mapCanvas:FindFirstChild("Sentries") or Instance.new("Folder", mapCanvas); dotSentriesFolder.Name = "Sentries"
-local dotEventsFolder = mapCanvas:FindFirstChild("Events") or Instance.new("Folder", mapCanvas); dotEventsFolder.Name = "Events"
-
-updateMinimapVisibility = function()
-        if mapFrame then
-                mapFrame.Visible = minimapOn and isGameplayState()
+        local function updateDrag(input)
+                local delta = toVector2(input.Position) - dragStart
+                mapFrame.Position = UDim2.new(
+                        startPos.X.Scale,
+                        startPos.X.Offset + delta.X,
+                        startPos.Y.Scale,
+                        startPos.Y.Offset + delta.Y
+                )
         end
-end
 
-updateMinimapVisibility()
+        mapFrame.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        draggingMap = true
+                        dragStart = toVector2(input.Position)
+                        startPos = mapFrame.Position
+                        dragInput = input
 
-mapBtn.MouseButton1Click:Connect(function()
-        minimapOn = not minimapOn
-        mapBtn.Text = minimapOn and "Minimap (perk) ON" or "Minimap (perk) OFF"
-        if not minimapOn then
-                for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
-                for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
+                        input.Changed:Connect(function()
+                                if input.UserInputState == Enum.UserInputState.End then
+                                        draggingMap = false
+                                        dragInput = nil
+                                end
+                        end)
+                end
+        end)
+
+        mapFrame.InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                        dragInput = input
+                end
+        end)
+
+        UIS.InputChanged:Connect(function(input)
+                if input == dragInput and draggingMap then
+                        updateDrag(input)
+                end
+        end)
+
+        local function makeDot(name, color)
+                local dot = mapCanvas:FindFirstChild(name) or Instance.new("Frame")
+                dot.Name = name
+                dot.Size = UDim2.new(0, 6, 0, 6)
+                dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                dot.BackgroundColor3 = color
+                dot.BorderSizePixel = 0
+                dot.ZIndex = 3
+                dot.Parent = mapCanvas
+                return dot
         end
+
+        local dotPlayer = makeDot("P", Color3.fromRGB(0, 255, 0))
+        local dotExit = makeDot("E", Color3.fromRGB(255, 255, 0))
+        local dotHuntersFolder = mapCanvas:FindFirstChild("Hunters") or Instance.new("Folder", mapCanvas)
+        dotHuntersFolder.Name = "Hunters"
+        local dotSentriesFolder = mapCanvas:FindFirstChild("Sentries") or Instance.new("Folder", mapCanvas)
+        dotSentriesFolder.Name = "Sentries"
+        local dotEventsFolder = mapCanvas:FindFirstChild("Events") or Instance.new("Folder", mapCanvas)
+        dotEventsFolder.Name = "Events"
+
+        local function hunters()
+                local list = {}
+                for _, model in ipairs(workspace:GetChildren()) do
+                        if model:IsA("Model") and model.Name == "Hunter" then
+                                list[#list + 1] = model
+                        end
+                end
+                return list
+        end
+
+        local function sentries()
+                local list = {}
+                for _, model in ipairs(workspace:GetChildren()) do
+                        if model:IsA("Model") and model.Name == "Sentry" then
+                                list[#list + 1] = model
+                        end
+                end
+                return list
+        end
+
+        local function eventMonsters()
+                local list = {}
+                local container = workspace:FindFirstChild("EventMonsters")
+                if container then
+                        for _, model in ipairs(container:GetChildren()) do
+                                if model:IsA("Model") then
+                                        list[#list + 1] = model
+                                end
+                        end
+                end
+                return list
+        end
+
+        updateMinimapVisibility = function()
+                if mapFrame then
+                        mapFrame.Visible = minimapOn and isGameplayState()
+                end
+        end
+
         updateMinimapVisibility()
-end)
 
-local function worldToMap(pos)
-	local w = RoundConfig.GridWidth * RoundConfig.CellSize
-	local h = RoundConfig.GridHeight * RoundConfig.CellSize
-	if w < 1 or h < 1 then return UDim2.fromScale(0.5,0.5) end
-	local x = math.clamp(pos.X / w, 0, 1)
-	local z = math.clamp(pos.Z / h, 0, 1)
-	return UDim2.fromScale(x, z)
-end
+        mapBtn.MouseButton1Click:Connect(function()
+                minimapOn = not minimapOn
+                mapBtn.Text = minimapOn and "Minimap (perk) ON" or "Minimap (perk) OFF"
+                if not minimapOn then
+                        for _, child in ipairs(dotHuntersFolder:GetChildren()) do
+                                child:Destroy()
+                        end
+                        for _, child in ipairs(dotSentriesFolder:GetChildren()) do
+                                child:Destroy()
+                        end
+                end
+                updateMinimapVisibility()
+        end)
 
-local function getModelPosition(model)
-        if not model or not model:IsA("Model") then
+        local function worldToMap(pos)
+                local w = RoundConfig.GridWidth * RoundConfig.CellSize
+                local h = RoundConfig.GridHeight * RoundConfig.CellSize
+                if w < 1 or h < 1 then
+                        return UDim2.fromScale(0.5, 0.5)
+                end
+                local x = math.clamp(pos.X / w, 0, 1)
+                local z = math.clamp(pos.Z / h, 0, 1)
+                return UDim2.fromScale(x, z)
+        end
+
+        local function getModelPosition(instance)
+                if not instance then
+                        return nil
+                end
+                if instance:IsA("BasePart") then
+                        return instance.Position
+                end
+                if not instance:IsA("Model") then
+                        return nil
+                end
+
+                local primary = instance.PrimaryPart
+                if primary and primary:IsA("BasePart") then
+                        return primary.Position
+                end
+
+                local ok, pivot = pcall(function()
+                        return instance:GetPivot()
+                end)
+                if ok and typeof(pivot) == "CFrame" then
+                        return pivot.Position
+                end
+
+                local root = instance:FindFirstChild("HumanoidRootPart")
+                if root and root:IsA("BasePart") then
+                        return root.Position
+                end
+
+                local part = instance:FindFirstChildWhichIsA("BasePart")
+                if part then
+                        return part.Position
+                end
+
                 return nil
         end
 
-        local primary = model.PrimaryPart
-        if primary and primary:IsA("BasePart") then
-                return primary.Position
-        end
-
-        local ok, pivot = pcall(function()
-                return model:GetPivot()
-        end)
-        if ok and typeof(pivot) == "CFrame" then
-                return pivot.Position
-        end
-
-        local root = model:FindFirstChild("HumanoidRootPart")
-        if root and root:IsA("BasePart") then
-                return root.Position
-        end
-
-        local part = model:FindFirstChildWhichIsA("BasePart")
-        if part then
-                return part.Position
-        end
-
-        return nil
-end
-
-local function hunters()
-        local list = {}
-        for _, m in ipairs(workspace:GetChildren()) do
-                if m:IsA("Model") and m.Name == "Hunter" then
-                        list[#list + 1] = m
-                end
-        end
-        return list
-end
-
-local function sentries()
-        local list = {}
-        for _, m in ipairs(workspace:GetChildren()) do
-                if m:IsA("Model") and m.Name == "Sentry" then
-                        list[#list + 1] = m
-                end
-        end
-        return list
-end
-
-local function eventMonsters()
-        local list = {}
-        local container = workspace:FindFirstChild("EventMonsters")
-        if container then
-                for _, m in ipairs(container:GetChildren()) do
-                        if m:IsA("Model") then
-                                list[#list + 1] = m
+        RunService.Heartbeat:Connect(function(deltaTime)
+                if eventCountdownSeconds and eventCountdownSeconds > 0 then
+                        local now = os.clock()
+                        local elapsed = deltaTime or (now - (lastEventCountdownUpdate or now))
+                        eventCountdownSeconds = math.max(eventCountdownSeconds - elapsed, 0)
+                        lastEventCountdownUpdate = now
+                        if eventCountdownSeconds <= 0 then
+                                eventCountdownSeconds = nil
+                                updateEventStatusText(true)
+                        else
+                                updateEventStatusText(false)
                         end
                 end
-        end
-        return list
-end
 
-RunService.Heartbeat:Connect(function(deltaTime)
-        if eventCountdownSeconds and eventCountdownSeconds > 0 then
-                local now = os.clock()
-                local elapsed = deltaTime or (now - (lastEventCountdownUpdate or now))
-                eventCountdownSeconds = math.max(eventCountdownSeconds - elapsed, 0)
-                lastEventCountdownUpdate = now
-                if eventCountdownSeconds <= 0 then
-                        eventCountdownSeconds = nil
-                        updateEventStatusText(true)
+                if not minimapOn or not isGameplayState() then
+                        return
+                end
+
+                local character = player.Character or player.CharacterAdded:Wait()
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                if not hrp then
+                        return
+                end
+
+                dotPlayer.Position = worldToMap(hrp.Position)
+                local exitTarget = select(1, findExitTarget())
+                if exitTarget then
+                        dotExit.Visible = true
+                        dotExit.Position = worldToMap(exitTarget.Position)
                 else
-                        updateEventStatusText(false)
+                        dotExit.Visible = false
                 end
-        end
 
-        if not minimapOn or not isGameplayState() then return end
-        local char = player.Character or player.CharacterAdded:Wait()
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        dotPlayer.Position = worldToMap(hrp.Position)
-        local exitTarget = select(1, findExitTarget())
-        if exitTarget then dotExit.Visible = true; dotExit.Position = worldToMap(exitTarget.Position) else dotExit.Visible = false end
-
-        for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
-        for i, h in ipairs(hunters()) do
-                local position = getModelPosition(h)
-                if position then
-                        local d = Instance.new("Frame")
-                        d.Size = UDim2.new(0,5,0,5)
-                        d.AnchorPoint = Vector2.new(0.5,0.5)
-                        d.BackgroundColor3 = Color3.fromRGB(255,0,0)
-                        d.BorderSizePixel = 0
-                        d.ZIndex = 3
-                        d.Name = "H"..i
-                        d.Parent = dotHuntersFolder
-                        d.Position = worldToMap(position)
+                for _, child in ipairs(dotHuntersFolder:GetChildren()) do
+                        child:Destroy()
                 end
-        end
-
-        for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
-        for i, s in ipairs(sentries()) do
-                local position = getModelPosition(s)
-                if position then
-                        local isCloaked = s:GetAttribute("IsCloaked") == true
-                        local d = Instance.new("Frame")
-                        d.Size = UDim2.new(0,5,0,5)
-                        d.AnchorPoint = Vector2.new(0.5,0.5)
-                        d.BackgroundColor3 = isCloaked and Color3.fromRGB(140, 190, 255) or Color3.fromRGB(50, 150, 255)
-                        d.BorderSizePixel = isCloaked and 1 or 0
-                        if isCloaked then
-                                d.BorderColor3 = Color3.fromRGB(200, 230, 255)
+                for index, hunter in ipairs(hunters()) do
+                        local position = getModelPosition(hunter)
+                        if position then
+                                local dot = Instance.new("Frame")
+                                dot.Size = UDim2.new(0, 5, 0, 5)
+                                dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                                dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                                dot.BorderSizePixel = 0
+                                dot.ZIndex = 3
+                                dot.Name = "H" .. index
+                                dot.Parent = dotHuntersFolder
+                                dot.Position = worldToMap(position)
                         end
-                        d.ZIndex = 3
-                        d.Name = "S"..i
-                        d.Parent = dotSentriesFolder
-                        d.Position = worldToMap(position)
                 end
-        end
 
-        for _, c in ipairs(dotEventsFolder:GetChildren()) do c:Destroy() end
-        for i, e in ipairs(eventMonsters()) do
-                local position = getModelPosition(e)
-                if position then
-                        local dot = Instance.new("Frame")
-                        dot.Size = UDim2.new(0,7,0,7)
-                        dot.AnchorPoint = Vector2.new(0.5,0.5)
-                        dot.BackgroundColor3 = Color3.fromRGB(255, 40, 200)
-                        dot.BorderSizePixel = 1
-                        dot.BorderColor3 = Color3.fromRGB(255, 220, 255)
-                        dot.ZIndex = 3
-                        dot.Name = "EV"..i
-                        dot.Parent = dotEventsFolder
-                        dot.Position = worldToMap(position)
+                for _, child in ipairs(dotSentriesFolder:GetChildren()) do
+                        child:Destroy()
                 end
-        end
-end)
+                for index, sentry in ipairs(sentries()) do
+                        local position = getModelPosition(sentry)
+                        if position then
+                                local isCloaked = sentry:GetAttribute("IsCloaked") == true
+                                local dot = Instance.new("Frame")
+                                dot.Size = UDim2.new(0, 5, 0, 5)
+                                dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                                dot.BackgroundColor3 = isCloaked and Color3.fromRGB(140, 190, 255) or Color3.fromRGB(50, 150, 255)
+                                dot.BorderSizePixel = isCloaked and 1 or 0
+                                if isCloaked then
+                                        dot.BorderColor3 = Color3.fromRGB(200, 230, 255)
+                                end
+                                dot.ZIndex = 3
+                                dot.Name = "S" .. index
+                                dot.Parent = dotSentriesFolder
+                                dot.Position = worldToMap(position)
+                        end
+                end
+
+                for _, child in ipairs(dotEventsFolder:GetChildren()) do
+                        child:Destroy()
+                end
+                for index, monster in ipairs(eventMonsters()) do
+                        local position = getModelPosition(monster)
+                        if position then
+                                local dot = Instance.new("Frame")
+                                dot.Size = UDim2.new(0, 7, 0, 7)
+                                dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                                dot.BackgroundColor3 = Color3.fromRGB(255, 40, 200)
+                                dot.BorderSizePixel = 1
+                                dot.BorderColor3 = Color3.fromRGB(255, 220, 255)
+                                dot.ZIndex = 3
+                                dot.Name = "EV" .. index
+                                dot.Parent = dotEventsFolder
+                                dot.Position = worldToMap(position)
+                        end
+                end
+        end)
+end
+
+initializeMinimap()
 
 
 
