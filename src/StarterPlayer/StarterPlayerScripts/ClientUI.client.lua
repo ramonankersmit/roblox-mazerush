@@ -171,6 +171,7 @@ countdownStroke.Parent = countdownLabel
 
 local scoreboardData
 local currentRoundState = "IDLE"
+local currentLobbyPhase = "IDLE"
 local eliminationCameraToken
 
 local sentryWarningValue = State:FindFirstChild("SentryCanCloak")
@@ -291,9 +292,14 @@ local function updateCountdownDisplay(seconds)
         end
 end
 
+local function isLobbyPhase(phase)
+        phase = phase or currentLobbyPhase
+        return phase == "IDLE" or phase == "PREP"
+end
+
 local function isGameplayState(state)
         state = state or currentRoundState
-        return state == "PREP" or state == "ACTIVE" or state == "OVERVIEW"
+        return (state == "PREP" or state == "ACTIVE" or state == "OVERVIEW") and not isLobbyPhase()
 end
 
 local updateMinimapVisibility
@@ -1726,6 +1732,14 @@ end)
 
 renderLobby = function(state)
         lastLobbyState = state
+        if state and state.phase then
+                currentLobbyPhase = state.phase
+        elseif not state then
+                currentLobbyPhase = "IDLE"
+        end
+        if updateFinderVisibility then
+                updateFinderVisibility()
+        end
         if not state then
                 renderThemeState(nil, nil)
                 return
@@ -1743,7 +1757,7 @@ renderLobby = function(state)
         end
 
 	-- Show/hide panel based on phase: visible in IDLE/PREP
-        local showLobby = (not lobbyBoardActive) and (state.phase == "IDLE" or state.phase == "PREP")
+        local showLobby = (not lobbyBoardActive) and isLobbyPhase(state.phase)
         lobby.Visible = showLobby
 
 	-- Buttons disabled during ACTIVE/END
