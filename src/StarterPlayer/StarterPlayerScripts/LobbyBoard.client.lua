@@ -63,11 +63,11 @@ local actionHint = playerBoard:FindFirstChild("ActionHint")
 local boardBaseColor = playerBoard.BackgroundColor3
 
 if actionHint then
-    actionHint.Size = UDim2.new(1, -40, 0, 32)
-    actionHint.Position = UDim2.new(0, 20, 0, 116)
+    actionHint.Size = UDim2.new(1, -56, 0, 32)
+    actionHint.Position = UDim2.new(0, 28, 0, 116)
     actionHint.TextWrapped = false
     actionHint.TextTruncate = Enum.TextTruncate.AtEnd
-    actionHint.TextSize = 15
+    actionHint.TextSize = 12
     actionHint.TextYAlignment = Enum.TextYAlignment.Top
 end
 local playerGui = localPlayer:WaitForChild("PlayerGui")
@@ -92,6 +92,15 @@ local billboardFrame = billboardGui and billboardGui:FindFirstChild("BillboardFr
 local billboardList = billboardFrame and billboardFrame:FindFirstChild("PlayerEntries")
 local billboardSummary = billboardFrame and billboardFrame:FindFirstChild("ReadySummary")
 local billboardBaseColor = billboardFrame and billboardFrame.BackgroundColor3
+local billboardHint = billboardFrame and billboardFrame:FindFirstChild("Hint")
+
+if billboardHint and billboardHint:IsA("TextLabel") then
+    billboardHint.Size = UDim2.new(1, -30, 0, 24)
+    billboardHint.Position = UDim2.new(0, 15, 1, -40)
+    billboardHint.TextSize = 12
+    billboardHint.TextWrapped = false
+    billboardHint.TextTruncate = Enum.TextTruncate.AtEnd
+end
 
 local consolePrompt = playerStand:FindFirstChild("ConsolePrompt")
 local startButton = boardModel:FindFirstChild("StartButton")
@@ -1469,7 +1478,7 @@ local function updatePrompts(state)
                 actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
             end
         else
-            actionHint.Text = "Open de console om klaar te melden en te stemmen."
+            actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
         end
     end
 

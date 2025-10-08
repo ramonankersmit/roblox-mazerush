@@ -433,7 +433,7 @@ local function ensureLobbyBoard()
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
-    local actionHint = createTextLabel(playerBoard, "ActionHint", "Open de console om klaar te melden en te stemmen.", UDim2.new(1, -56, 0, 32), UDim2.new(0, 28, 0, 116), {
+    local actionHint = createTextLabel(playerBoard, "ActionHint", "Gebruik de console voor klaarstatus en stemming.", UDim2.new(1, -56, 0, 32), UDim2.new(0, 28, 0, 116), {
         Font = Enum.Font.Gotham,
         TextSize = 12,
         TextWrapped = false,
@@ -591,14 +591,15 @@ local function ensureLobbyBoard()
         billboardFrame,
         "Hint",
         "Gebruik de console voor klaarstatus en stemming.",
-        UDim2.new(1, -32, 0, 24),
-        UDim2.new(0, 16, 1, -40),
+        UDim2.new(1, -30, 0, 24),
+        UDim2.new(0, 15, 1, -40),
         {
             Font = Enum.Font.Gotham,
-            TextSize = 13,
+            TextSize = 12,
             TextColor3 = Color3.fromRGB(140, 210, 255),
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = false,
+            TextTruncate = Enum.TextTruncate.AtEnd,
         }
     )
     hintLabel.ZIndex = 2
