@@ -1,6 +1,9 @@
 local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EnemyAnimations = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("EnemyAnimations"))
 
 local EventController = {}
 EventController.__index = EventController
@@ -164,6 +167,7 @@ function EventController.spawn(globalConfig, enemyConfig, dependencies)
 
         model.Name = enemyConfig.ModelName or "EventMonster"
         model:SetAttribute("IsEventMonster", true)
+        model:SetAttribute("State", model:GetAttribute("State") or "Idle")
 
         local primaryPart = ensurePrimaryPart(model)
         if not primaryPart then
@@ -192,6 +196,11 @@ function EventController.spawn(globalConfig, enemyConfig, dependencies)
         controller._destroyed = false
         controller._finished = Instance.new("BindableEvent")
         controller._connections = {}
+        controller.animations = EnemyAnimations.attach(model, "Event")
+        if controller.animations then
+                controller.animations:playState("Chase")
+        end
+        model:SetAttribute("State", "Chase")
 
         controller:_setupTouchHandling()
         controller:_startChaseLoop()
@@ -390,6 +399,14 @@ function EventController:Destroy(reason)
         end
         self._connections = {}
         if self.model then
+                self.model:SetAttribute("State", "Disappear")
+                if self.animations then
+                        self.animations:playState("Disappear")
+                end
+                if self.animations then
+                        self.animations:destroy()
+                        self.animations = nil
+                end
                 self.model:Destroy()
                 self.model = nil
         end

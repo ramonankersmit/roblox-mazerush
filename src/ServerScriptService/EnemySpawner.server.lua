@@ -405,6 +405,9 @@ local function spawnBasicClones(typeName, resolvedConfig, context, prefab)
         for _ = 1, count do
                 local clone = prefab:Clone()
                 clone:SetAttribute("EnemyType", typeName)
+                if clone:GetAttribute("State") == nil then
+                        clone:SetAttribute("State", "Idle")
+                end
                 clone.Name = resolveInstanceName(typeName, resolvedConfig)
                 clone.Parent = context.Workspace
 
@@ -513,6 +516,9 @@ local function spawnWithController(controllerClass, typeName, resolved, context,
 
                 local enemy = prefab:Clone()
                 enemy:SetAttribute("EnemyType", typeName)
+                if enemy:GetAttribute("State") == nil then
+                        enemy:SetAttribute("State", "Idle")
+                end
                 enemy.Name = resolveInstanceName(typeName, resolved)
                 enemy.Parent = context.Workspace
 

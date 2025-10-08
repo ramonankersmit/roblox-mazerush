@@ -1,5 +1,8 @@
 local RunService = game:GetService("RunService")
 local PathfindingService = game:GetService("PathfindingService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EnemyAnimations = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("EnemyAnimations"))
 
 local SentryController = {}
 SentryController.__index = SentryController
@@ -278,6 +281,7 @@ function SentryController.new(enemyModel, config, context)
     self.pathNodes = nil
     self.pathNodeIndex = 0
     self.vaporTrailEmitter = nil
+    self.animations = EnemyAnimations.attach(enemyModel, "Sentry")
 
     local routeMeta = config.RouteMeta
     local routeContext = config.RouteContext
@@ -401,6 +405,12 @@ function SentryController.new(enemyModel, config, context)
         self.currentIndex = math.clamp(self.currentIndex, 1, #self.routePoints)
     end
 
+    if self.model then
+        self.model:SetAttribute("State", "Patrol")
+    end
+    if self.animations then
+        self.animations:playState("Patrol")
+    end
     self:_captureOriginalAppearance()
     self:_bindDestruction()
     self:_bindTouchDamage()
@@ -807,6 +817,12 @@ function SentryController:_enterPatrol(resume)
     self:_cancelPendingCloak()
     self:_setInvisible(false)
     self:_setHumanoidSpeed(self.patrolSpeed)
+    if self.model then
+        self.model:SetAttribute("State", "Patrol")
+    end
+    if self.animations then
+        self.animations:playState("Patrol")
+    end
     if not resume and self.patrolPauseDuration > 0 then
         self.patrolPauseRemaining = self.patrolPauseDuration
         self:_setDestination(nil)
@@ -834,6 +850,12 @@ function SentryController:_enterChase(player, character)
     self:_setHumanoidSpeed(self.patrolSpeed * self.chaseSpeedMultiplier)
     self:_playAlertSound()
     self:_requestCloak()
+    if self.model then
+        self.model:SetAttribute("State", "Chase")
+    end
+    if self.animations then
+        self.animations:playState("Chase")
+    end
 end
 
 function SentryController:_enterReturn()
@@ -849,6 +871,12 @@ function SentryController:_enterReturn()
     self:_cancelPendingCloak()
     self:_setInvisible(false)
     self:_setHumanoidSpeed(self.patrolSpeed * self.returnSpeedMultiplier)
+    if self.model then
+        self.model:SetAttribute("State", "Return")
+    end
+    if self.animations then
+        self.animations:playState("Return")
+    end
     local root = self:_getRootPart()
     local position = self.lastKnownPosition or (root and root.Position)
     if position then
@@ -1123,6 +1151,12 @@ function SentryController:Destroy()
         return
     end
     self.destroyed = true
+    if self.model then
+        self.model:SetAttribute("State", "Disappear")
+        if self.animations then
+            self.animations:playState("Disappear")
+        end
+    end
     self:_clearPath()
     self.currentDestination = nil
     self:_setInvisible(false)
@@ -1147,6 +1181,10 @@ function SentryController:Destroy()
         end)
     end
     self.alertSound = nil
+    if self.animations then
+        self.animations:destroy()
+        self.animations = nil
+    end
     self.model = nil
     self.humanoid = nil
 end
