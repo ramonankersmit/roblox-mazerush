@@ -116,6 +116,38 @@ eliminationMessage.TextColor3 = Color3.fromRGB(255, 230, 230)
 eliminationMessage.Visible = false
 eliminationMessage.Parent = gui
 
+local sentryWarningFrame = Instance.new("Frame")
+sentryWarningFrame.Name = "SentryWarning"
+sentryWarningFrame.Size = UDim2.new(0, 360, 0, 48)
+sentryWarningFrame.Position = UDim2.new(0.5, -180, 0, 24)
+sentryWarningFrame.BackgroundTransparency = 0.2
+sentryWarningFrame.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+sentryWarningFrame.BorderSizePixel = 0
+sentryWarningFrame.Visible = false
+sentryWarningFrame.Parent = gui
+
+local sentryWarningCorner = Instance.new("UICorner")
+sentryWarningCorner.CornerRadius = UDim.new(0, 12)
+sentryWarningCorner.Parent = sentryWarningFrame
+
+local sentryWarningStroke = Instance.new("UIStroke")
+sentryWarningStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+sentryWarningStroke.Thickness = 2
+sentryWarningStroke.Color = Color3.fromRGB(255, 200, 200)
+sentryWarningStroke.Parent = sentryWarningFrame
+
+local sentryWarningLabel = Instance.new("TextLabel")
+sentryWarningLabel.Name = "Label"
+sentryWarningLabel.Size = UDim2.new(1, -20, 1, -10)
+sentryWarningLabel.Position = UDim2.new(0, 10, 0, 5)
+sentryWarningLabel.BackgroundTransparency = 1
+sentryWarningLabel.TextWrapped = true
+sentryWarningLabel.Font = Enum.Font.GothamBold
+sentryWarningLabel.TextScaled = true
+sentryWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
+sentryWarningLabel.Text = "Let op: Sentry's kunnen tijdelijk onzichtbaar worden!"
+sentryWarningLabel.Parent = sentryWarningFrame
+
 local countdownLabel = Instance.new("TextLabel")
 countdownLabel.Name = "RoundCountdown"
 countdownLabel.Size = UDim2.new(0, 260, 0, 120)
@@ -140,6 +172,49 @@ countdownStroke.Parent = countdownLabel
 local scoreboardData
 local currentRoundState = "IDLE"
 local eliminationCameraToken
+
+local sentryWarningValue = State:FindFirstChild("SentryCanCloak")
+local sentryWarningConnection
+
+local function isRoundActiveForWarning(state)
+        state = state or currentRoundState
+        return state == "PREP" or state == "OVERVIEW" or state == "ACTIVE"
+end
+
+local function updateSentryWarningVisibility()
+        if not sentryWarningFrame then
+                return
+        end
+        if not sentryWarningValue then
+                sentryWarningFrame.Visible = false
+                return
+        end
+        sentryWarningFrame.Visible = sentryWarningValue.Value and isRoundActiveForWarning()
+end
+
+local function attachSentryWarningValue(value)
+        if sentryWarningConnection then
+                sentryWarningConnection:Disconnect()
+                sentryWarningConnection = nil
+        end
+        sentryWarningValue = value
+        if not sentryWarningValue then
+                updateSentryWarningVisibility()
+                return
+        end
+        sentryWarningConnection = sentryWarningValue:GetPropertyChangedSignal("Value"):Connect(updateSentryWarningVisibility)
+        updateSentryWarningVisibility()
+end
+
+if sentryWarningValue then
+        attachSentryWarningValue(sentryWarningValue)
+else
+        State.ChildAdded:Connect(function(child)
+                if child.Name == "SentryCanCloak" then
+                        attachSentryWarningValue(child)
+                end
+        end)
+end
 
 local COUNTDOWN_SHOW_THRESHOLD = 10
 local COUNTDOWN_EMPHASIS_THRESHOLD = 3
@@ -417,6 +492,7 @@ RoundState.OnClientEvent:Connect(function(state)
         if updateFinderVisibility then
                 updateFinderVisibility()
         end
+        updateSentryWarningVisibility()
 
         if currentRoundState == "ACTIVE" then
                 exitVictoryTriggered = false
@@ -1068,6 +1144,7 @@ end
 local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
 local dotExit   = makeDot("E", Color3.fromRGB(255,255,0))
 local dotHuntersFolder = mapCanvas:FindFirstChild("Hunters") or Instance.new("Folder", mapCanvas); dotHuntersFolder.Name = "Hunters"
+local dotSentriesFolder = mapCanvas:FindFirstChild("Sentries") or Instance.new("Folder", mapCanvas); dotSentriesFolder.Name = "Sentries"
 
 updateMinimapVisibility = function()
         if mapFrame then
@@ -1082,6 +1159,7 @@ mapBtn.MouseButton1Click:Connect(function()
         mapBtn.Text = minimapOn and "Minimap (perk) ON" or "Minimap (perk) OFF"
         if not minimapOn then
                 for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
+                for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
         end
         updateMinimapVisibility()
 end)
@@ -1095,10 +1173,52 @@ local function worldToMap(pos)
 	return UDim2.fromScale(x, z)
 end
 
+local function getModelPosition(model)
+        if not model or not model:IsA("Model") then
+                return nil
+        end
+
+        local primary = model.PrimaryPart
+        if primary and primary:IsA("BasePart") then
+                return primary.Position
+        end
+
+        local ok, pivot = pcall(function()
+                return model:GetPivot()
+        end)
+        if ok and typeof(pivot) == "CFrame" then
+                return pivot.Position
+        end
+
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if root and root:IsA("BasePart") then
+                return root.Position
+        end
+
+        local part = model:FindFirstChildWhichIsA("BasePart")
+        if part then
+                return part.Position
+        end
+
+        return nil
+end
+
 local function hunters()
         local list = {}
         for _, m in ipairs(workspace:GetChildren()) do
-                if m:IsA("Model") and m.Name == "Hunter" and m.PrimaryPart then table.insert(list, m) end
+                if m:IsA("Model") and m.Name == "Hunter" then
+                        list[#list + 1] = m
+                end
+        end
+        return list
+end
+
+local function sentries()
+        local list = {}
+        for _, m in ipairs(workspace:GetChildren()) do
+                if m:IsA("Model") and m.Name == "Sentry" then
+                        list[#list + 1] = m
+                end
         end
         return list
 end
@@ -1113,12 +1233,39 @@ game:GetService("RunService").Heartbeat:Connect(function()
         local exitTarget = select(1, findExitTarget())
         if exitTarget then dotExit.Visible = true; dotExit.Position = worldToMap(exitTarget.Position) else dotExit.Visible = false end
 
-	for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
-	for i, h in ipairs(hunters()) do
-		local d = Instance.new("Frame"); d.Size = UDim2.new(0,5,0,5); d.AnchorPoint = Vector2.new(0.5,0.5)
-		d.BackgroundColor3 = Color3.fromRGB(255,0,0); d.BorderSizePixel = 0; d.Name = "H"..i; d.Parent = dotHuntersFolder
-		d.Position = worldToMap(h.PrimaryPart.Position)
-	end
+        for _, c in ipairs(dotHuntersFolder:GetChildren()) do c:Destroy() end
+        for i, h in ipairs(hunters()) do
+                local position = getModelPosition(h)
+                if position then
+                        local d = Instance.new("Frame")
+                        d.Size = UDim2.new(0,5,0,5)
+                        d.AnchorPoint = Vector2.new(0.5,0.5)
+                        d.BackgroundColor3 = Color3.fromRGB(255,0,0)
+                        d.BorderSizePixel = 0
+                        d.Name = "H"..i
+                        d.Parent = dotHuntersFolder
+                        d.Position = worldToMap(position)
+                end
+        end
+
+        for _, c in ipairs(dotSentriesFolder:GetChildren()) do c:Destroy() end
+        for i, s in ipairs(sentries()) do
+                local position = getModelPosition(s)
+                if position then
+                        local isCloaked = s:GetAttribute("IsCloaked") == true
+                        local d = Instance.new("Frame")
+                        d.Size = UDim2.new(0,5,0,5)
+                        d.AnchorPoint = Vector2.new(0.5,0.5)
+                        d.BackgroundColor3 = isCloaked and Color3.fromRGB(140, 190, 255) or Color3.fromRGB(50, 150, 255)
+                        d.BorderSizePixel = isCloaked and 1 or 0
+                        if isCloaked then
+                                d.BorderColor3 = Color3.fromRGB(200, 230, 255)
+                        end
+                        d.Name = "S"..i
+                        d.Parent = dotSentriesFolder
+                        d.Position = worldToMap(position)
+                end
+        end
 end)
 
 

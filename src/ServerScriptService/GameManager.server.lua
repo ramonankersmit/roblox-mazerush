@@ -4,6 +4,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
 
 local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
@@ -46,6 +47,66 @@ loopChanceValue.Name = "LoopChance"; loopChanceValue.Value = Config.LoopChance o
 local difficultyValue = State:FindFirstChild("Difficulty") or Instance.new("StringValue", State)
 difficultyValue.Name = "Difficulty"; difficultyValue.Value = Config.DefaultDifficulty or "Gemiddeld"
 local difficultyPresets = Config.DifficultyPresets or {}
+local sentryCloakValue = State:FindFirstChild("SentryCanCloak") or Instance.new("BoolValue", State)
+sentryCloakValue.Name = "SentryCanCloak"; sentryCloakValue.Value = false
+
+local MINIMUM_SENTRY_COUNT = 2
+
+local function enforceMinimumSentryCount()
+        local enemiesConfig = Config.Enemies
+        if type(enemiesConfig) ~= "table" then
+                return
+        end
+
+        local sentryConfig = enemiesConfig.Sentry
+        if type(sentryConfig) ~= "table" then
+                return
+        end
+
+        local currentCount = tonumber(sentryConfig.Count) or 0
+        if currentCount < MINIMUM_SENTRY_COUNT then
+                sentryConfig.Count = MINIMUM_SENTRY_COUNT
+        end
+end
+
+local function sentryAllowsCloak(sentryConfig)
+        if type(sentryConfig) ~= "table" then
+                return false
+        end
+        if (sentryConfig.Count or 0) <= 0 then
+                return false
+        end
+        if sentryConfig.CanBecomeInvisible ~= nil then
+                return sentryConfig.CanBecomeInvisible
+        end
+        if sentryConfig.InvisibleWhileChasing ~= nil then
+                return sentryConfig.InvisibleWhileChasing
+        end
+        if type(sentryConfig.Routes) == "table" then
+                for _, route in pairs(sentryConfig.Routes) do
+                        if type(route) == "table" then
+                                if route.AllowInvisibility ~= nil then
+                                        if route.AllowInvisibility then
+                                                return true
+                                        end
+                                elseif route.CanBecomeInvisible ~= nil then
+                                        if route.CanBecomeInvisible then
+                                                return true
+                                        end
+                                end
+                        end
+                end
+        end
+        return false
+end
+
+local function updateEnemyStateFlags()
+        local sentryConfig = Config.Enemies and Config.Enemies.Sentry
+        sentryCloakValue.Value = sentryAllowsCloak(sentryConfig)
+end
+
+enforceMinimumSentryCount()
+updateEnemyStateFlags()
 
 local function selectRandomDifficulty()
         if type(difficultyPresets) ~= "table" or #difficultyPresets == 0 then
@@ -703,8 +764,31 @@ local function runRound()
         placeExit()
 
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
+        enforceMinimumSentryCount()
+        updateEnemyStateFlags()
+        local sentryConfig = Config.Enemies and Config.Enemies.Sentry
+        if sentryConfig then
+                local count = tonumber(sentryConfig.Count) or 0
+                local allowCloak = sentryAllowsCloak(sentryConfig)
+                print(string.format("[Sentry] Rondestart: spawnverzoek voor %d Sentry's (cloaken toegestaan: %s)", count, tostring(allowCloak)))
+        else
+                warn("[Sentry] Geen Sentry-config gevonden bij rondestart")
+        end
+
         if _G.SpawnEnemies then
-                task.spawn(_G.SpawnEnemies, Config.Enemies)
+                task.spawn(function()
+                        _G.SpawnEnemies(Config.Enemies)
+                        task.delay(2, function()
+                                local ok, tagged = pcall(function()
+                                        return CollectionService:GetTagged("Sentry")
+                                end)
+                                if ok then
+                                        print(string.format("[Sentry] CollectionService rapporteert %d actieve Sentry's", #tagged))
+                                else
+                                        warn(string.format("[Sentry] Ophalen van Sentry-tags mislukt: %s", tostring(tagged)))
+                                end
+                        end)
+                end)
         else
                 warn("[GameManager] _G.SpawnEnemies niet beschikbaar")
         end
