@@ -40,6 +40,11 @@ local heartbeatConfig = {
         fadeTime = 0.35,
 }
 
+local heartbeatThreatTypes = {
+        Hunter = true,
+        Sentry = true,
+}
+
 local heartbeatSound = audioFolder:FindFirstChild("HunterHeartbeat")
 if not heartbeatSound then
         heartbeatSound = Instance.new("Sound")
@@ -229,12 +234,16 @@ local function updateHeartbeat()
 
         local closestDistance = math.huge
         for _, model in ipairs(Workspace:GetChildren()) do
-                if model:IsA("Model") and model.Name == "Hunter" then
-                        local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-                        if hrp and hrp:IsA("BasePart") then
-                                local distance = (hrp.Position - root.Position).Magnitude
-                                if distance < closestDistance then
-                                        closestDistance = distance
+                if model:IsA("Model") then
+                        local enemyType = model:GetAttribute("EnemyType")
+                        local name = model.Name
+                        if (enemyType and heartbeatThreatTypes[enemyType]) or heartbeatThreatTypes[name] then
+                                local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+                                if hrp and hrp:IsA("BasePart") then
+                                        local distance = (hrp.Position - root.Position).Magnitude
+                                        if distance < closestDistance then
+                                                closestDistance = distance
+                                        end
                                 end
                         end
                 end

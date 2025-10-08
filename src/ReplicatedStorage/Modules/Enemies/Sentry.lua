@@ -277,6 +277,7 @@ function SentryController.new(enemyModel, config, context)
     self.originalAppearances = {}
     self.pathNodes = nil
     self.pathNodeIndex = 0
+    self.vaporTrailEmitter = nil
 
     local routeMeta = config.RouteMeta
     local routeContext = config.RouteContext
@@ -478,6 +479,52 @@ end
 function SentryController:_getRootPart()
     self.rootPart = ensurePrimaryPart(self.model)
     return self.rootPart
+end
+
+function SentryController:_ensureVaporTrail()
+    if self.vaporTrailEmitter and self.vaporTrailEmitter.Parent then
+        return self.vaporTrailEmitter
+    end
+
+    local root = self:_getRootPart()
+    if not root then
+        return nil
+    end
+
+    local attachment = root:FindFirstChild("SentryVaporAttachment")
+    if not attachment or not attachment:IsA("Attachment") then
+        attachment = Instance.new("Attachment")
+        attachment.Name = "SentryVaporAttachment"
+        attachment.Parent = root
+    end
+
+    local emitter = attachment:FindFirstChild("SentryVaporTrail")
+    if not (emitter and emitter:IsA("ParticleEmitter")) then
+        emitter = Instance.new("ParticleEmitter")
+        emitter.Name = "SentryVaporTrail"
+        emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        emitter.Color = ColorSequence.new(Color3.fromRGB(200, 220, 255), Color3.fromRGB(255, 255, 255))
+        emitter.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.65),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        emitter.Size = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(1, 0.05),
+        })
+        emitter.Lifetime = NumberRange.new(0.25, 0.45)
+        emitter.Speed = NumberRange.new(0.2, 0.6)
+        emitter.SpreadAngle = Vector2.new(18, 18)
+        emitter.Rate = 14
+        emitter.LockedToPart = true
+        emitter.LightEmission = 0.8
+        emitter.Rotation = NumberRange.new(0, 360)
+        emitter.Parent = attachment
+    end
+
+    emitter.Enabled = false
+    self.vaporTrailEmitter = emitter
+    return emitter
 end
 
 function SentryController:_ensureAlertSound()
@@ -863,6 +910,20 @@ function SentryController:_setInvisible(isInvisible)
             end
         end
     end
+    local vaporTrail
+    if isInvisible then
+        vaporTrail = self:_ensureVaporTrail()
+    elseif self.vaporTrailEmitter and self.vaporTrailEmitter.Parent then
+        vaporTrail = self.vaporTrailEmitter
+    end
+    if vaporTrail then
+        vaporTrail.Enabled = isInvisible
+        if not isInvisible then
+            pcall(function()
+                vaporTrail:Clear()
+            end)
+        end
+    end
     if self.model then
         self.model:SetAttribute("IsCloaked", isInvisible)
     end
@@ -1059,6 +1120,13 @@ function SentryController:Destroy()
     self:_clearPath()
     self.currentDestination = nil
     self:_setInvisible(false)
+    if self.vaporTrailEmitter then
+        pcall(function()
+            self.vaporTrailEmitter.Enabled = false
+            self.vaporTrailEmitter:Clear()
+        end)
+        self.vaporTrailEmitter = nil
+    end
     for _, connection in ipairs(self.connections) do
         connection:Disconnect()
     end
