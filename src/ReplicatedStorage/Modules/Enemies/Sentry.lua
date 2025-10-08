@@ -18,6 +18,11 @@ local DEFAULTS = {
     PatrolPauseDuration = 0,
     InvisibleWhileChasing = false,
     InvisibilityDelay = 0,
+    AlertSoundId = "rbxassetid://137300436593190",
+    AlertSoundCooldown = 2.5,
+    AlertSoundVolume = 0.7,
+    AlertSoundMinDistance = 6,
+    AlertSoundMaxDistance = 120,
 }
 
 local function ensurePrimaryPart(model)
@@ -311,6 +316,49 @@ function SentryController.new(enemyModel, config, context)
         self.fovCosine = -1
     end
 
+    local alertSoundId = config.AlertSoundId
+    if routeMeta and type(routeMeta.AlertSoundId) == "string" then
+        alertSoundId = routeMeta.AlertSoundId
+    end
+    if type(alertSoundId) ~= "string" then
+        alertSoundId = DEFAULTS.AlertSoundId
+    end
+    self.alertSoundId = alertSoundId
+    local alertCooldown = config.AlertSoundCooldown
+    if routeMeta and type(routeMeta.AlertSoundCooldown) == "number" then
+        alertCooldown = routeMeta.AlertSoundCooldown
+    end
+    if type(alertCooldown) ~= "number" then
+        alertCooldown = DEFAULTS.AlertSoundCooldown
+    end
+    self.alertSoundCooldown = math.max(alertCooldown, 0)
+    local alertVolume = config.AlertSoundVolume
+    if routeMeta and type(routeMeta.AlertSoundVolume) == "number" then
+        alertVolume = routeMeta.AlertSoundVolume
+    end
+    if type(alertVolume) ~= "number" then
+        alertVolume = DEFAULTS.AlertSoundVolume
+    end
+    self.alertSoundVolume = math.clamp(alertVolume, 0, 10)
+    local minDistance = config.AlertSoundMinDistance
+    if routeMeta and type(routeMeta.AlertSoundMinDistance) == "number" then
+        minDistance = routeMeta.AlertSoundMinDistance
+    end
+    if type(minDistance) ~= "number" then
+        minDistance = DEFAULTS.AlertSoundMinDistance
+    end
+    self.alertSoundMinDistance = math.max(minDistance, 0)
+    local maxDistance = config.AlertSoundMaxDistance
+    if routeMeta and type(routeMeta.AlertSoundMaxDistance) == "number" then
+        maxDistance = routeMeta.AlertSoundMaxDistance
+    end
+    if type(maxDistance) ~= "number" then
+        maxDistance = DEFAULTS.AlertSoundMaxDistance
+    end
+    self.alertSoundMaxDistance = math.max(maxDistance, self.alertSoundMinDistance)
+    self.alertSound = nil
+    self.lastAlertTime = 0
+
     if self.humanoid then
         self.humanoid.WalkSpeed = self.patrolSpeed
     end
@@ -403,6 +451,66 @@ function SentryController:_getRootPart()
     return self.rootPart
 end
 
+function SentryController:_ensureAlertSound()
+    if not self.alertSoundId or self.alertSoundId == "" then
+        return nil
+    end
+    if self.alertSound and self.alertSound.Parent then
+        return self.alertSound
+    end
+    local root = self:_getRootPart()
+    if not root then
+        return nil
+    end
+    local existing = root:FindFirstChild("SentryAlertSound")
+    if existing and existing:IsA("Sound") then
+        existing.SoundId = self.alertSoundId
+        existing.Volume = self.alertSoundVolume
+        existing.RollOffMode = Enum.RollOffMode.Linear
+        existing.RollOffMinDistance = self.alertSoundMinDistance
+        existing.RollOffMaxDistance = self.alertSoundMaxDistance
+        existing.Looped = false
+        existing.PlayOnRemove = false
+        self.alertSound = existing
+        return existing
+    end
+    local sound = Instance.new("Sound")
+    sound.Name = "SentryAlertSound"
+    sound.SoundId = self.alertSoundId
+    sound.Volume = self.alertSoundVolume
+    sound.RollOffMode = Enum.RollOffMode.Linear
+    sound.RollOffMinDistance = self.alertSoundMinDistance
+    sound.RollOffMaxDistance = self.alertSoundMaxDistance
+    sound.Looped = false
+    sound.PlayOnRemove = false
+    sound.Parent = root
+    self.alertSound = sound
+    return sound
+end
+
+function SentryController:_playAlertSound()
+    if not self.alertSoundId or self.alertSoundId == "" then
+        return
+    end
+    local now = os.clock()
+    if self.lastAlertTime > 0 and (now - self.lastAlertTime) < self.alertSoundCooldown then
+        return
+    end
+    local sound = self:_ensureAlertSound()
+    if not sound then
+        return
+    end
+    if sound.SoundId ~= self.alertSoundId then
+        sound.SoundId = self.alertSoundId
+    end
+    sound.Volume = self.alertSoundVolume
+    sound.RollOffMinDistance = self.alertSoundMinDistance
+    sound.RollOffMaxDistance = self.alertSoundMaxDistance
+    sound.TimePosition = 0
+    sound:Play()
+    self.lastAlertTime = now
+end
+
 function SentryController:_setHumanoidSpeed(speed)
     if not self.humanoid then
         return
@@ -493,6 +601,7 @@ function SentryController:_enterChase(player, character)
     self.returnIndex = nil
     self.lastKnownPosition = nil
     self:_setHumanoidSpeed(self.patrolSpeed * self.chaseSpeedMultiplier)
+    self:_playAlertSound()
     self:_requestCloak()
 end
 
@@ -770,6 +879,13 @@ function SentryController:Destroy()
     self.targetCharacter = nil
     self.targetPlayer = nil
     self.routePoints = {}
+    if self.alertSound then
+        self.alertSound:Stop()
+        pcall(function()
+            self.alertSound:Destroy()
+        end)
+    end
+    self.alertSound = nil
     self.model = nil
     self.humanoid = nil
 end
