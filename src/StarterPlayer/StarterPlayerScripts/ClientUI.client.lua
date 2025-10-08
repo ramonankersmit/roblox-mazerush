@@ -100,8 +100,21 @@ local function createSection(titleText, color, order)
         return listFrame
 end
 
-local aliveListFrame = createSection("Spelers actief", Color3.fromRGB(120, 255, 180), 2)
-local eliminatedListFrame = createSection("Uitgeschakeld", Color3.fromRGB(255, 120, 120), 3)
+local aliveListFrame = createSection("Spelers actief", Color3.fromRGB(120, 255, 180), 3)
+local eliminatedListFrame = createSection("Uitgeschakeld", Color3.fromRGB(255, 120, 120), 4)
+
+local eventStatusLabel = Instance.new("TextLabel")
+eventStatusLabel.Name = "EventMonsterStatus"
+eventStatusLabel.LayoutOrder = 2
+eventStatusLabel.Size = UDim2.new(1, -10, 0, 26)
+eventStatusLabel.Position = UDim2.new(0, 5, 0, 0)
+eventStatusLabel.BackgroundTransparency = 1
+eventStatusLabel.TextColor3 = Color3.fromRGB(255, 170, 170)
+eventStatusLabel.TextScaled = true
+eventStatusLabel.TextWrapped = true
+eventStatusLabel.Font = Enum.Font.GothamSemibold
+eventStatusLabel.Text = "Eventmonster: Onbekend"
+eventStatusLabel.Parent = scoreboardFrame
 
 local eliminationMessage = Instance.new("TextLabel")
 eliminationMessage.Name = "EliminationNotice"
@@ -184,6 +197,97 @@ eventWarningLabel.Parent = eventWarningFrame
 local defaultEventWarningColor = eventWarningFrame.BackgroundColor3
 local eventWarningToken
 
+local currentEventStatus = "Onbekend"
+local eventStatusValue
+local eventStatusChangedConnection
+local eventNextSpawnValue
+local eventNextSpawnChangedConnection
+local eventCountdownSeconds
+local lastEventCountdownUpdate
+local lastEventCountdownDisplay
+
+local function updateEventStatusText(force)
+        local status = currentEventStatus or "Onbekend"
+        local labelText = "Eventmonster: " .. status
+        local showCountdown = (status == "Idle" or status == "Warning") and eventCountdownSeconds and eventCountdownSeconds > 0
+        if showCountdown then
+                local seconds = math.max(math.ceil(eventCountdownSeconds), 0)
+                if force or seconds ~= lastEventCountdownDisplay then
+                        labelText = string.format("Eventmonster: %s (volgende kans ~%ds)", status, seconds)
+                        lastEventCountdownDisplay = seconds
+                else
+                        labelText = eventStatusLabel.Text
+                end
+        else
+                        lastEventCountdownDisplay = nil
+        end
+        eventStatusLabel.Text = labelText
+end
+
+local function onEventStatusValueChanged()
+        if eventStatusValue and typeof(eventStatusValue.Value) == "string" then
+                currentEventStatus = eventStatusValue.Value ~= "" and eventStatusValue.Value or "Onbekend"
+        else
+                currentEventStatus = "Onbekend"
+        end
+        if currentEventStatus ~= "Idle" and currentEventStatus ~= "Warning" then
+                eventCountdownSeconds = nil
+                lastEventCountdownUpdate = nil
+                lastEventCountdownDisplay = nil
+        end
+        updateEventStatusText(true)
+end
+
+local function attachEventStatusValue(value)
+        if value and not value:IsA("StringValue") then
+                value = nil
+        end
+        if eventStatusChangedConnection then
+                eventStatusChangedConnection:Disconnect()
+                eventStatusChangedConnection = nil
+        end
+        eventStatusValue = value
+        if eventStatusValue then
+                eventStatusChangedConnection = eventStatusValue.Changed:Connect(onEventStatusValueChanged)
+        end
+        onEventStatusValueChanged()
+end
+
+local function onEventNextSpawnValueChanged()
+        if eventNextSpawnValue then
+                local seconds = tonumber(eventNextSpawnValue.Value)
+                if seconds and seconds > 0 then
+                        eventCountdownSeconds = seconds
+                        lastEventCountdownUpdate = os.clock()
+                        lastEventCountdownDisplay = nil
+                else
+                        eventCountdownSeconds = nil
+                        lastEventCountdownUpdate = nil
+                        lastEventCountdownDisplay = nil
+                end
+        else
+                eventCountdownSeconds = nil
+                lastEventCountdownUpdate = nil
+                lastEventCountdownDisplay = nil
+        end
+        updateEventStatusText(true)
+end
+
+local function attachEventNextSpawnValue(value)
+        if value and not value:IsA("NumberValue") then
+                value = nil
+        end
+        if eventNextSpawnChangedConnection then
+                eventNextSpawnChangedConnection:Disconnect()
+                eventNextSpawnChangedConnection = nil
+        end
+        eventNextSpawnValue = value
+        if eventNextSpawnValue then
+                eventNextSpawnChangedConnection = eventNextSpawnValue.Changed:Connect(onEventNextSpawnValueChanged)
+        end
+        onEventNextSpawnValueChanged()
+end
+
 local function stopEventMonsterWarning()
         eventWarningToken = nil
         eventWarningFrame.Visible = false
@@ -242,6 +346,25 @@ EventMonsterEffects.OnClientEvent:Connect(function(stage, payload)
                 applyEventWarning(payload)
         elseif stage == "Stop" then
                 stopEventMonsterWarning()
+        end
+end)
+
+attachEventStatusValue(State:FindFirstChild("EventMonsterStatus"))
+attachEventNextSpawnValue(State:FindFirstChild("EventMonsterNextSpawnDelay"))
+
+State.ChildAdded:Connect(function(child)
+        if child.Name == "EventMonsterStatus" then
+                attachEventStatusValue(child)
+        elseif child.Name == "EventMonsterNextSpawnDelay" then
+                attachEventNextSpawnValue(child)
+        end
+end)
+
+State.ChildRemoved:Connect(function(child)
+        if child == eventStatusValue then
+                attachEventStatusValue(nil)
+        elseif child == eventNextSpawnValue then
+                attachEventNextSpawnValue(nil)
         end
 end)
 
@@ -1297,6 +1420,7 @@ local dotPlayer = makeDot("P", Color3.fromRGB(0,255,0))
 local dotExit   = makeDot("E", Color3.fromRGB(255,255,0))
 local dotHuntersFolder = mapCanvas:FindFirstChild("Hunters") or Instance.new("Folder", mapCanvas); dotHuntersFolder.Name = "Hunters"
 local dotSentriesFolder = mapCanvas:FindFirstChild("Sentries") or Instance.new("Folder", mapCanvas); dotSentriesFolder.Name = "Sentries"
+local dotEventsFolder = mapCanvas:FindFirstChild("Events") or Instance.new("Folder", mapCanvas); dotEventsFolder.Name = "Events"
 
 updateMinimapVisibility = function()
         if mapFrame then
@@ -1375,11 +1499,37 @@ local function sentries()
         return list
 end
 
-game:GetService("RunService").Heartbeat:Connect(function()
+local function eventMonsters()
+        local list = {}
+        local container = workspace:FindFirstChild("EventMonsters")
+        if container then
+                for _, m in ipairs(container:GetChildren()) do
+                        if m:IsA("Model") then
+                                list[#list + 1] = m
+                        end
+                end
+        end
+        return list
+end
+
+RunService.Heartbeat:Connect(function(deltaTime)
+        if eventCountdownSeconds and eventCountdownSeconds > 0 then
+                local now = os.clock()
+                local elapsed = deltaTime or (now - (lastEventCountdownUpdate or now))
+                eventCountdownSeconds = math.max(eventCountdownSeconds - elapsed, 0)
+                lastEventCountdownUpdate = now
+                if eventCountdownSeconds <= 0 then
+                        eventCountdownSeconds = nil
+                        updateEventStatusText(true)
+                else
+                        updateEventStatusText(false)
+                end
+        end
+
         if not minimapOn or not isGameplayState() then return end
-	local char = player.Character or player.CharacterAdded:Wait()
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
 
         dotPlayer.Position = worldToMap(hrp.Position)
         local exitTarget = select(1, findExitTarget())
@@ -1416,6 +1566,22 @@ game:GetService("RunService").Heartbeat:Connect(function()
                         d.Name = "S"..i
                         d.Parent = dotSentriesFolder
                         d.Position = worldToMap(position)
+                end
+        end
+
+        for _, c in ipairs(dotEventsFolder:GetChildren()) do c:Destroy() end
+        for i, e in ipairs(eventMonsters()) do
+                local position = getModelPosition(e)
+                if position then
+                        local dot = Instance.new("Frame")
+                        dot.Size = UDim2.new(0,7,0,7)
+                        dot.AnchorPoint = Vector2.new(0.5,0.5)
+                        dot.BackgroundColor3 = Color3.fromRGB(255, 40, 200)
+                        dot.BorderSizePixel = 1
+                        dot.BorderColor3 = Color3.fromRGB(255, 220, 255)
+                        dot.Name = "EV"..i
+                        dot.Parent = dotEventsFolder
+                        dot.Position = worldToMap(position)
                 end
         end
 end)

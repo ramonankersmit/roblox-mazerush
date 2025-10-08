@@ -161,6 +161,9 @@ function EventController.spawn(globalConfig, enemyConfig, dependencies)
                 model = buildFallbackModel()
         end
 
+        model.Name = enemyConfig.ModelName or "EventMonster"
+        model:SetAttribute("IsEventMonster", true)
+
         local primaryPart = ensurePrimaryPart(model)
         if not primaryPart then
                 warn("[EventController] Kon geen PrimaryPart bepalen voor eventmonster")

@@ -31,6 +31,30 @@ if not eventContainer then
         eventContainer.Parent = Workspace
 end
 
+local statusValue = stateFolder:FindFirstChild("EventMonsterStatus")
+if not statusValue then
+        statusValue = Instance.new("StringValue")
+        statusValue.Name = "EventMonsterStatus"
+        statusValue.Value = "Idle"
+        statusValue.Parent = stateFolder
+end
+
+local nextSpawnValue = stateFolder:FindFirstChild("EventMonsterNextSpawnDelay")
+if not nextSpawnValue then
+        nextSpawnValue = Instance.new("NumberValue")
+        nextSpawnValue.Name = "EventMonsterNextSpawnDelay"
+        nextSpawnValue.Value = -1
+        nextSpawnValue.Parent = stateFolder
+end
+
+local lastSpawnValue = stateFolder:FindFirstChild("EventMonsterLastSpawn")
+if not lastSpawnValue then
+        lastSpawnValue = Instance.new("NumberValue")
+        lastSpawnValue.Name = "EventMonsterLastSpawn"
+        lastSpawnValue.Value = 0
+        lastSpawnValue.Parent = stateFolder
+end
+
 local activeController
 local controllerEndedConnection
 local roundActive = false
@@ -73,6 +97,33 @@ local function getEventConfig()
         return enemies.Event or {}
 end
 
+local function log(message, ...)
+        local ok, formatted = pcall(string.format, message, ...)
+        if ok then
+                print(string.format("[EventMonsterService] %s", formatted))
+        else
+                print("[EventMonsterService]", message, ...)
+        end
+end
+
+local function setStatus(status)
+        if statusValue then
+                statusValue.Value = status
+        end
+end
+
+local function setNextSpawnDelay(delay)
+        if nextSpawnValue then
+                nextSpawnValue.Value = delay or -1
+        end
+end
+
+local function markSpawn()
+        if lastSpawnValue then
+                lastSpawnValue.Value = os.time()
+        end
+end
+
 local function broadcastEffect(stage, payload)
         if not eventRemote then
                 return
@@ -98,8 +149,11 @@ local function cleanupController(reason)
                 controllerEndedConnection = nil
         end
         if activeController then
+                log("Eventmonster gestopt (%s).", tostring(reason))
                 activeController:Destroy(reason)
                 activeController = nil
+                setStatus("Idle")
+                setNextSpawnDelay(-1)
         end
 end
 
@@ -107,6 +161,8 @@ local function onControllerFinished()
         controllerEndedConnection = nil
         activeController = nil
         broadcastEffect("Stop", {})
+        setStatus("Idle")
+        setNextSpawnDelay(-1)
         if roundActive then
                 cancelScheduledSpawn()
                 task.delay(1, function()
@@ -133,9 +189,11 @@ end
 
 local function runSpawnSequence(config)
         cancelScheduledSpawn()
+        setNextSpawnDelay(-1)
         local effects = config.SpecialEffects or {}
         local warningDuration = math.max(tonumber(config.WarningDuration) or 0, 0)
         if warningDuration > 0 then
+                log("Eventmonster waarschuwing geactiveerd voor %.2f seconden.", warningDuration)
                 broadcastEffect("Warn", {
                         message = effects.WarningMessage or "Een duistere aanwezigheid nadert...",
                         duration = warningDuration,
@@ -143,6 +201,7 @@ local function runSpawnSequence(config)
                         color = effects.LightColor,
                         soundId = effects.WarningSoundId,
                 })
+                setStatus("Warning")
                 local elapsed = 0
                 while elapsed < warningDuration do
                         if not roundActive then
@@ -155,12 +214,18 @@ local function runSpawnSequence(config)
         end
 
         if not roundActive then
+                log("Spawn afgebroken: ronde is niet langer actief.")
+                setStatus("Idle")
+                setNextSpawnDelay(-1)
                 return nil
         end
 
         local controller = spawnController(config)
         if not controller then
+                log("Eventmonster kon niet gespawned worden.")
                 broadcastEffect("Stop", {})
+                setStatus("Idle")
+                setNextSpawnDelay(-1)
                 if roundActive then
                         task.delay(5, function()
                                 if roundActive and not activeController then
@@ -178,6 +243,13 @@ local function runSpawnSequence(config)
                 color = effects.LightColor,
                 soundId = effects.SoundId,
         })
+        setStatus("Active")
+        setNextSpawnDelay(-1)
+        markSpawn()
+        log("Eventmonster actief voor %.2f seconden (snelheid %.2f).",
+                math.max(tonumber(config.ActiveDuration) or 0, 0),
+                math.max(tonumber(config.ChaseSpeed) or 0, 0)
+        )
 
         return controller
 end
@@ -185,11 +257,15 @@ end
 scheduleNextSpawn = function()
         cancelScheduledSpawn()
         if not roundActive then
+                setNextSpawnDelay(-1)
                 return
         end
         local config = getEventConfig()
         local chance = tonumber(config.SpawnChance) or 0
         if chance <= 0 then
+                log("Geen eventmonster spawn: spawnkans <= 0.")
+                setStatus("Idle")
+                setNextSpawnDelay(-1)
                 return
         end
         local minDelay = math.max(tonumber(config.MinSpawnDelay) or 0, 0)
@@ -204,17 +280,25 @@ scheduleNextSpawn = function()
                 delayTime = minDelay
         end
 
+        setNextSpawnDelay(delayTime)
+        log("Nieuwe spawn gepland over %.2f seconden (kans %.2f).", delayTime, chance)
+
         scheduledThread = task.spawn(function()
                 task.wait(delayTime)
                 scheduledThread = nil
                 if not roundActive or activeController then
+                        log("Spawn geannuleerd: ronde actief=%s, controller=%s.", tostring(roundActive), tostring(activeController ~= nil))
+                        setNextSpawnDelay(-1)
                         scheduleNextSpawn()
                         return
                 end
                 if randomGenerator:NextNumber() <= chance then
                         local baseConfig = getEventConfig()
+                        log("Spawnpoging gestart (config chance %.2f).", chance)
                         runSpawnSequence(baseConfig)
                 else
+                        log("Spawn kans mislukt (%.2f).", chance)
+                        setNextSpawnDelay(-1)
                         scheduleNextSpawn()
                 end
         end)
@@ -224,8 +308,10 @@ local function spawnEventMonster(customConfig)
         local baseConfig = getEventConfig()
         local mergedConfig = mergeConfigs(baseConfig, customConfig)
         if activeController then
+                log("SpawnEventMonster genegeerd: er is al een actief eventmonster.")
                 return activeController
         end
+        log("SpawnEventMonster handmatig aangeroepen.")
         return runSpawnSequence(mergedConfig)
 end
 
@@ -235,13 +321,17 @@ _G.ScheduleEventMonster = scheduleNextSpawn
 local function onPhaseChanged(newValue)
         roundActive = (newValue == "ACTIVE")
         if roundActive then
+                log("Ronde actief -> eventmonsterplanning gestart.")
                 scheduleNextSpawn()
         else
+                log("Ronde niet actief -> eventmonsterplanning gestopt.")
                 cancelScheduledSpawn()
+                setNextSpawnDelay(-1)
                 if activeController then
                         cleanupController("PhaseEnd")
                 end
                 broadcastEffect("Stop", {})
+                setStatus("Idle")
         end
 end
 
