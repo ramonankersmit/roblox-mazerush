@@ -377,6 +377,8 @@ local function clampedTransparency(value)
         return math.clamp(value, 0, 1)
 end
 
+local lobbyDefaultTransparency = lobbyBase and lobbyBase.Transparency or 0.2
+
 local function applyPartTheme(part, color, material, transparency, fallbackTransparency)
         if color then
                 part.Color = color
@@ -416,6 +418,7 @@ local function applyTheme(themeId)
                 lobbyBase.Color = DEFAULT_LOBBY_COLOR
                 lobbyBase.Material = Enum.Material.Glass
                 lobbyBase.Transparency = 0.2
+                lobbyDefaultTransparency = lobbyBase.Transparency
         end
 
         if exitPad then
@@ -718,7 +721,9 @@ local function runRound()
                 print(string.format("[GameManager] Moeilijkheid presets ontbreken, gebruik standaard: %s (carveLoops %.0f%%)", difficultyValue.Value, (loopChanceValue.Value or 0) * 100))
         end
         roundActive = true
-        applyTheme(resolvedThemeValue())
+        local activeThemeId = resolvedThemeValue()
+        applyTheme(activeThemeId)
+        local previousLobbyTransparency = lobbyDefaultTransparency
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
         teleportToLobby()
 
@@ -733,6 +738,9 @@ local function runRound()
         MazeBuilder.Clear(mazeFolder)
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        if lobbyBase then
+                lobbyBase.Transparency = 1
+        end
         layoutExitRoom()
         local buildDuration = math.max(Config.PrepBuildDuration or Config.PrepTime or 0, 0)
         local overviewDuration = math.max(Config.PrepOverviewDuration or 0, 0)
@@ -804,6 +812,10 @@ local function runRound()
 
         if roundActive and overviewDuration > overviewSeconds then
                 task.wait(overviewDuration - overviewSeconds)
+        end
+
+        if lobbyBase then
+                lobbyBase.Transparency = previousLobbyTransparency or 0.2
         end
 
         if roundActive then
