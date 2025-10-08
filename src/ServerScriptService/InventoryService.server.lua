@@ -1,5 +1,10 @@
 local Replicated = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
+local KEY_ASSET_ID = KeyPrefabManager.GetAssetId()
+local KEY_TOOL_TEXTURE = string.format("rbxthumb://type=Asset&id=%d&w=420&h=420", KEY_ASSET_ID)
 
 local Remotes = Replicated:WaitForChild("Remotes")
 local InventoryUpdate = Remotes:WaitForChild("InventoryUpdate")
@@ -12,7 +17,7 @@ local TOOL_DEFINITIONS = {
                 name = "Maze Key",
                 tooltip = "Gebruik deze sleutel om deuren in Maze Rush te openen.",
                 requiresHandle = false,
-                textureId = "rbxthumb://type=Asset&id=9297062616&w=420&h=420",
+                textureId = KEY_TOOL_TEXTURE,
                 canBeDropped = false,
                 getDesiredCount = function(inv)
                         return math.max(0, inv.keys or 0)

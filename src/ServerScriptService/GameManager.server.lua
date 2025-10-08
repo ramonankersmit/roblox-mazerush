@@ -2,7 +2,6 @@ local Replicated = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
-local InsertService = game:GetService("InsertService")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 local CollectionService = game:GetService("CollectionService")
@@ -11,8 +10,7 @@ local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
-
-local Config = require(Replicated.Modules.RoundConfig)
+local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
 
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
@@ -28,7 +26,6 @@ ensureRemote("SetMazeAlgorithm")
 ensureRemote("ThemeVote")
 
 local ThemeConfig = require(Replicated.Modules.ThemeConfig)
-local Config = require(Replicated.Modules.RoundConfig)
 ensureRemote("SetLoopChance")
 local AliveStatus = ensureRemote("AliveStatus")
 local PlayerEliminated = ensureRemote("PlayerEliminated")
@@ -197,8 +194,6 @@ end
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
 
-local Config = require(Replicated.Modules.RoundConfig)
-
 local function ensurePart(name, size)
         local p = prefabs:FindFirstChild(name)
         if not p then p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.Size = size or Vector3.new(4,4,1); p.Parent = prefabs end
@@ -207,172 +202,7 @@ end
 
 ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
 ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
-local KEY_ASSET_ID = 9297062616
-local KEY_SOURCE_ATTRIBUTE = "SourceAssetId"
-
-local function keyLog(message, ...)
-        if select("#", ...) > 0 then
-                message = string.format(message, ...)
-        end
-        print("[KeyPrefab]", message)
-end
-
-local function keyWarn(message, ...)
-        if select("#", ...) > 0 then
-                message = string.format(message, ...)
-        end
-        warn("[KeyPrefab]", message)
-end
-
-local function applyKeyDefaults(model)
-        for _, descendant in ipairs(model:GetDescendants()) do
-                if descendant:IsA("BasePart") then
-                        descendant.Anchored = true
-                        descendant.CanCollide = false
-                end
-        end
-
-        if not model.PrimaryPart then
-                local primary = model:FindFirstChildWhichIsA("BasePart")
-                if primary then
-                        model.PrimaryPart = primary
-                end
-        end
-end
-
-local function finalizeKeyModel(model, sourceAssetId)
-        model.Name = "Key"
-        applyKeyDefaults(model)
-
-        local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-        if primary and not model.PrimaryPart then
-                model.PrimaryPart = primary
-        end
-
-        local hasPrompt = false
-        for _, descendant in ipairs(model:GetDescendants()) do
-                if descendant:IsA("ProximityPrompt") then
-                        hasPrompt = true
-                        break
-                end
-        end
-
-        if not hasPrompt and primary then
-                local prompt = Instance.new("ProximityPrompt")
-                prompt.Parent = primary
-        end
-
-        model:SetAttribute(KEY_SOURCE_ATTRIBUTE, sourceAssetId or 0)
-        model.Parent = prefabs
-end
-
-
-local function createFallbackKeyModel()
-        local model = Instance.new("Model")
-
-        local function makePart(name, size, position, rotation)
-                local part = Instance.new("Part")
-                part.Name = name
-                part.Anchored = true
-                part.CanCollide = false
-                part.CanTouch = false
-                part.CanQuery = false
-                part.Material = Enum.Material.Metal
-                part.Color = Color3.fromRGB(255, 221, 79)
-                part.CastShadow = true
-                part.Size = size
-                local cf = CFrame.new(position)
-                if rotation then
-                        cf = cf * rotation
-                end
-                part.CFrame = cf
-                part.Parent = model
-                return part
-        end
-
-        local thickness = 0.3
-        local rotation = CFrame.Angles(0, 0, math.rad(90))
-        local head = makePart("Head", Vector3.new(1.1, thickness, 1.1), Vector3.new(-0.6, 0, 0), rotation)
-        head.Shape = Enum.PartType.Cylinder
-
-        local hub = makePart("Hub", Vector3.new(0.55, thickness * 0.6, 0.55), Vector3.new(-0.6, 0, 0), rotation)
-        hub.Shape = Enum.PartType.Cylinder
-        hub.Material = Enum.Material.SmoothPlastic
-        hub.Color = Color3.fromRGB(253, 234, 141)
-        hub.Transparency = 0.2
-
-        local shaft = makePart("Shaft", Vector3.new(0.35, thickness, 1.8), Vector3.new(0.25, 0, 0))
-
-        local tooth1 = makePart("Tooth1", Vector3.new(0.35, thickness, 0.55), Vector3.new(0.9, 0, -0.65))
-        local tooth2 = makePart("Tooth2", Vector3.new(0.35, thickness, 0.35), Vector3.new(0.55, 0, -0.85))
-
-        model.PrimaryPart = shaft
-
-        local prompt = Instance.new("ProximityPrompt")
-        prompt.Parent = shaft
-
-        return model
-end
-
-local function ensureKeyPrefab()
-        local existing = prefabs:FindFirstChild("Key")
-        if existing then
-                local sourceId = existing:GetAttribute(KEY_SOURCE_ATTRIBUTE)
-                if sourceId == KEY_ASSET_ID then
-                        keyLog("Marketplace sleutelmodel %d is al up-to-date", KEY_ASSET_ID)
-                        return
-                end
-                keyLog("Vervang bestaand sleutelmodel (bron %s) door marketplace asset %d", tostring(sourceId), KEY_ASSET_ID)
-                existing:Destroy()
-        end
-
-        local success, asset = pcall(function()
-                return InsertService:LoadAsset(KEY_ASSET_ID)
-        end)
-
-        local fallbackReason
-
-        if success and asset then
-                local keyModel = asset:FindFirstChild("Key")
-                if not (keyModel and keyModel:IsA("Model")) then
-                        keyModel = asset:FindFirstChildWhichIsA("Model")
-                end
-
-                if keyModel then
-                        keyLog("Marketplace sleutelmodel %d geladen", KEY_ASSET_ID)
-                        finalizeKeyModel(keyModel, KEY_ASSET_ID)
-                        asset:Destroy()
-                        return
-                end
-
-                local basePart = asset:FindFirstChildWhichIsA("BasePart")
-                if basePart then
-                        keyWarn("Asset %d bevat geen Model; wikkel onderdelen in fallbackmodel", KEY_ASSET_ID)
-                        local wrapper = Instance.new("Model")
-                        for _, child in ipairs(asset:GetChildren()) do
-                                child.Parent = wrapper
-                        end
-                        finalizeKeyModel(wrapper, KEY_ASSET_ID)
-                        asset:Destroy()
-                        return
-                end
-
-                fallbackReason = "Asset bevat geen bruikbare Model of BasePart"
-                asset:Destroy()
-        else
-                fallbackReason = string.format("LoadAsset mislukte: %s", tostring(asset))
-        end
-
-        local keyModel = createFallbackKeyModel()
-        if fallbackReason then
-                keyWarn("Gebruik fallback sleutelmodel (%s)", fallbackReason)
-        else
-                keyWarn("Gebruik fallback sleutelmodel (onbekende reden)")
-        end
-        finalizeKeyModel(keyModel, 0)
-end
-
-ensureKeyPrefab()
+KeyPrefabManager.Ensure()
 if not prefabs:FindFirstChild("Door") then
         local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
         local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
@@ -497,8 +327,6 @@ ToggleWallHeight.OnServerEvent:Connect(function()
         applyWallHeight(newHeight)
 end)
 
-local MazeGen = require(Replicated.Modules.MazeGenerator)
-local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 -- Position lobby above maze center with glass walls
 local function setupSkyLobby()
 	local cx = (Config.GridWidth * Config.CellSize)/2
