@@ -30,8 +30,7 @@ if not backgroundSound then
         backgroundSound.Parent = audioFolder
 end
 
-local heartbeatConfig = {
-        soundId = "rbxassetid://7188240609",
+local heartbeatDefaults = {
         maxVolume = 0.6,
         minDistance = 12,
         maxDistance = 80,
@@ -40,26 +39,32 @@ local heartbeatConfig = {
         fadeTime = 0.35,
 }
 
-local heartbeatThreatTypes = {
-        Hunter = true,
-        Sentry = true,
+local heartbeatThreatConfigs = {
+        Hunter = {
+                soundId = "rbxassetid://7188240609",
+                soundName = "HunterHeartbeat",
+        },
+        Sentry = {
+                soundId = "rbxassetid://160248505",
+                soundName = "SentryHeartbeat",
+        },
 }
 
-local heartbeatSound = audioFolder:FindFirstChild("HunterHeartbeat")
-if not heartbeatSound then
-        heartbeatSound = Instance.new("Sound")
-        heartbeatSound.Name = "HunterHeartbeat"
-        heartbeatSound.Looped = true
-        heartbeatSound.Volume = 0
-        heartbeatSound.RollOffMode = Enum.RollOffMode.Linear
-        heartbeatSound.RollOffMaxDistance = 0
-        heartbeatSound.SoundId = heartbeatConfig.soundId
-        heartbeatSound.Parent = audioFolder
+local function applyHeartbeatDefaults(config)
+        config.maxVolume = typeof(config.maxVolume) == "number" and config.maxVolume or heartbeatDefaults.maxVolume
+        config.minDistance = typeof(config.minDistance) == "number" and config.minDistance or heartbeatDefaults.minDistance
+        config.maxDistance = typeof(config.maxDistance) == "number" and config.maxDistance or heartbeatDefaults.maxDistance
+        config.minSpeed = typeof(config.minSpeed) == "number" and config.minSpeed or heartbeatDefaults.minSpeed
+        config.maxSpeed = typeof(config.maxSpeed) == "number" and config.maxSpeed or heartbeatDefaults.maxSpeed
+        config.fadeTime = typeof(config.fadeTime) == "number" and config.fadeTime or heartbeatDefaults.fadeTime
+        config.soundName = typeof(config.soundName) == "string" and config.soundName ~= "" and config.soundName or "Heartbeat"
 end
 
-if heartbeatSound.SoundId == "" then
-        heartbeatSound.SoundId = heartbeatConfig.soundId
+for _, config in pairs(heartbeatThreatConfigs) do
+        applyHeartbeatDefaults(config)
 end
+
+local heartbeatSounds = {}
 
 local activeTweens = {}
 
@@ -210,73 +215,131 @@ end
 applyThemeMusic()
 ThemeValue:GetPropertyChangedSignal("Value"):Connect(applyThemeMusic)
 
-local function ensureHeartbeatPlaying()
-        if heartbeatSound.SoundId ~= "" and not heartbeatSound.IsPlaying then
-                heartbeatSound:Play()
+local function ensureHeartbeatSound(threatType)
+        local config = heartbeatThreatConfigs[threatType]
+        if not config then
+                return nil
         end
+
+        local sound = heartbeatSounds[threatType]
+        if not (sound and sound.Parent) then
+                sound = audioFolder:FindFirstChild(config.soundName)
+                if not (sound and sound:IsA("Sound")) then
+                        sound = Instance.new("Sound")
+                        sound.Name = config.soundName
+                        sound.Looped = true
+                        sound.Volume = 0
+                        sound.RollOffMode = Enum.RollOffMode.Linear
+                        sound.RollOffMaxDistance = 0
+                        sound.Parent = audioFolder
+                end
+                heartbeatSounds[threatType] = sound
+        end
+
+        if typeof(config.soundId) == "string" and config.soundId ~= "" and sound.SoundId ~= config.soundId then
+                sound.SoundId = config.soundId
+        end
+
+        return sound
 end
 
-ensureHeartbeatPlaying()
+local function ensureHeartbeatPlaying(threatType)
+        local sound = ensureHeartbeatSound(threatType)
+        if sound and sound.SoundId ~= "" and not sound.IsPlaying then
+                sound:Play()
+        end
+        return sound
+end
 
 local accumulated = 0
 
 local function updateHeartbeat()
         local character = player.Character
         if not character then
-                tweenVolume(heartbeatSound, 0, heartbeatConfig.fadeTime)
+                for threatType, config in pairs(heartbeatThreatConfigs) do
+                        local sound = ensureHeartbeatSound(threatType)
+                        if sound then
+                                tweenVolume(sound, 0, config.fadeTime)
+                        end
+                end
                 return
         end
         local root = character:FindFirstChild("HumanoidRootPart")
         if not root then
-                tweenVolume(heartbeatSound, 0, heartbeatConfig.fadeTime)
+                for threatType, config in pairs(heartbeatThreatConfigs) do
+                        local sound = ensureHeartbeatSound(threatType)
+                        if sound then
+                                tweenVolume(sound, 0, config.fadeTime)
+                        end
+                end
                 return
         end
 
-        local closestDistance = math.huge
+        local closestByThreat = {}
+        for threatType in pairs(heartbeatThreatConfigs) do
+                closestByThreat[threatType] = math.huge
+        end
         for _, model in ipairs(Workspace:GetChildren()) do
                 if model:IsA("Model") then
                         local enemyType = model:GetAttribute("EnemyType")
-                        local name = model.Name
-                        if (enemyType and heartbeatThreatTypes[enemyType]) or heartbeatThreatTypes[name] then
+                        local threatType = heartbeatThreatConfigs[enemyType] and enemyType or model.Name
+                        local config = heartbeatThreatConfigs[threatType]
+                        if config then
                                 local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
                                 if hrp and hrp:IsA("BasePart") then
                                         local distance = (hrp.Position - root.Position).Magnitude
-                                        if distance < closestDistance then
-                                                closestDistance = distance
+                                        if distance < closestByThreat[threatType] then
+                                                closestByThreat[threatType] = distance
                                         end
                                 end
                         end
                 end
         end
 
-        if closestDistance == math.huge or closestDistance > heartbeatConfig.maxDistance then
-                tweenVolume(heartbeatSound, 0, heartbeatConfig.fadeTime)
-                return
-        end
-
-        ensureHeartbeatPlaying()
-
-        local alpha
-        if closestDistance <= heartbeatConfig.minDistance then
-                alpha = 1
-        else
-                local range = heartbeatConfig.maxDistance - heartbeatConfig.minDistance
-                if range <= 0 then
-                        alpha = 1
-                else
-                        alpha = 1 - ((closestDistance - heartbeatConfig.minDistance) / range)
+        local activeThreatType
+        local activeDistance = math.huge
+        for threatType, distance in pairs(closestByThreat) do
+                local config = heartbeatThreatConfigs[threatType]
+                if config and distance <= config.maxDistance and distance < activeDistance then
+                        activeDistance = distance
+                        activeThreatType = threatType
                 end
         end
-        alpha = math.clamp(alpha, 0, 1)
 
-        local targetVolume = heartbeatConfig.maxVolume * alpha
-        local targetSpeed = heartbeatConfig.minSpeed + (heartbeatConfig.maxSpeed - heartbeatConfig.minSpeed) * alpha
+        for threatType, config in pairs(heartbeatThreatConfigs) do
+                        local sound = ensureHeartbeatSound(threatType)
+                        if not sound then
+                                continue
+                        end
 
-        if math.abs(heartbeatSound.PlaybackSpeed - targetSpeed) > 0.01 then
-                heartbeatSound.PlaybackSpeed = targetSpeed
+                        if activeThreatType == threatType and activeDistance ~= math.huge then
+                                ensureHeartbeatPlaying(threatType)
+
+                                local alpha
+                                if activeDistance <= config.minDistance then
+                                        alpha = 1
+                                else
+                                        local range = config.maxDistance - config.minDistance
+                                        if range <= 0 then
+                                                alpha = 1
+                                        else
+                                                alpha = 1 - ((activeDistance - config.minDistance) / range)
+                                        end
+                                end
+                                alpha = math.clamp(alpha, 0, 1)
+
+                                local targetVolume = config.maxVolume * alpha
+                                local targetSpeed = config.minSpeed + (config.maxSpeed - config.minSpeed) * alpha
+
+                                if math.abs(sound.PlaybackSpeed - targetSpeed) > 0.01 then
+                                        sound.PlaybackSpeed = targetSpeed
+                                end
+
+                                tweenVolume(sound, targetVolume, config.fadeTime)
+                        else
+                                tweenVolume(sound, 0, config.fadeTime)
+                        end
         end
-
-        tweenVolume(heartbeatSound, targetVolume, heartbeatConfig.fadeTime)
 end
 
 RunService.Heartbeat:Connect(function(dt)
@@ -288,10 +351,17 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 player.CharacterAdded:Connect(function()
-        ensureHeartbeatPlaying()
+        for threatType in pairs(heartbeatThreatConfigs) do
+                ensureHeartbeatSound(threatType)
+        end
         updateHeartbeat()
 end)
 
 player.CharacterRemoving:Connect(function()
-        tweenVolume(heartbeatSound, 0, heartbeatConfig.fadeTime)
+        for threatType, config in pairs(heartbeatThreatConfigs) do
+                local sound = ensureHeartbeatSound(threatType)
+                if sound then
+                        tweenVolume(sound, 0, config.fadeTime)
+                end
+        end
 end)
