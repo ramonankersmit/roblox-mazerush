@@ -332,6 +332,9 @@ function SentryController.new(enemyModel, config, context)
         alertSoundId = DEFAULTS.AlertSoundId
     end
     self.alertSoundId = alertSoundId
+    if self.model and typeof(self.model.SetAttribute) == "function" then
+        self.model:SetAttribute("SentryAlertSoundId", alertSoundId)
+    end
     local alertCooldown = config.AlertSoundCooldown
     if routeMeta and type(routeMeta.AlertSoundCooldown) == "number" then
         alertCooldown = routeMeta.AlertSoundCooldown
@@ -537,6 +540,9 @@ function SentryController:_ensureAlertSound()
     local root = self:_getRootPart()
     if not root then
         return nil
+    end
+    if self.model and typeof(self.model.SetAttribute) == "function" then
+        self.model:SetAttribute("SentryAlertSoundId", self.alertSoundId)
     end
     local existing = root:FindFirstChild("SentryAlertSound")
     if existing and existing:IsA("Sound") then

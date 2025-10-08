@@ -45,8 +45,9 @@ local heartbeatThreatConfigs = {
                 soundName = "HunterHeartbeat",
         },
         Sentry = {
-                soundId = "rbxassetid://160248505",
+                soundId = "rbxassetid://137300436593190",
                 soundName = "SentryHeartbeat",
+                soundAttributes = { "SentryAlertSoundId", "AlertSoundId" },
         },
 }
 
@@ -215,10 +216,10 @@ end
 applyThemeMusic()
 ThemeValue:GetPropertyChangedSignal("Value"):Connect(applyThemeMusic)
 
-local function ensureHeartbeatSound(threatType)
+local function ensureHeartbeatSound(threatType, overrideSoundId)
         local config = heartbeatThreatConfigs[threatType]
         if not config then
-                return nil
+                return nil, nil
         end
 
         local sound = heartbeatSounds[threatType]
@@ -236,22 +237,51 @@ local function ensureHeartbeatSound(threatType)
                 heartbeatSounds[threatType] = sound
         end
 
-        if typeof(config.soundId) == "string" and config.soundId ~= "" and sound.SoundId ~= config.soundId then
-                sound.SoundId = config.soundId
+        local resolvedSoundId = overrideSoundId
+        if typeof(resolvedSoundId) ~= "string" or resolvedSoundId == "" then
+                resolvedSoundId = config.soundId
         end
 
-        return sound
+        if typeof(resolvedSoundId) == "string" and resolvedSoundId ~= "" then
+                if sound.SoundId ~= resolvedSoundId then
+                        sound.SoundId = resolvedSoundId
+                end
+        elseif sound.SoundId ~= "" then
+                sound.SoundId = ""
+        end
+
+        return sound, resolvedSoundId
 end
 
-local function ensureHeartbeatPlaying(threatType)
-        local sound = ensureHeartbeatSound(threatType)
-        if sound and sound.SoundId ~= "" and not sound.IsPlaying then
+local function ensureHeartbeatPlaying(threatType, overrideSoundId)
+        local sound, resolvedSoundId = ensureHeartbeatSound(threatType, overrideSoundId)
+        if sound and resolvedSoundId and resolvedSoundId ~= "" and not sound.IsPlaying then
                 sound:Play()
         end
-        return sound
+        return sound, resolvedSoundId
 end
 
 local accumulated = 0
+
+local function resolveThreatSoundOverride(model, config)
+        if typeof(config.soundAttributes) == "table" then
+                for _, attributeName in ipairs(config.soundAttributes) do
+                        if typeof(attributeName) == "string" and attributeName ~= "" then
+                                local attributeValue = model:GetAttribute(attributeName)
+                                if typeof(attributeValue) == "string" and attributeValue ~= "" then
+                                        return attributeValue
+                                end
+                        end
+                end
+        elseif typeof(config.soundAttribute) == "string" and config.soundAttribute ~= "" then
+                local attributeValue = model:GetAttribute(config.soundAttribute)
+                if typeof(attributeValue) == "string" and attributeValue ~= "" then
+                        return attributeValue
+                end
+        end
+
+        return nil
+end
 
 local function updateHeartbeat()
         local character = player.Character
@@ -277,19 +307,24 @@ local function updateHeartbeat()
 
         local closestByThreat = {}
         for threatType in pairs(heartbeatThreatConfigs) do
-                closestByThreat[threatType] = math.huge
+                closestByThreat[threatType] = {
+                        distance = math.huge,
+                        soundId = nil,
+                }
         end
         for _, model in ipairs(Workspace:GetChildren()) do
                 if model:IsA("Model") then
                         local enemyType = model:GetAttribute("EnemyType")
                         local threatType = heartbeatThreatConfigs[enemyType] and enemyType or model.Name
                         local config = heartbeatThreatConfigs[threatType]
-                        if config then
+                        local info = closestByThreat[threatType]
+                        if config and info then
                                 local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
                                 if hrp and hrp:IsA("BasePart") then
                                         local distance = (hrp.Position - root.Position).Magnitude
-                                        if distance < closestByThreat[threatType] then
-                                                closestByThreat[threatType] = distance
+                                        if distance < info.distance then
+                                                info.distance = distance
+                                                info.soundId = resolveThreatSoundOverride(model, config)
                                         end
                                 end
                         end
@@ -298,47 +333,56 @@ local function updateHeartbeat()
 
         local activeThreatType
         local activeDistance = math.huge
-        for threatType, distance in pairs(closestByThreat) do
+        for threatType, info in pairs(closestByThreat) do
                 local config = heartbeatThreatConfigs[threatType]
-                if config and distance <= config.maxDistance and distance < activeDistance then
-                        activeDistance = distance
+                if config and info.distance <= config.maxDistance and info.distance < activeDistance then
+                        activeDistance = info.distance
                         activeThreatType = threatType
                 end
         end
 
         for threatType, config in pairs(heartbeatThreatConfigs) do
-                        local sound = ensureHeartbeatSound(threatType)
-                        if not sound then
-                                continue
-                        end
+                local info = closestByThreat[threatType]
+                local overrideSoundId = info and info.soundId or nil
+                local isActive = activeThreatType == threatType and activeDistance ~= math.huge
+                local sound
+                local resolvedSoundId
 
-                        if activeThreatType == threatType and activeDistance ~= math.huge then
-                                ensureHeartbeatPlaying(threatType)
+                if isActive then
+                        sound, resolvedSoundId = ensureHeartbeatPlaying(threatType, overrideSoundId)
+                else
+                        sound, resolvedSoundId = ensureHeartbeatSound(threatType, overrideSoundId)
+                end
 
-                                local alpha
-                                if activeDistance <= config.minDistance then
+                if not sound then
+                        continue
+                end
+
+                if isActive and resolvedSoundId and resolvedSoundId ~= "" then
+                        local alpha
+                        if activeDistance <= config.minDistance then
+                                alpha = 1
+                        else
+                                local range = config.maxDistance - config.minDistance
+                                if range <= 0 then
                                         alpha = 1
                                 else
-                                        local range = config.maxDistance - config.minDistance
-                                        if range <= 0 then
-                                                alpha = 1
-                                        else
-                                                alpha = 1 - ((activeDistance - config.minDistance) / range)
-                                        end
+                                        alpha = 1 - ((activeDistance - config.minDistance) / range)
                                 end
-                                alpha = math.clamp(alpha, 0, 1)
-
-                                local targetVolume = config.maxVolume * alpha
-                                local targetSpeed = config.minSpeed + (config.maxSpeed - config.minSpeed) * alpha
-
-                                if math.abs(sound.PlaybackSpeed - targetSpeed) > 0.01 then
-                                        sound.PlaybackSpeed = targetSpeed
-                                end
-
-                                tweenVolume(sound, targetVolume, config.fadeTime)
-                        else
-                                tweenVolume(sound, 0, config.fadeTime)
                         end
+                        alpha = math.clamp(alpha, 0, 1)
+
+                        local targetVolume = config.maxVolume * alpha
+                        local targetSpeed = config.minSpeed + (config.maxSpeed - config.minSpeed) * alpha
+
+                        if math.abs(sound.PlaybackSpeed - targetSpeed) > 0.01 then
+                                sound.PlaybackSpeed = targetSpeed
+                        end
+
+                        tweenVolume(sound, targetVolume, config.fadeTime)
+                else
+                        tweenVolume(sound, 0, config.fadeTime)
+                end
         end
 end
 
