@@ -29,6 +29,9 @@ local DEFAULTS = {
     AlertSoundMaxDistance = 120,
     AgentRadius = 2.5,
     AgentHeight = 6,
+    HearingRange = 40,
+    HearingMoveThreshold = 0.2,
+    HearingVelocityThreshold = 8,
 }
 
 local function ensurePrimaryPart(model)
@@ -75,6 +78,20 @@ local function getCharacterRoot(character)
         return nil
     end
     return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+end
+
+local function setChasingAttributes(model, isChasing, player)
+    if not model or typeof(model.SetAttribute) ~= "function" then
+        return
+    end
+
+    model:SetAttribute("SentryIsChasing", isChasing == true)
+
+    if isChasing and player and typeof(player.UserId) == "number" then
+        model:SetAttribute("SentryTargetUserId", player.UserId)
+    else
+        model:SetAttribute("SentryTargetUserId", nil)
+    end
 end
 
 local function cloneArray(source)
@@ -277,6 +294,8 @@ function SentryController.new(enemyModel, config, context)
     self.patrolPauseRemaining = 0
     self.cloakToken = 0
     self.isInvisible = false
+    self.isChasing = false
+    self.chasingPlayer = nil
     self.originalAppearances = {}
     self.pathNodes = nil
     self.pathNodeIndex = 0
@@ -328,6 +347,15 @@ function SentryController.new(enemyModel, config, context)
         self.fovCosine = -1
     end
 
+    self.hearingRange = type(config.HearingRange) == "number" and config.HearingRange or DEFAULTS.HearingRange
+    self.hearingRange = math.max(self.hearingRange, 0)
+    self.hearingMoveThreshold = type(config.HearingMoveThreshold) == "number" and config.HearingMoveThreshold
+        or DEFAULTS.HearingMoveThreshold
+    self.hearingMoveThreshold = math.max(self.hearingMoveThreshold, 0)
+    self.hearingVelocityThreshold = type(config.HearingVelocityThreshold) == "number"
+            and config.HearingVelocityThreshold or DEFAULTS.HearingVelocityThreshold
+    self.hearingVelocityThreshold = math.max(self.hearingVelocityThreshold, 0)
+
     local alertSoundId = config.AlertSoundId
     if routeMeta and type(routeMeta.AlertSoundId) == "string" then
         alertSoundId = routeMeta.AlertSoundId
@@ -339,6 +367,7 @@ function SentryController.new(enemyModel, config, context)
     if self.model and typeof(self.model.SetAttribute) == "function" then
         self.model:SetAttribute("SentryAlertSoundId", alertSoundId)
     end
+    setChasingAttributes(self.model, false, nil)
     local alertCooldown = config.AlertSoundCooldown
     if routeMeta and type(routeMeta.AlertSoundCooldown) == "number" then
         alertCooldown = routeMeta.AlertSoundCooldown
@@ -613,6 +642,17 @@ function SentryController:_setHumanoidSpeed(speed)
     self.humanoid.WalkSpeed = math.max(speed, 0)
 end
 
+function SentryController:_setChasingState(isChasing, player)
+    local chasing = isChasing == true
+    if self.isChasing == chasing and (not chasing or self.chasingPlayer == player) then
+        return
+    end
+
+    self.isChasing = chasing
+    self.chasingPlayer = chasing and player or nil
+    setChasingAttributes(self.model, chasing, self.chasingPlayer)
+end
+
 function SentryController:_clearPath()
     self.pathNodes = nil
     self.pathNodeIndex = 0
@@ -812,6 +852,7 @@ function SentryController:_enterPatrol(resume)
     self.targetPlayer = nil
     self.returnIndex = nil
     self.timeWithoutSight = 0
+    self:_setChasingState(false)
     self:_clearPath()
     self.currentDestination = nil
     self:_cancelPendingCloak()
@@ -835,7 +876,7 @@ function SentryController:_enterPatrol(resume)
     end
 end
 
-function SentryController:_enterChase(player, character)
+function SentryController:_enterChase(player, character, initialPosition)
     if not character or not isCharacterAlive(character) then
         return
     end
@@ -844,10 +885,11 @@ function SentryController:_enterChase(player, character)
     self.targetCharacter = character
     self.timeWithoutSight = 0
     self.returnIndex = nil
-    self.lastKnownPosition = nil
+    self.lastKnownPosition = initialPosition
     self:_clearPath()
     self.currentDestination = nil
     self:_setHumanoidSpeed(self.patrolSpeed * self.chaseSpeedMultiplier)
+    self:_setChasingState(true, player)
     self:_playAlertSound()
     self:_requestCloak()
     if self.model then
@@ -855,6 +897,8 @@ function SentryController:_enterChase(player, character)
     end
     if self.animations then
         self.animations:playState("Chase")
+    if initialPosition then
+        self:_setDestination(initialPosition)
     end
 end
 
@@ -866,6 +910,7 @@ function SentryController:_enterReturn()
     self.targetPlayer = nil
     self.targetCharacter = nil
     self.timeWithoutSight = 0
+    self:_setChasingState(false)
     self:_clearPath()
     self.currentDestination = nil
     self:_cancelPendingCloak()
@@ -1005,6 +1050,39 @@ function SentryController:_canSeeCharacter(character)
     return result.Instance and result.Instance:IsDescendantOf(character)
 end
 
+function SentryController:_canHearCharacter(character)
+    if self.hearingRange <= 0 then
+        return false
+    end
+
+    local root = self:_getRootPart()
+    local targetRoot = getCharacterRoot(character)
+    if not root or not targetRoot then
+        return false
+    end
+
+    local distance = (targetRoot.Position - root.Position).Magnitude
+    if distance > self.hearingRange then
+        return false
+    end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        return false
+    end
+
+    local moveDirection = humanoid.MoveDirection
+    local movement = typeof(moveDirection) == "Vector3" and moveDirection.Magnitude or 0
+    local velocity = targetRoot.AssemblyLinearVelocity or targetRoot.Velocity
+    local speed = velocity and velocity.Magnitude or 0
+
+    if movement < self.hearingMoveThreshold and speed < self.hearingVelocityThreshold then
+        return false
+    end
+
+    return true
+end
+
 function SentryController:_scanForTargets()
     local root = self:_getRootPart()
     if not root then
@@ -1013,24 +1091,37 @@ function SentryController:_scanForTargets()
     local nearestPlayer = nil
     local nearestCharacter = nil
     local nearestDistance = math.huge
+    local nearestDetectionType = nil
+    local nearestPosition = nil
+    local bestPriority = -math.huge
     for _, player in ipairs(self.playersService:GetPlayers()) do
         local character = player.Character
         if character and isCharacterAlive(character) then
-            if self:_canSeeCharacter(character) then
-                local rootPart = getCharacterRoot(character)
-                if rootPart then
+            local rootPart = getCharacterRoot(character)
+            if rootPart then
+                local canSee = self:_canSeeCharacter(character)
+                local canHear = not canSee and self:_canHearCharacter(character)
+                if canSee or canHear then
+                    local priority = canSee and 2 or 1
                     local distance = (rootPart.Position - root.Position).Magnitude
-                    if distance < nearestDistance then
+                    if priority > bestPriority or (priority == bestPriority and distance < nearestDistance) then
+                        bestPriority = priority
                         nearestPlayer = player
                         nearestCharacter = character
                         nearestDistance = distance
+                        nearestDetectionType = canSee and "VISION" or "HEARING"
+                        nearestPosition = rootPart.Position
                     end
                 end
             end
         end
     end
     if nearestPlayer and nearestCharacter then
-        self:_enterChase(nearestPlayer, nearestCharacter)
+        local initialPosition = nil
+        if nearestDetectionType == "HEARING" then
+            initialPosition = nearestPosition
+        end
+        self:_enterChase(nearestPlayer, nearestCharacter, initialPosition)
     end
 end
 
@@ -1063,6 +1154,7 @@ function SentryController:_updateChase(dt)
     if not character or not isCharacterAlive(character) then
         self.targetCharacter = nil
         self.targetPlayer = nil
+        self:_setChasingState(false)
         self.timeWithoutSight += dt
         if self.timeWithoutSight >= self.targetLoseDuration then
             self:_enterReturn()
@@ -1157,6 +1249,7 @@ function SentryController:Destroy()
             self.animations:playState("Disappear")
         end
     end
+    self:_setChasingState(false)
     self:_clearPath()
     self.currentDestination = nil
     self:_setInvisible(false)
@@ -1173,6 +1266,7 @@ function SentryController:Destroy()
     self.connections = {}
     self.targetCharacter = nil
     self.targetPlayer = nil
+    self.chasingPlayer = nil
     self.routePoints = {}
     if self.alertSound then
         self.alertSound:Stop()

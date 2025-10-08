@@ -48,6 +48,7 @@ local heartbeatThreatConfigs = {
                 soundId = "rbxassetid://137300436593190",
                 soundName = "SentryHeartbeat",
                 soundAttributes = { "SentryAlertSoundId", "AlertSoundId" },
+                requiresChasing = true,
         },
 }
 
@@ -319,6 +320,9 @@ local function updateHeartbeat()
                         local config = heartbeatThreatConfigs[threatType]
                         local info = closestByThreat[threatType]
                         if config and info then
+                                if config.requiresChasing and not model:GetAttribute("SentryIsChasing") then
+                                        continue
+                                end
                                 local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
                                 if hrp and hrp:IsA("BasePart") then
                                         local distance = (hrp.Position - root.Position).Magnitude
