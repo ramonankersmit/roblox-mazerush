@@ -9,6 +9,9 @@ local Pickup = Remotes:FindFirstChild("Pickup")
 local prefabs = ServerStorage:WaitForChild("Prefabs")
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
+local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
+
+KeyPrefabManager.Ensure()
 
 local DEFAULT_BARRIER_COLOR = Color3.fromRGB(60, 60, 60)
 

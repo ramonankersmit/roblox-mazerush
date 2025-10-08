@@ -10,8 +10,7 @@ local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
-
-local Config = require(Replicated.Modules.RoundConfig)
+local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
 
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
@@ -27,7 +26,6 @@ ensureRemote("SetMazeAlgorithm")
 ensureRemote("ThemeVote")
 
 local ThemeConfig = require(Replicated.Modules.ThemeConfig)
-local Config = require(Replicated.Modules.RoundConfig)
 ensureRemote("SetLoopChance")
 local AliveStatus = ensureRemote("AliveStatus")
 local PlayerEliminated = ensureRemote("PlayerEliminated")
@@ -196,8 +194,6 @@ end
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
 
-local Config = require(Replicated.Modules.RoundConfig)
-
 local function ensurePart(name, size)
         local p = prefabs:FindFirstChild(name)
         if not p then p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.Size = size or Vector3.new(4,4,1); p.Parent = prefabs end
@@ -206,12 +202,7 @@ end
 
 ensurePart("Wall", Vector3.new(Config.CellSize, Config.WallHeight, 1))
 ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
-if not prefabs:FindFirstChild("Key") then
-        local keyModel = Instance.new("Model"); keyModel.Name = "Key"; keyModel.Parent = prefabs
-        local part = Instance.new("Part"); part.Name = "Handle"; part.Size = Vector3.new(1,1,1); part.Anchored = true; part.Parent = keyModel
-        local pp = Instance.new("ProximityPrompt"); pp.Parent = part
-        keyModel.PrimaryPart = part
-end
+KeyPrefabManager.Ensure()
 if not prefabs:FindFirstChild("Door") then
         local door = Instance.new("Model"); door.Name = "Door"; door.Parent = prefabs
         local part = Instance.new("Part"); part.Name = "Panel"; part.Size = Vector3.new(6,8,1); part.Anchored = true; part.Parent = door
@@ -336,8 +327,6 @@ ToggleWallHeight.OnServerEvent:Connect(function()
         applyWallHeight(newHeight)
 end)
 
-local MazeGen = require(Replicated.Modules.MazeGenerator)
-local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 -- Position lobby above maze center with glass walls
 local function setupSkyLobby()
 	local cx = (Config.GridWidth * Config.CellSize)/2
