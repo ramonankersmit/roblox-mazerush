@@ -61,6 +61,15 @@ end
 local readySummary = playerBoard:FindFirstChild("ReadySummary")
 local actionHint = playerBoard:FindFirstChild("ActionHint")
 local boardBaseColor = playerBoard.BackgroundColor3
+
+if actionHint then
+    actionHint.Size = UDim2.new(1, -56, 0, 32)
+    actionHint.Position = UDim2.new(0, 28, 0, 116)
+    actionHint.TextWrapped = false
+    actionHint.TextTruncate = Enum.TextTruncate.AtEnd
+    actionHint.TextSize = 12
+    actionHint.TextYAlignment = Enum.TextYAlignment.Top
+end
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 local themeSurface = themeStand:FindFirstChild("ThemeSurface")
@@ -83,6 +92,15 @@ local billboardFrame = billboardGui and billboardGui:FindFirstChild("BillboardFr
 local billboardList = billboardFrame and billboardFrame:FindFirstChild("PlayerEntries")
 local billboardSummary = billboardFrame and billboardFrame:FindFirstChild("ReadySummary")
 local billboardBaseColor = billboardFrame and billboardFrame.BackgroundColor3
+local billboardHint = billboardFrame and billboardFrame:FindFirstChild("Hint")
+
+if billboardHint and billboardHint:IsA("TextLabel") then
+    billboardHint.Size = UDim2.new(1, -30, 0, 24)
+    billboardHint.Position = UDim2.new(0, 15, 1, -40)
+    billboardHint.TextSize = 12
+    billboardHint.TextWrapped = false
+    billboardHint.TextTruncate = Enum.TextTruncate.AtEnd
+end
 
 local consolePrompt = playerStand:FindFirstChild("ConsolePrompt")
 local startButton = boardModel:FindFirstChild("StartButton")
@@ -598,25 +616,36 @@ local function createSurfaceTemplate()
     statusLabel.TextColor3 = Color3.fromRGB(182, 188, 210)
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
     statusLabel.Position = UDim2.new(0, 124, 0, 60)
-    statusLabel.Size = UDim2.new(1, -240, 0, 24)
+    statusLabel.Size = UDim2.new(1, -320, 0, 24)
     statusLabel.Parent = frame
 
     local hostTag = Instance.new("TextLabel")
     hostTag.Name = "HostTag"
+    hostTag.AnchorPoint = Vector2.new(1, 0.5)
     hostTag.BackgroundTransparency = 0.1
     hostTag.BackgroundColor3 = Color3.fromRGB(255, 223, 94)
     hostTag.Font = Enum.Font.GothamSemibold
     hostTag.TextColor3 = Color3.fromRGB(74, 52, 10)
-    hostTag.TextSize = 16
+    hostTag.TextSize = 15
     hostTag.Text = "HOST"
     hostTag.Visible = false
-    hostTag.Position = UDim2.new(0, 124, 0, -8)
-    hostTag.Size = UDim2.new(0, 72, 0, 26)
+    hostTag.Position = UDim2.new(1, -72, 0.5, 0)
+    hostTag.Size = UDim2.new(0, 68, 0, 26)
+    hostTag.TextXAlignment = Enum.TextXAlignment.Center
+    hostTag.ZIndex = 3
     hostTag.Parent = frame
 
     local hostCorner = Instance.new("UICorner")
     hostCorner.CornerRadius = UDim.new(0, 6)
     hostCorner.Parent = hostTag
+
+    local hostStroke = Instance.new("UIStroke")
+    hostStroke.Name = "Outline"
+    hostStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    hostStroke.Thickness = 1
+    hostStroke.Color = Color3.fromRGB(236, 198, 80)
+    hostStroke.Transparency = 0.2
+    hostStroke.Parent = hostTag
 
     local readyIndicator = Instance.new("Frame")
     readyIndicator.Name = "ReadyIndicator"
@@ -672,22 +701,36 @@ local function createBillboardTemplate()
     nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Position = UDim2.new(0, 52, 0, 0)
-    nameLabel.Size = UDim2.new(1, -140, 0, 22)
+    nameLabel.Size = UDim2.new(1, -180, 0, 22)
     nameLabel.Parent = frame
 
     local hostTag = Instance.new("TextLabel")
     hostTag.Name = "HostTag"
-    hostTag.BackgroundTransparency = 1
+    hostTag.AnchorPoint = Vector2.new(1, 0.5)
+    hostTag.BackgroundTransparency = 0
+    hostTag.BackgroundColor3 = Color3.fromRGB(255, 223, 94)
     hostTag.Font = Enum.Font.GothamSemibold
-    hostTag.TextColor3 = Color3.fromRGB(255, 223, 94)
-    hostTag.TextSize = 16
+    hostTag.TextColor3 = Color3.fromRGB(74, 52, 10)
+    hostTag.TextSize = 15
     hostTag.Text = "HOST"
     hostTag.Visible = false
-    hostTag.Position = UDim2.new(1, -96, 0, 0)
-    hostTag.Size = UDim2.new(0, 72, 1, 0)
-    hostTag.TextXAlignment = Enum.TextXAlignment.Right
+    hostTag.Position = UDim2.new(1, -54, 0.5, 0)
+    hostTag.Size = UDim2.new(0, 68, 0, 26)
+    hostTag.TextXAlignment = Enum.TextXAlignment.Center
+    hostTag.ZIndex = 3
     hostTag.Parent = frame
 
+    local hostCorner = Instance.new("UICorner")
+    hostCorner.CornerRadius = UDim.new(0, 8)
+    hostCorner.Parent = hostTag
+
+    local hostStroke = Instance.new("UIStroke")
+    hostStroke.Name = "Outline"
+    hostStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    hostStroke.Thickness = 1
+    hostStroke.Color = Color3.fromRGB(236, 198, 80)
+    hostStroke.Transparency = 0.2
+    hostStroke.Parent = hostTag
     local voteTag = Instance.new("TextLabel")
     voteTag.Name = "VoteTag"
     voteTag.BackgroundTransparency = 1
@@ -696,7 +739,7 @@ local function createBillboardTemplate()
     voteTag.TextColor3 = Color3.fromRGB(200, 210, 240)
     voteTag.TextXAlignment = Enum.TextXAlignment.Left
     voteTag.Position = UDim2.new(0, 52, 0, 22)
-    voteTag.Size = UDim2.new(1, -140, 0, 20)
+    voteTag.Size = UDim2.new(1, -180, 0, 20)
     voteTag.Visible = false
     voteTag.Parent = frame
 
@@ -1427,15 +1470,15 @@ local function updatePrompts(state)
 
     if actionHint then
         if not showPrompts then
-            actionHint.Text = "Maze bezig - klaarstatus en stemming zijn vergrendeld."
+            actionHint.Text = "Maze bezig – console tijdelijk vergrendeld."
         elseif myReady then
             if isHost then
-                actionHint.Text = "Je bent klaar. Gebruik [E] om te stemmen en druk op de startknop als iedereen klaar is."
+                actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
             else
-                actionHint.Text = "Je staat als klaar. Gebruik de console om je stem of status te wijzigen."
+                actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
             end
         else
-            actionHint.Text = "Gebruik [E] bij de themaconsole om je stem te kiezen of willekeurig te gaan."
+            actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
         end
     end
 
