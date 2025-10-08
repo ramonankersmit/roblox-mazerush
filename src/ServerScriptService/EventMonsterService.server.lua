@@ -191,6 +191,15 @@ local function runSpawnSequence(config)
         cancelScheduledSpawn()
         setNextSpawnDelay(-1)
         local effects = config.SpecialEffects or {}
+        local warningRumble = tonumber(effects.WarningRumbleIntensity) or tonumber(effects.RumbleIntensity) or 0.25
+        local activeRumble = tonumber(effects.RumbleIntensity) or 0.45
+        local trailColor = effects.TrailColor or Color3.fromRGB(255, 85, 85)
+        if typeof(trailColor) ~= "Color3" and type(trailColor) == "table" then
+                local r = trailColor.R or trailColor.r or trailColor[1] or 255
+                local g = trailColor.G or trailColor.g or trailColor[2] or 64
+                local b = trailColor.B or trailColor.b or trailColor[3] or 64
+                trailColor = Color3.fromRGB(r, g, b)
+        end
         local warningDuration = math.max(tonumber(config.WarningDuration) or 0, 0)
         if warningDuration > 0 then
                 log("Eventmonster waarschuwing geactiveerd voor %.2f seconden.", warningDuration)
@@ -200,6 +209,9 @@ local function runSpawnSequence(config)
                         flickerInterval = effects.FlickerInterval,
                         color = effects.LightColor,
                         soundId = effects.WarningSoundId,
+                        rumbleIntensity = warningRumble,
+                        rumbleDuration = warningDuration,
+                        trailColor = trailColor,
                 })
                 setStatus("Warning")
                 local elapsed = 0
@@ -242,6 +254,10 @@ local function runSpawnSequence(config)
                 flickerInterval = effects.FlickerInterval,
                 color = effects.LightColor,
                 soundId = effects.SoundId,
+                rumbleIntensity = activeRumble,
+                rumbleDuration = math.max(tonumber(config.ActiveDuration) or 0, 0),
+                chaseSoundId = effects.ChaseSoundId,
+                trailColor = trailColor,
         })
         setStatus("Active")
         setNextSpawnDelay(-1)

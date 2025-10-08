@@ -1,3 +1,7 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EnemyAnimations = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("EnemyAnimations"))
+
 local HunterController = {}
 HunterController.__index = HunterController
 
@@ -266,6 +270,10 @@ function HunterController.new(enemyModel, config, context)
         end
 
         enemyModel:SetAttribute("State", self.state)
+        self.animations = EnemyAnimations.attach(enemyModel, "Hunter")
+        if self.animations then
+                self.animations:playState(self.state)
+        end
         attachHunterDamage(enemyModel)
         registerController(self)
 
@@ -312,7 +320,17 @@ end
 
 function HunterController:Destroy()
         self.active = false
+        if self.model then
+                self.model:SetAttribute("State", "Disappear")
+                if self.animations then
+                        self.animations:playState("Disappear")
+                end
+        end
         unregisterController(self)
+        if self.animations then
+                self.animations:destroy()
+                self.animations = nil
+        end
 end
 
 function HunterController:_movementLoop()
@@ -493,6 +511,9 @@ function HunterController:_setState(newState)
         end
         self.state = newState
         self.model:SetAttribute("State", newState)
+        if self.animations then
+                self.animations:playState(newState)
+        end
         self.stateEnteredTime = os.clock()
         if newState == "Search" then
                 self.destinationReached = false
