@@ -210,6 +210,20 @@ ensurePart("Floor", Vector3.new(Config.CellSize, 1, Config.CellSize))
 local KEY_ASSET_ID = 9297062616
 local KEY_SOURCE_ATTRIBUTE = "SourceAssetId"
 
+local function keyLog(message, ...)
+        if select("#", ...) > 0 then
+                message = string.format(message, ...)
+        end
+        print("[KeyPrefab]", message)
+end
+
+local function keyWarn(message, ...)
+        if select("#", ...) > 0 then
+                message = string.format(message, ...)
+        end
+        warn("[KeyPrefab]", message)
+end
+
 local function applyKeyDefaults(model)
         for _, descendant in ipairs(model:GetDescendants()) do
                 if descendant:IsA("BasePart") then
@@ -305,14 +319,18 @@ local function ensureKeyPrefab()
         if existing then
                 local sourceId = existing:GetAttribute(KEY_SOURCE_ATTRIBUTE)
                 if sourceId == KEY_ASSET_ID then
+                        keyLog("Marketplace sleutelmodel %d is al up-to-date", KEY_ASSET_ID)
                         return
                 end
+                keyLog("Vervang bestaand sleutelmodel (bron %s) door marketplace asset %d", tostring(sourceId), KEY_ASSET_ID)
                 existing:Destroy()
         end
 
         local success, asset = pcall(function()
                 return InsertService:LoadAsset(KEY_ASSET_ID)
         end)
+
+        local fallbackReason
 
         if success and asset then
                 local keyModel = asset:FindFirstChild("Key")
@@ -321,6 +339,7 @@ local function ensureKeyPrefab()
                 end
 
                 if keyModel then
+                        keyLog("Marketplace sleutelmodel %d geladen", KEY_ASSET_ID)
                         finalizeKeyModel(keyModel, KEY_ASSET_ID)
                         asset:Destroy()
                         return
@@ -328,6 +347,7 @@ local function ensureKeyPrefab()
 
                 local basePart = asset:FindFirstChildWhichIsA("BasePart")
                 if basePart then
+                        keyWarn("Asset %d bevat geen Model; wikkel onderdelen in fallbackmodel", KEY_ASSET_ID)
                         local wrapper = Instance.new("Model")
                         for _, child in ipairs(asset:GetChildren()) do
                                 child.Parent = wrapper
@@ -337,10 +357,18 @@ local function ensureKeyPrefab()
                         return
                 end
 
+                fallbackReason = "Asset bevat geen bruikbare Model of BasePart"
                 asset:Destroy()
+        else
+                fallbackReason = string.format("LoadAsset mislukte: %s", tostring(asset))
         end
 
         local keyModel = createFallbackKeyModel()
+        if fallbackReason then
+                keyWarn("Gebruik fallback sleutelmodel (%s)", fallbackReason)
+        else
+                keyWarn("Gebruik fallback sleutelmodel (onbekende reden)")
+        end
         finalizeKeyModel(keyModel, 0)
 end
 
