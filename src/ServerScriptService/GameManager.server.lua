@@ -252,6 +252,54 @@ local function finalizeKeyModel(model, sourceAssetId)
         model.Parent = prefabs
 end
 
+
+local function createFallbackKeyModel()
+        local model = Instance.new("Model")
+
+        local function makePart(name, size, position, rotation)
+                local part = Instance.new("Part")
+                part.Name = name
+                part.Anchored = true
+                part.CanCollide = false
+                part.CanTouch = false
+                part.CanQuery = false
+                part.Material = Enum.Material.Metal
+                part.Color = Color3.fromRGB(255, 221, 79)
+                part.CastShadow = true
+                part.Size = size
+                local cf = CFrame.new(position)
+                if rotation then
+                        cf = cf * rotation
+                end
+                part.CFrame = cf
+                part.Parent = model
+                return part
+        end
+
+        local thickness = 0.3
+        local rotation = CFrame.Angles(0, 0, math.rad(90))
+        local head = makePart("Head", Vector3.new(1.1, thickness, 1.1), Vector3.new(-0.6, 0, 0), rotation)
+        head.Shape = Enum.PartType.Cylinder
+
+        local hub = makePart("Hub", Vector3.new(0.55, thickness * 0.6, 0.55), Vector3.new(-0.6, 0, 0), rotation)
+        hub.Shape = Enum.PartType.Cylinder
+        hub.Material = Enum.Material.SmoothPlastic
+        hub.Color = Color3.fromRGB(253, 234, 141)
+        hub.Transparency = 0.2
+
+        local shaft = makePart("Shaft", Vector3.new(0.35, thickness, 1.8), Vector3.new(0.25, 0, 0))
+
+        local tooth1 = makePart("Tooth1", Vector3.new(0.35, thickness, 0.55), Vector3.new(0.9, 0, -0.65))
+        local tooth2 = makePart("Tooth2", Vector3.new(0.35, thickness, 0.35), Vector3.new(0.55, 0, -0.85))
+
+        model.PrimaryPart = shaft
+
+        local prompt = Instance.new("ProximityPrompt")
+        prompt.Parent = shaft
+
+        return model
+end
+
 local function ensureKeyPrefab()
         local existing = prefabs:FindFirstChild("Key")
         if existing then
@@ -292,20 +340,7 @@ local function ensureKeyPrefab()
                 asset:Destroy()
         end
 
-        local keyModel = Instance.new("Model")
-
-        local part = Instance.new("Part")
-        part.Name = "Handle"
-        part.Size = Vector3.new(1, 1, 1)
-        part.Anchored = true
-        part.CanCollide = false
-        part.Parent = keyModel
-
-        local pp = Instance.new("ProximityPrompt")
-        pp.Parent = part
-
-        keyModel.PrimaryPart = part
-
+        local keyModel = createFallbackKeyModel()
         finalizeKeyModel(keyModel, 0)
 end
 
