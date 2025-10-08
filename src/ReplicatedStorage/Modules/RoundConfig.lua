@@ -91,12 +91,28 @@ local Config = {
                         DefaultRoute = "Perimeter",
                         RouteAssignments = { "Perimeter", "Cross" },
                 },
-		Event = {
-			Count = 0,
-			PrefabName = "EventEnemy",
-			Controller = "Event",
-		},
-	},
+                Event = {
+                        Count = 0,
+                        PrefabName = "EventEnemy",
+                        Controller = "Event",
+                        SpawnChance = 0.4,
+                        MinSpawnDelay = 35,
+                        MaxSpawnDelay = 75,
+                        WarningDuration = 4,
+                        ActiveDuration = 25,
+                        ChaseSpeed = 22,
+                        RepathInterval = 0.5,
+                        EliminationCooldown = 6,
+                        EliminationRadius = 4,
+                        SpecialEffects = {
+                                WarningMessage = "Let op! Een eventmonster jaagt rond in het doolhof.",
+                                FlickerInterval = 0.3,
+                                LightColor = Color3.fromRGB(255, 60, 60),
+                                SoundId = "rbxassetid://6697635506",
+                                WarningSoundId = "rbxassetid://1837303249",
+                        },
+                },
+        },
 
 	-- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
         MazeAlgorithm = "DFS", -- "DFS" of "PRIM"
