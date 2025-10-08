@@ -223,7 +223,7 @@ local function ensureExitPadBarrier()
     barrier.CanCollide = true
 
     local ok, err = pcall(function()
-        PhysicsService:SetPartCollisionGroup(barrier, COLLISION_GROUPS.ExitBarrier)
+        barrier.CollisionGroup = COLLISION_GROUPS.ExitBarrier
     end)
     if not ok then
         warn(string.format("KeyDoorService: Failed to assign collision group to exit pad barrier: %s", tostring(err)))
@@ -234,7 +234,7 @@ local function ensureExitPadBarrier()
         modifier = Instance.new("PathfindingModifier")
         modifier.Parent = barrier
     end
-    modifier.PassThroughCost = math.huge
+    modifier.PassThrough = false
 
     return barrier
 end

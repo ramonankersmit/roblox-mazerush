@@ -11,12 +11,12 @@ CollisionGroups.Groups = {
 local ensured = false
 
 local function ensureGroup(name)
-    for _, group in ipairs(PhysicsService:GetCollisionGroups()) do
+    for _, group in ipairs(PhysicsService:GetRegisteredCollisionGroups()) do
         if group.name == name then
             return
         end
     end
-    PhysicsService:CreateCollisionGroup(name)
+    PhysicsService:RegisterCollisionGroup(name)
 end
 
 function CollisionGroups.Ensure()

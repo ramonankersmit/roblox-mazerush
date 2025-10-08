@@ -13,7 +13,7 @@ local function setPartGroup(part, groupName)
         return
     end
     local ok, err = pcall(function()
-        PhysicsService:SetPartCollisionGroup(part, groupName)
+        part.CollisionGroup = groupName
     end)
     if not ok then
         warn(string.format("[CollisionGroupService] Failed to set collision group '%s' for %s: %s", tostring(groupName), part:GetFullName(), tostring(err)))
