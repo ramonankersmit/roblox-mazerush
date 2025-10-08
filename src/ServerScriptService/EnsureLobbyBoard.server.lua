@@ -49,10 +49,23 @@ end
 
 local TEXT_SCALE = 1.35
 
-local boardHeightCoverage = 0.8
-local boardBottomPadding = 0.1
+local DEFAULT_BOARD_HEIGHT_COVERAGE = 0.8
+local DEFAULT_BOARD_BOTTOM_PADDING = 0.1
+
+local boardHeightCoverage = DEFAULT_BOARD_HEIGHT_COVERAGE
+local boardBottomPadding = DEFAULT_BOARD_BOTTOM_PADDING
 local boardWidthScale = 2.2
 local boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
+
+local boardHeightCoverageAttributeNames = {
+    "LobbyBoardHeightCoverage",
+    "BoardHeightCoverage",
+}
+
+local boardBottomPaddingAttributeNames = {
+    "LobbyBoardBottomPadding",
+    "BoardBottomPadding",
+}
 
 local function scaleTextSize(value)
     return math.floor((value or 24) * TEXT_SCALE + 0.5)
@@ -82,18 +95,58 @@ local function createTextLabel(parent, name, text, size, position, props)
     return label
 end
 
+local function configureSurfaceGui(surfaceGui)
+    if not surfaceGui or not surfaceGui:IsA("SurfaceGui") then
+        return
+    end
+
+    surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    surfaceGui.PixelsPerStud = 75
+    surfaceGui.LightInfluence = 0
+    surfaceGui.ResetOnSpawn = false
+    surfaceGui.AlwaysOnTop = false
+    surfaceGui.Active = true
+end
+
+local function configureBoardRootFrame(frame)
+    if not frame or not frame:IsA("GuiObject") then
+        return
+    end
+
+    frame.AnchorPoint = Vector2.new(0, 0)
+    frame.Position = UDim2.fromScale(0, 0)
+    frame.Size = UDim2.fromScale(1, 1)
+
+    local aspect = frame:FindFirstChildOfClass("UIAspectRatioConstraint")
+    if aspect then
+        aspect:Destroy()
+    end
+
+    local padding = frame:FindFirstChildOfClass("UIPadding")
+    if not padding then
+        padding = Instance.new("UIPadding")
+        padding.Parent = frame
+    end
+
+    padding.PaddingTop = UDim.new(0.06, 0)
+    padding.PaddingBottom = UDim.new(0.06, 0)
+    padding.PaddingLeft = UDim.new(0.04, 0)
+    padding.PaddingRight = UDim.new(0.04, 0)
+end
+
 local function createSurface(stand, name)
     local gui = Instance.new("SurfaceGui")
     gui.Name = name
     gui.Face = Enum.NormalId.Front
     gui.LightInfluence = 0
     gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    gui.PixelsPerStud = 60
+    gui.PixelsPerStud = 75
     gui.ResetOnSpawn = false
     gui.AlwaysOnTop = false
     gui.Active = true
     gui.Adornee = stand
     gui.Parent = stand
+    configureSurfaceGui(gui)
     return gui
 end
 
@@ -155,6 +208,138 @@ local function getWallHeight(lobby, anchor)
     end
 
     return 12
+end
+
+local function readNumberAttribute(instance, attributeNames)
+    if not instance then
+        return nil
+    end
+
+    for _, attributeName in ipairs(attributeNames) do
+        local value = instance:GetAttribute(attributeName)
+        if typeof(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge then
+            return value
+        end
+    end
+
+    return nil
+end
+
+--
+-- Converts an attribute override into a fraction of the wall height. Values
+-- may be expressed as:
+-- * direct fractions (0-1)
+-- * stud measurements (compared against the resolved wall height)
+-- * percentages (0-100)
+--
+-- When the number is ambiguous (e.g. "8" could be 8% or 8 studs), pick the
+-- candidate that stays inside the [0, 1] range and closest to the currently
+-- applied baseline so Studio tweaks feel responsive.
+local function normalizeBoardFraction(value, wallHeight, baseline)
+    if typeof(value) ~= "number" then
+        return nil
+    end
+
+    local result = value
+    local absValue = math.abs(value)
+
+    if absValue <= 1 then
+        return result
+    end
+
+    local candidates = {}
+    local function pushCandidate(candidateValue)
+        local clampedValue = math.clamp(candidateValue, 0, 1)
+        local clampOffset = math.abs(candidateValue - clampedValue)
+        local withinRange = clampedValue >= 0 and clampedValue <= 1 and 0 or 1
+        local deviation
+        if typeof(baseline) == "number" then
+            deviation = math.abs(clampedValue - baseline)
+        else
+            deviation = math.abs(clampedValue)
+        end
+        candidates[#candidates + 1] = {
+            value = clampedValue,
+            withinRange = withinRange,
+            deviation = deviation,
+            magnitude = math.abs(clampedValue),
+            clampOffset = clampOffset,
+        }
+    end
+
+    if wallHeight and wallHeight > 0 then
+        pushCandidate(value / wallHeight)
+    end
+
+    if absValue <= 100 then
+        pushCandidate(value / 100)
+    end
+
+    if #candidates == 0 then
+        if wallHeight and wallHeight > 0 then
+            return math.clamp(value / wallHeight, 0, 1)
+        end
+        return math.clamp(value / 100, 0, 1)
+    end
+
+    table.sort(candidates, function(a, b)
+        if a.withinRange ~= b.withinRange then
+            return a.withinRange < b.withinRange
+        end
+        if a.clampOffset ~= b.clampOffset then
+            return a.clampOffset < b.clampOffset
+        end
+        if a.deviation ~= b.deviation then
+            return a.deviation < b.deviation
+        end
+        if a.magnitude ~= b.magnitude then
+            return a.magnitude < b.magnitude
+        end
+        return false
+    end)
+
+    return candidates[1].value
+end
+
+local function resolveBoardLayoutOverrides(lobby, anchor, wallHeight, currentHeightCoverage, currentBottomPadding)
+    local fallbackHeightCoverage = typeof(currentHeightCoverage) == "number" and currentHeightCoverage or DEFAULT_BOARD_HEIGHT_COVERAGE
+    local fallbackBottomPadding = typeof(currentBottomPadding) == "number" and currentBottomPadding or DEFAULT_BOARD_BOTTOM_PADDING
+
+    local heightCoverage = fallbackHeightCoverage
+    local bottomPadding = fallbackBottomPadding
+
+    local anchorHeightCoverage = readNumberAttribute(anchor, boardHeightCoverageAttributeNames)
+    local anchorBottomPadding = readNumberAttribute(anchor, boardBottomPaddingAttributeNames)
+    local lobbyHeightCoverage = readNumberAttribute(lobby, boardHeightCoverageAttributeNames)
+    local lobbyBottomPadding = readNumberAttribute(lobby, boardBottomPaddingAttributeNames)
+
+    if anchorHeightCoverage ~= nil then
+        heightCoverage = anchorHeightCoverage
+    elseif lobbyHeightCoverage ~= nil then
+        heightCoverage = lobbyHeightCoverage
+    end
+
+    if anchorBottomPadding ~= nil then
+        bottomPadding = anchorBottomPadding
+    elseif lobbyBottomPadding ~= nil then
+        bottomPadding = lobbyBottomPadding
+    end
+
+    local normalizedHeightCoverage = normalizeBoardFraction(heightCoverage, wallHeight, fallbackHeightCoverage)
+    if normalizedHeightCoverage ~= nil then
+        heightCoverage = normalizedHeightCoverage
+    end
+
+    local normalizedBottomPadding = normalizeBoardFraction(bottomPadding, wallHeight, fallbackBottomPadding)
+    if normalizedBottomPadding ~= nil then
+        bottomPadding = normalizedBottomPadding
+    end
+
+    bottomPadding = math.clamp(bottomPadding, 0, 1)
+    local maxCoverage = math.clamp(1 - bottomPadding, 0, 1)
+    heightCoverage = math.clamp(heightCoverage, 0, maxCoverage)
+
+    return heightCoverage, bottomPadding
 end
 
 local function applyAnchorAttributes(anchor, boardStand, wallHeight)
@@ -296,9 +481,32 @@ local function ensureLobbyBoard()
         local startPanelExisting = existing:FindFirstChild("StartPanel")
         local startButtonExisting = existing:FindFirstChild("StartButton")
 
+        local playerSurfaceExisting = playerStandExisting and playerStandExisting:FindFirstChild("PlayerSurface")
+        if playerSurfaceExisting then
+            configureSurfaceGui(playerSurfaceExisting)
+        end
+
+        local playerBoardExisting = playerSurfaceExisting and playerSurfaceExisting:FindFirstChild("PlayerBoard")
+        if playerBoardExisting then
+            configureBoardRootFrame(playerBoardExisting)
+
+            local playerListExisting = playerBoardExisting:FindFirstChild("PlayerList")
+            if playerListExisting and playerListExisting:IsA("GuiObject") then
+                local listLayout = playerListExisting:FindFirstChildOfClass("UIListLayout")
+                if listLayout then
+                    listLayout.Padding = UDim.new(0.01, 0)
+                end
+            end
+        end
+
         local themeSurfaceExisting = themeStandExisting and themeStandExisting:FindFirstChild("ThemeSurface")
+        if themeSurfaceExisting then
+            configureSurfaceGui(themeSurfaceExisting)
+        end
         local themePanelExisting = themeSurfaceExisting and themeSurfaceExisting:FindFirstChild("ThemePanel")
         if themePanelExisting then
+            configureBoardRootFrame(themePanelExisting)
+
             local themeHeaderExisting = themePanelExisting:FindFirstChild("ThemeHeader")
             if themeHeaderExisting and themeHeaderExisting:IsA("TextLabel") then
                 themeHeaderExisting.Size = UDim2.new(0.6, -40, 0, 44)
@@ -335,7 +543,7 @@ local function ensureLobbyBoard()
                 themeOptionsExisting.Position = UDim2.new(0, 22, 0, 178)
                 local layout = themeOptionsExisting:FindFirstChildOfClass("UIListLayout")
                 if layout then
-                    layout.Padding = UDim.new(0, 18)
+                    layout.Padding = UDim.new(0.012, 0)
                 end
             end
 
@@ -409,6 +617,7 @@ local function ensureLobbyBoard()
         BackgroundColor3 = Color3.fromRGB(34, 38, 54),
         ClipsDescendants = false,
     })
+    configureBoardRootFrame(playerBoard)
 
     local boardCorner = Instance.new("UICorner")
     boardCorner.CornerRadius = UDim.new(0, 24)
@@ -449,7 +658,7 @@ local function ensureLobbyBoard()
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 16)
+    listLayout.Padding = UDim.new(0.01, 0)
     listLayout.Parent = playerList
 
     local themeSurface = createSurface(themeStand, "ThemeSurface")
@@ -458,6 +667,7 @@ local function ensureLobbyBoard()
         BackgroundColor3 = Color3.fromRGB(30, 36, 56),
         ClipsDescendants = false,
     })
+    configureBoardRootFrame(themePanel)
 
     local themeCorner = Instance.new("UICorner")
     themeCorner.CornerRadius = UDim.new(0, 24)
@@ -514,7 +724,7 @@ local function ensureLobbyBoard()
     local themeOptionsLayout = Instance.new("UIListLayout")
     themeOptionsLayout.FillDirection = Enum.FillDirection.Vertical
     themeOptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    themeOptionsLayout.Padding = UDim.new(0, 18)
+    themeOptionsLayout.Padding = UDim.new(0.012, 0)
     themeOptionsLayout.Parent = themeOptions
 
     createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -44, 0, 72), UDim2.new(0, 22, 1, -76), {
@@ -749,6 +959,10 @@ local anchorAttributeNames = {
     "WallHeight",
     "LobbyWallHeight",
     "BoardWallHeight",
+    "LobbyBoardHeightCoverage",
+    "BoardHeightCoverage",
+    "LobbyBoardBottomPadding",
+    "BoardBottomPadding",
     "LobbyBoardOffset",
     "BoardOffset",
     "LobbyBoardRotation",
@@ -774,6 +988,9 @@ local function updateBoardPlacement()
     end
 
     local wallHeight = getWallHeight(currentLobby, anchor)
+    boardHeightCoverage, boardBottomPadding = resolveBoardLayoutOverrides(currentLobby, anchor, wallHeight, boardHeightCoverage, boardBottomPadding)
+    boardCenterRatio = math.clamp(boardBottomPadding + boardHeightCoverage * 0.5, 0, 1)
+
     local boardHeight = resolveBoardHeight(wallHeight)
 
     playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
@@ -929,6 +1146,10 @@ local function monitorLobby(lobbyFolder)
 
     monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("WallHeight"):Connect(onLobbyAttributeChanged)
     monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyWallHeight"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyBoardHeightCoverage"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("BoardHeightCoverage"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("LobbyBoardBottomPadding"):Connect(onLobbyAttributeChanged)
+    monitorConnections[#monitorConnections + 1] = lobbyFolder:GetAttributeChangedSignal("BoardBottomPadding"):Connect(onLobbyAttributeChanged)
 end
 
 local function monitorLobbyBase()
