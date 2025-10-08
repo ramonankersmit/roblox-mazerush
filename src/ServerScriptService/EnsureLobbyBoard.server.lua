@@ -95,18 +95,58 @@ local function createTextLabel(parent, name, text, size, position, props)
     return label
 end
 
+local function configureSurfaceGui(surfaceGui)
+    if not surfaceGui or not surfaceGui:IsA("SurfaceGui") then
+        return
+    end
+
+    surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    surfaceGui.PixelsPerStud = 75
+    surfaceGui.LightInfluence = 0
+    surfaceGui.ResetOnSpawn = false
+    surfaceGui.AlwaysOnTop = false
+    surfaceGui.Active = true
+end
+
+local function configureBoardRootFrame(frame)
+    if not frame or not frame:IsA("GuiObject") then
+        return
+    end
+
+    frame.AnchorPoint = Vector2.new(0, 0)
+    frame.Position = UDim2.fromScale(0, 0)
+    frame.Size = UDim2.fromScale(1, 1)
+
+    local aspect = frame:FindFirstChildOfClass("UIAspectRatioConstraint")
+    if aspect then
+        aspect:Destroy()
+    end
+
+    local padding = frame:FindFirstChildOfClass("UIPadding")
+    if not padding then
+        padding = Instance.new("UIPadding")
+        padding.Parent = frame
+    end
+
+    padding.PaddingTop = UDim.new(0.06, 0)
+    padding.PaddingBottom = UDim.new(0.06, 0)
+    padding.PaddingLeft = UDim.new(0.04, 0)
+    padding.PaddingRight = UDim.new(0.04, 0)
+end
+
 local function createSurface(stand, name)
     local gui = Instance.new("SurfaceGui")
     gui.Name = name
     gui.Face = Enum.NormalId.Front
     gui.LightInfluence = 0
     gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    gui.PixelsPerStud = 60
+    gui.PixelsPerStud = 75
     gui.ResetOnSpawn = false
     gui.AlwaysOnTop = false
     gui.Active = true
     gui.Adornee = stand
     gui.Parent = stand
+    configureSurfaceGui(gui)
     return gui
 end
 
@@ -441,9 +481,32 @@ local function ensureLobbyBoard()
         local startPanelExisting = existing:FindFirstChild("StartPanel")
         local startButtonExisting = existing:FindFirstChild("StartButton")
 
+        local playerSurfaceExisting = playerStandExisting and playerStandExisting:FindFirstChild("PlayerSurface")
+        if playerSurfaceExisting then
+            configureSurfaceGui(playerSurfaceExisting)
+        end
+
+        local playerBoardExisting = playerSurfaceExisting and playerSurfaceExisting:FindFirstChild("PlayerBoard")
+        if playerBoardExisting then
+            configureBoardRootFrame(playerBoardExisting)
+
+            local playerListExisting = playerBoardExisting:FindFirstChild("PlayerList")
+            if playerListExisting and playerListExisting:IsA("GuiObject") then
+                local listLayout = playerListExisting:FindFirstChildOfClass("UIListLayout")
+                if listLayout then
+                    listLayout.Padding = UDim.new(0.01, 0)
+                end
+            end
+        end
+
         local themeSurfaceExisting = themeStandExisting and themeStandExisting:FindFirstChild("ThemeSurface")
+        if themeSurfaceExisting then
+            configureSurfaceGui(themeSurfaceExisting)
+        end
         local themePanelExisting = themeSurfaceExisting and themeSurfaceExisting:FindFirstChild("ThemePanel")
         if themePanelExisting then
+            configureBoardRootFrame(themePanelExisting)
+
             local themeHeaderExisting = themePanelExisting:FindFirstChild("ThemeHeader")
             if themeHeaderExisting and themeHeaderExisting:IsA("TextLabel") then
                 themeHeaderExisting.Size = UDim2.new(0.6, -40, 0, 44)
@@ -480,7 +543,7 @@ local function ensureLobbyBoard()
                 themeOptionsExisting.Position = UDim2.new(0, 22, 0, 178)
                 local layout = themeOptionsExisting:FindFirstChildOfClass("UIListLayout")
                 if layout then
-                    layout.Padding = UDim.new(0, 18)
+                    layout.Padding = UDim.new(0.012, 0)
                 end
             end
 
@@ -554,6 +617,7 @@ local function ensureLobbyBoard()
         BackgroundColor3 = Color3.fromRGB(34, 38, 54),
         ClipsDescendants = false,
     })
+    configureBoardRootFrame(playerBoard)
 
     local boardCorner = Instance.new("UICorner")
     boardCorner.CornerRadius = UDim.new(0, 24)
@@ -594,7 +658,7 @@ local function ensureLobbyBoard()
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 16)
+    listLayout.Padding = UDim.new(0.01, 0)
     listLayout.Parent = playerList
 
     local themeSurface = createSurface(themeStand, "ThemeSurface")
@@ -603,6 +667,7 @@ local function ensureLobbyBoard()
         BackgroundColor3 = Color3.fromRGB(30, 36, 56),
         ClipsDescendants = false,
     })
+    configureBoardRootFrame(themePanel)
 
     local themeCorner = Instance.new("UICorner")
     themeCorner.CornerRadius = UDim.new(0, 24)
@@ -659,7 +724,7 @@ local function ensureLobbyBoard()
     local themeOptionsLayout = Instance.new("UIListLayout")
     themeOptionsLayout.FillDirection = Enum.FillDirection.Vertical
     themeOptionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    themeOptionsLayout.Padding = UDim.new(0, 18)
+    themeOptionsLayout.Padding = UDim.new(0.012, 0)
     themeOptionsLayout.Parent = themeOptions
 
     createTextLabel(themePanel, "ThemeHint", "Open de console met [E] om te stemmen of kies willekeurig.", UDim2.new(1, -44, 0, 72), UDim2.new(0, 22, 1, -76), {
