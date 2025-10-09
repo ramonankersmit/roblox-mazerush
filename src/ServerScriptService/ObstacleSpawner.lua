@@ -163,6 +163,24 @@ local function activateMovingPlatform(model)
 
         primary.Anchored = true
 
+        local function isLight(instance)
+                return instance:IsA("PointLight") or instance:IsA("SpotLight") or instance:IsA("SurfaceLight")
+        end
+
+        local statusLight
+        for _, descendant in ipairs(primary:GetChildren()) do
+                if isLight(descendant) then
+                        statusLight = descendant
+                        break
+                end
+        end
+        if not statusLight then
+                statusLight = primary:FindFirstChild("StatusLight")
+                if statusLight and not isLight(statusLight) then
+                        statusLight = nil
+                end
+        end
+
         local travelTime = tonumber(model:GetAttribute("TravelTime")) or 4
         if not travelTime or travelTime <= 0 then
                 travelTime = 4
@@ -189,6 +207,13 @@ local function activateMovingPlatform(model)
         local halfDistance = distance / 2
         local baseCFrame = primary.CFrame
 
+        local function updateLight(color, brightness)
+                if statusLight then
+                        statusLight.Color = color
+                        statusLight.Brightness = brightness
+                end
+        end
+
         local running = true
 
         if model.Destroying then
@@ -214,7 +239,8 @@ local function activateMovingPlatform(model)
         task.spawn(function()
                 while running and model.Parent do
                         local progress = 0
-                        while running and progress < 1 do
+                        updateLight(Color3.fromRGB(0, 255, 170), 2)
+                        while running and model.Parent and progress < 1 do
                                 local dt = RunService.Heartbeat:Wait()
                                 if travelTime <= 0 then
                                         progress = 1
@@ -232,9 +258,37 @@ local function activateMovingPlatform(model)
                         end
 
                         if pauseDuration > 0 then
+                                updateLight(Color3.fromRGB(255, 221, 85), 1.5)
+                                task.wait(pauseDuration)
+                        end
+
+                        local backwards = 1
+                        updateLight(Color3.fromRGB(255, 64, 64), 2.25)
+                        while running and model.Parent and backwards > 0 do
+                                local dt = RunService.Heartbeat:Wait()
+                                if travelTime <= 0 then
+                                        backwards = 0
+                                else
+                                        backwards -= dt / travelTime
+                                end
+                                if backwards < 0 then
+                                        backwards = 0
+                                end
+                                setAlpha(backwards)
+                        end
+
+                        if not running or not model.Parent then
+                                break
+                        end
+
+                        if pauseDuration > 0 then
+                                updateLight(Color3.fromRGB(255, 221, 85), 1.5)
                                 task.wait(pauseDuration)
                         end
                 end
+
+                updateLight(Color3.fromRGB(255, 221, 85), 1.25)
+                setAlpha(0.5)
         end)
 end
 
@@ -250,6 +304,19 @@ local function activateTrapDoor(model)
         model:SetAttribute("ObstacleControllerActive", true)
 
         door.Anchored = true
+
+        local warningGui = model:FindFirstChild("WarningSign")
+        if not warningGui then
+                local frame = model:FindFirstChild("Frame")
+                if frame then
+                        warningGui = frame:FindFirstChild("WarningSign")
+                end
+        end
+
+        local warningLabel
+        if warningGui and warningGui:IsA("SurfaceGui") then
+                warningLabel = warningGui:FindFirstChildWhichIsA("TextLabel")
+        end
 
         local openDuration = tonumber(model:GetAttribute("OpenDuration")) or 2
         if openDuration < 0 then
@@ -277,21 +344,42 @@ local function activateTrapDoor(model)
                 closedTransparency = door.Transparency
         end
 
+        local baseCFrame = door.CFrame
+        local hingeOffset = Vector3.new(0, 0, door.Size.Z / 2)
+
+        local function setDoorAngle(angle)
+                local hingeCFrame = baseCFrame * CFrame.new(hingeOffset)
+                local rotated = hingeCFrame * CFrame.Angles(math.rad(angle), 0, 0) * CFrame.new(0, 0, -door.Size.Z / 2)
+                door.CFrame = rotated
+        end
+
         local function setDoorState(state)
                 if state == "open" then
                         door.CanCollide = false
                         door.CanTouch = false
                         door.Transparency = openTransparency
+                        setDoorAngle(-110)
+                        if warningLabel then
+                                warningLabel.TextColor3 = Color3.fromRGB(170, 255, 255)
+                        end
                         model:SetAttribute("State", "Open")
                 elseif state == "warning" then
                         door.CanCollide = true
                         door.CanTouch = true
                         door.Transparency = warningTransparency
+                        setDoorAngle(-35)
+                        if warningLabel then
+                                warningLabel.TextColor3 = Color3.fromRGB(255, 221, 85)
+                        end
                         model:SetAttribute("State", "Warning")
                 else
                         door.CanCollide = true
                         door.CanTouch = true
                         door.Transparency = closedTransparency
+                        setDoorAngle(0)
+                        if warningLabel then
+                                warningLabel.TextColor3 = Color3.fromRGB(255, 85, 64)
+                        end
                         model:SetAttribute("State", "Closed")
                 end
         end
@@ -371,7 +459,7 @@ local function activateObstacleModel(model, attributes)
 
         local handler = OBSTACLE_ACTIVATORS[obstacleType]
         if handler then
-                        handler(model)
+                handler(model)
         end
 end
 
