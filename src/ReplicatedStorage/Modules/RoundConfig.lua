@@ -128,16 +128,22 @@ local Config = {
 			MaxSeconds = 240,
 			Description = "Beloning per seconde dat de speler de actieve fase overleeft.",
 		},
-		Escape = {
-			Coins = 75,
-			XP = 150,
-			Description = "Bonus voor het bereiken van de uitgang voordat de tijd om is.",
-		},
-		Elimination = {
-			CoinsPerAction = 25,
-			XPPerAction = 45,
-			Description = "Beloning per vijand of val die door de speler wordt uitgeschakeld.",
-		},
+                Escape = {
+                        Coins = 75,
+                        XP = 150,
+                        Description = "Bonus voor het bereiken van de uitgang voordat de tijd om is.",
+                },
+                FullMazeExploration = {
+                        Coins = 30000,
+                        XP = 20000,
+                        Name = "Volledige verkenning",
+                        Description = "Volledige beloning voor spelers die elke tegel van de maze in één ronde bezoeken.",
+                },
+                Elimination = {
+                        CoinsPerAction = 25,
+                        XPPerAction = 45,
+                        Description = "Beloning per vijand of val die door de speler wordt uitgeschakeld.",
+                },
 		Unlocks = {
 			{
 				Id = "ExitFinder",

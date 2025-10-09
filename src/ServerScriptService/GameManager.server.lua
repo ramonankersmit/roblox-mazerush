@@ -5,6 +5,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
 
 local Config = require(Replicated.Modules.RoundConfig)
 local MazeGen = require(Replicated.Modules.MazeGenerator)
@@ -450,14 +451,28 @@ local roundParticipants = {}
 local roundStats = {}
 local activeRoundStart = nil
 
+local totalMazeCells = math.max(0, (Config.GridWidth or 0) * (Config.GridHeight or 0))
+local mazeFloorPart = nil
+local coverageConnection = nil
+
+local function stopExplorationTracking()
+        if coverageConnection then
+                coverageConnection:Disconnect()
+                coverageConnection = nil
+        end
+end
+
 local function getServerTime()
         return Workspace:GetServerTimeNow()
 end
 
 local function resetRoundTracking()
+        stopExplorationTracking()
         roundParticipants = {}
         roundStats = {}
         activeRoundStart = nil
+        mazeFloorPart = nil
+        totalMazeCells = math.max(0, (Config.GridWidth or 0) * (Config.GridHeight or 0))
 end
 
 local function ensureRoundStatsEntry(playerOrId)
@@ -479,6 +494,10 @@ local function ensureRoundStatsEntry(playerOrId)
                         eliminations = 0,
                         finalState = nil,
                         participated = false,
+                        uniqueCellsVisited = 0,
+                        totalMazeCells = totalMazeCells,
+                        allTilesCovered = false,
+                        exploration = { cells = {}, count = 0, allCovered = false },
                 }
                 roundStats[userId] = entry
         end
@@ -496,10 +515,142 @@ local function markParticipant(plr)
         return stats
 end
 
+local function getMazeFloor()
+        if mazeFloorPart and mazeFloorPart.Parent and mazeFloorPart:IsDescendantOf(mazeFolder) then
+                return mazeFloorPart
+        end
+        local direct = mazeFolder:FindFirstChild("Floor")
+        if direct and direct:IsA("BasePart") then
+                mazeFloorPart = direct
+                return mazeFloorPart
+        end
+        for _, descendant in ipairs(mazeFolder:GetDescendants()) do
+                if descendant:IsA("BasePart") and descendant.Name == "Floor" then
+                        mazeFloorPart = descendant
+                        return mazeFloorPart
+                end
+        end
+        mazeFloorPart = nil
+        return nil
+end
+
+local function positionToCell(position, floor)
+        floor = floor or getMazeFloor()
+        if not floor then
+                return nil, nil
+        end
+        local localPosition = floor.CFrame:PointToObjectSpace(position)
+        local halfX = floor.Size.X * 0.5
+        local halfZ = floor.Size.Z * 0.5
+        local xFromCorner = localPosition.X + halfX
+        local zFromCorner = localPosition.Z + halfZ
+        if xFromCorner < 0 or zFromCorner < 0 or xFromCorner > floor.Size.X or zFromCorner > floor.Size.Z then
+                return nil, nil
+        end
+        local cellSize = tonumber(Config.CellSize) or 16
+        local gridWidth = tonumber(Config.GridWidth)
+        if not gridWidth or gridWidth <= 0 then
+                gridWidth = math.max(1, math.floor((floor.Size.X / cellSize) + 0.5))
+        end
+        local gridHeight = tonumber(Config.GridHeight)
+        if not gridHeight or gridHeight <= 0 then
+                gridHeight = math.max(1, math.floor((floor.Size.Z / cellSize) + 0.5))
+        end
+        local xIndex = math.clamp(math.floor(xFromCorner / cellSize) + 1, 1, gridWidth)
+        local zIndex = math.clamp(math.floor(zFromCorner / cellSize) + 1, 1, gridHeight)
+        return xIndex, zIndex
+end
+
+local function ensureExplorationEntry(stats)
+        if not stats.exploration then
+                stats.exploration = { cells = {}, count = 0, allCovered = false }
+        end
+        return stats.exploration
+end
+
+local function recordVisitedCell(plr, xIndex, zIndex)
+        if not xIndex or not zIndex then
+                return
+        end
+        local stats = ensureRoundStatsEntry(plr)
+        if not stats then
+                return
+        end
+        local exploration = ensureExplorationEntry(stats)
+        if exploration.allCovered then
+                return
+        end
+        local key = string.format("%d_%d", xIndex, zIndex)
+        if exploration.cells[key] then
+                return
+        end
+        exploration.cells[key] = true
+        exploration.count += 1
+        stats.uniqueCellsVisited = exploration.count
+        local knownTotal = math.max(totalMazeCells, exploration.count)
+        if stats.totalMazeCells then
+                stats.totalMazeCells = math.max(stats.totalMazeCells, knownTotal)
+        else
+                stats.totalMazeCells = knownTotal
+        end
+        if totalMazeCells > 0 and exploration.count >= totalMazeCells then
+                exploration.allCovered = true
+                stats.allTilesCovered = true
+        end
+end
+
+local function recordPlayerCell(plr, floor)
+        local char = plr.Character
+        if not char then
+                return
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then
+                return
+        end
+        local xIndex, zIndex = positionToCell(root.Position, floor)
+        if xIndex and zIndex then
+                recordVisitedCell(plr, xIndex, zIndex)
+        end
+end
+
+local function recordAlivePlayersCurrentCells()
+        local floor = getMazeFloor()
+        if not floor then
+                return
+        end
+        for _, plr in ipairs(Players:GetPlayers()) do
+                if playerStates[plr] == "Alive" then
+                        recordPlayerCell(plr, floor)
+                end
+        end
+end
+
+local function startExplorationTracking()
+        stopExplorationTracking()
+        coverageConnection = RunService.Heartbeat:Connect(function()
+                if not roundActive or phase ~= "ACTIVE" then
+                        return
+                end
+                recordAlivePlayersCurrentCells()
+        end)
+end
+
 local function recordEscape(plr)
         local stats = ensureRoundStatsEntry(plr)
         if not stats then
                 return
+        end
+        local floor = getMazeFloor()
+        local char = plr.Character
+        if floor and char then
+                local rootPart = char:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                        local xIndex, zIndex = positionToCell(rootPart.Position, floor)
+                        if xIndex and zIndex then
+                                recordVisitedCell(plr, xIndex, zIndex)
+                        end
+                end
         end
         stats.escaped = true
         stats.finalState = "Escaped"
@@ -557,6 +708,11 @@ local function finalizeStatsForPlayer(plr, roundFinishTime)
                 -- keep escaped flag as-is
         elseif stats.finalState == "Eliminated" then
                 -- already marked
+        end
+        stats.uniqueCellsVisited = math.max(stats.uniqueCellsVisited or 0, 0)
+        stats.totalMazeCells = stats.totalMazeCells or totalMazeCells
+        if (stats.totalMazeCells or 0) > 0 and stats.uniqueCellsVisited >= stats.totalMazeCells then
+                stats.allTilesCovered = true
         end
         return stats
 end
@@ -635,6 +791,21 @@ local function awardRoundRewards(roundFinishTime)
                                         )
                                 end
 
+                                local explorationConfig = rewardsConfig.FullMazeExploration
+                                        or rewardsConfig.FullMazeExplorer
+                                        or rewardsConfig.FullMaze
+                                if stats.allTilesCovered and explorationConfig then
+                                        addContribution(
+                                                getRewardLabel(explorationConfig, "Volledige verkenning"),
+                                                explorationConfig.Coins,
+                                                explorationConfig.XP,
+                                                {
+                                                        cells = stats.uniqueCellsVisited or totalMazeCells,
+                                                        total = stats.totalMazeCells or totalMazeCells,
+                                                }
+                                        )
+                                end
+
                                 local eliminationCount = stats.eliminations or 0
                                 local eliminationConfig = rewardsConfig.Elimination
                                 if eliminationConfig and eliminationCount > 0 then
@@ -676,6 +847,9 @@ local function awardRoundRewards(roundFinishTime)
                                         escaped = stats.escaped,
                                         eliminations = eliminationCount,
                                         survivalSeconds = math.max(stats.timeAlive or 0, 0),
+                                        fullMazeExplored = stats.allTilesCovered == true,
+                                        visitedCells = stats.uniqueCellsVisited or 0,
+                                        totalMazeCells = stats.totalMazeCells or totalMazeCells,
                                 })
                         end
                 end
@@ -818,10 +992,20 @@ local function eliminatePlayer(plr, position)
         if playerStates[plr] ~= "Alive" then
                 return
         end
+        local char = plr.Character
+        local floor = getMazeFloor()
+        if floor and char then
+                local rootPart = char:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                        local xIndex, zIndex = positionToCell(rootPart.Position, floor)
+                        if xIndex and zIndex then
+                                recordVisitedCell(plr, xIndex, zIndex)
+                        end
+                end
+        end
         playerStates[plr] = "Out"
         eliminatedPlayers[plr] = true
         recordElimination(plr)
-        local char = plr.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
         local effectPos = position
@@ -956,6 +1140,7 @@ local function runRound()
                 print(string.format("[GameManager] Moeilijkheid presets ontbreken, gebruik standaard: %s (carveLoops %.0f%%)", difficultyValue.Value, (loopChanceValue.Value or 0) * 100))
         end
         roundActive = true
+        totalMazeCells = math.max(0, (Config.GridWidth or 0) * (Config.GridHeight or 0))
         local activeThemeId = resolvedThemeValue()
         applyTheme(activeThemeId)
         local previousLobbyTransparency = lobbyDefaultTransparency
@@ -975,6 +1160,8 @@ local function runRound()
         MazeBuilder.Clear(mazeFolder)
         local grid = MazeGen.Generate(Config.GridWidth, Config.GridHeight)
         MazeBuilder.BuildFullGrid(Config.GridWidth, Config.GridHeight, Config.CellSize, Config.WallHeight, prefabs, mazeFolder)
+        mazeFloorPart = nil
+        getMazeFloor()
         if lobbyBase then
                 lobbyBase.Transparency = 1
         end
@@ -1066,10 +1253,13 @@ local function runRound()
                 if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
                 phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
                 activeRoundStart = getServerTime()
+                recordAlivePlayersCurrentCells()
+                startExplorationTracking()
         end
         local timeLeft = Config.RoundTime
-	while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
+        while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
         roundActive = false
+        stopExplorationTracking()
         phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
         local roundFinishTime = getServerTime()
         awardRoundRewards(roundFinishTime)

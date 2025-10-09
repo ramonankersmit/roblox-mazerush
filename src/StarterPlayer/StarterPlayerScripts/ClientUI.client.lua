@@ -275,6 +275,15 @@ local function formatContribution(entry)
                 if details.seconds then
                         local seconds = math.floor((details.seconds or 0) + 0.5)
                         text = string.format("%s (%ds)", text, seconds)
+                elseif details.cells then
+                        local cells = math.floor((tonumber(details.cells) or 0) + 0.5)
+                        local total = tonumber(details.total)
+                        if total and total > 0 then
+                                local roundedTotal = math.floor(total + 0.5)
+                                text = string.format("%s (%d/%d tegels)", text, cells, roundedTotal)
+                        else
+                                text = string.format("%s (%d tegels)", text, cells)
+                        end
                 elseif details.count then
                         text = string.format("%s (x%d)", text, details.count)
                 end
