@@ -717,6 +717,30 @@ local function finalizeStatsForPlayer(plr, roundFinishTime)
         return stats
 end
 
+local function ensureLeaderstats(plr)
+        local ls = plr:FindFirstChild("leaderstats")
+        if not ls then
+                ls = Instance.new("Folder")
+                ls.Name = "leaderstats"
+                ls.Parent = plr
+        end
+        if not ls:FindFirstChild("Coins") then
+                local v = Instance.new("IntValue")
+                v.Name = "Coins"
+                v.Parent = ls
+        end
+        if not ls:FindFirstChild("XP") then
+                local v = Instance.new("IntValue")
+                v.Name = "XP"
+                v.Parent = ls
+        end
+        if not ls:FindFirstChild("Escapes") then
+                local v = Instance.new("IntValue")
+                v.Name = "Escapes"
+                v.Parent = ls
+        end
+end
+
 local function quantize(amount)
         amount = tonumber(amount) or 0
         if amount >= 0 then
@@ -1030,14 +1054,6 @@ end
 _G.GameEliminatePlayer = eliminatePlayer
 
 -- Teleport characters to sky lobby on spawn during PREP/wait
-local function ensureLeaderstats(plr)
-        local ls = plr:FindFirstChild("leaderstats")
-        if not ls then ls = Instance.new("Folder"); ls.Name = "leaderstats"; ls.Parent = plr end
-        if not ls:FindFirstChild("Coins") then local v = Instance.new("IntValue"); v.Name = "Coins"; v.Parent = ls end
-        if not ls:FindFirstChild("XP") then local v = Instance.new("IntValue"); v.Name = "XP"; v.Parent = ls end
-        if not ls:FindFirstChild("Escapes") then local v = Instance.new("IntValue"); v.Name = "Escapes"; v.Parent = ls end
-end
-
 local function onCharacterAdded(plr, char)
         task.wait(0.1)
         local hrp = char:WaitForChild("HumanoidRootPart")
