@@ -897,6 +897,7 @@ function SentryController:_enterChase(player, character, initialPosition)
     end
     if self.animations then
         self.animations:playState("Chase")
+    end
     if initialPosition then
         self:_setDestination(initialPosition)
     end

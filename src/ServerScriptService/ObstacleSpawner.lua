@@ -131,6 +131,9 @@ local function getPrefab(name)
                 return nil
         end
         local prefab = folder:FindFirstChild(name)
+        if not prefab then
+                prefab = safeWaitForChild(folder, name, 5)
+        end
         if prefab and prefab:IsA("Model") then
                 return prefab
         end
