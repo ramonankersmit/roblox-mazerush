@@ -194,6 +194,12 @@ end
 
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
+local obstaclePrefabsFolder = prefabs:FindFirstChild("Obstacles")
+if not (obstaclePrefabsFolder and obstaclePrefabsFolder:IsA("Folder")) then
+        obstaclePrefabsFolder = Instance.new("Folder")
+        obstaclePrefabsFolder.Name = "Obstacles"
+        obstaclePrefabsFolder.Parent = prefabs
+end
 
 local function ensurePart(name, size)
         local p = prefabs:FindFirstChild(name)

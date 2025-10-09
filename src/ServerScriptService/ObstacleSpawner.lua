@@ -34,15 +34,33 @@ local function ensureContainer(parent)
         return container
 end
 
+local function safeWaitForChild(parent, childName, timeout)
+        local ok, result = pcall(function()
+                return parent:WaitForChild(childName, timeout)
+        end)
+        if ok then
+                return result
+        end
+        return nil
+end
+
 local function getObstaclePrefabsFolder()
         local prefabs = ServerStorage:FindFirstChild(PREFABS_FOLDER_NAME)
         if not (prefabs and prefabs:IsA("Folder")) then
+                prefabs = safeWaitForChild(ServerStorage, PREFABS_FOLDER_NAME, 5)
+        end
+        if not (prefabs and prefabs:IsA("Folder")) then
                 return nil
         end
+
         local obstacles = prefabs:FindFirstChild(OBSTACLE_FOLDER_NAME)
+        if not (obstacles and obstacles:IsA("Folder")) then
+                obstacles = safeWaitForChild(prefabs, OBSTACLE_FOLDER_NAME, 5)
+        end
         if not (obstacles and obstacles:IsA("Folder")) then
                 return nil
         end
+
         return obstacles
 end
 
