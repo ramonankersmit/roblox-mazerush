@@ -209,7 +209,6 @@ rewardFeedFrame.BackgroundTransparency = 0.25
 rewardFeedFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 rewardFeedFrame.BorderSizePixel = 0
 rewardFeedFrame.Visible = false
-rewardFeedFrame.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 rewardFeedFrame.ZIndex = 5
 rewardFeedFrame.Parent = gui
 
