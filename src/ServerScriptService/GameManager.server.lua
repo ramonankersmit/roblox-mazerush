@@ -11,6 +11,7 @@ local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
+local ProgressionService = require(ServerScriptService:WaitForChild("ProgressionService"))
 
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
@@ -30,6 +31,7 @@ ensureRemote("SetLoopChance")
 local AliveStatus = ensureRemote("AliveStatus")
 local PlayerEliminated = ensureRemote("PlayerEliminated")
 local ToggleWallHeight = ensureRemote("ToggleWallHeight")
+local RoundRewards = ensureRemote("RoundRewards")
 
 local State = Replicated:FindFirstChild("State") or Instance.new("Folder", Replicated); State.Name = "State"
 local algoValue = State:FindFirstChild("MazeAlgorithm") or Instance.new("StringValue", State)
@@ -444,6 +446,242 @@ local playerStates = {}
 local eliminatedPlayers = {}
 local defaultMovement = {}
 
+local roundParticipants = {}
+local roundStats = {}
+local activeRoundStart = nil
+
+local function getServerTime()
+        return Workspace:GetServerTimeNow()
+end
+
+local function resetRoundTracking()
+        roundParticipants = {}
+        roundStats = {}
+        activeRoundStart = nil
+end
+
+local function ensureRoundStatsEntry(playerOrId)
+        local userId
+        local kind = typeof(playerOrId)
+        if kind == "number" then
+                userId = playerOrId
+        elseif kind == "Instance" and playerOrId:IsA("Player") then
+                userId = playerOrId.UserId
+        end
+        if not userId or userId == 0 then
+                return nil, nil
+        end
+        local entry = roundStats[userId]
+        if not entry then
+                entry = {
+                        timeAlive = 0,
+                        escaped = false,
+                        eliminations = 0,
+                        finalState = nil,
+                        participated = false,
+                }
+                roundStats[userId] = entry
+        end
+        return entry, userId
+end
+
+local function markParticipant(plr)
+        local stats, userId = ensureRoundStatsEntry(plr)
+        if userId then
+                roundParticipants[userId] = true
+                if stats then
+                        stats.participated = true
+                end
+        end
+        return stats
+end
+
+local function recordEscape(plr)
+        local stats = ensureRoundStatsEntry(plr)
+        if not stats then
+                return
+        end
+        stats.escaped = true
+        stats.finalState = "Escaped"
+        if activeRoundStart then
+                local elapsed = math.max(getServerTime() - activeRoundStart, 0)
+                if elapsed > (stats.timeAlive or 0) then
+                        stats.timeAlive = elapsed
+                end
+        end
+end
+
+local function recordElimination(plr)
+        local stats = ensureRoundStatsEntry(plr)
+        if not stats then
+                return
+        end
+        stats.finalState = "Eliminated"
+        if activeRoundStart then
+                local elapsed = math.max(getServerTime() - activeRoundStart, 0)
+                if elapsed > (stats.timeAlive or 0) then
+                        stats.timeAlive = elapsed
+                end
+        end
+end
+
+local function recordEliminationAction(plr)
+        local stats = ensureRoundStatsEntry(plr)
+        if not stats then
+                return
+        end
+        stats.eliminations = (stats.eliminations or 0) + 1
+end
+
+_G.GameRecordEliminationAction = recordEliminationAction
+shared.GameRecordEliminationAction = recordEliminationAction
+
+local function finalizeStatsForPlayer(plr, roundFinishTime)
+        local stats = ensureRoundStatsEntry(plr)
+        if not stats then
+                return nil
+        end
+        if activeRoundStart then
+                local elapsed = math.max(roundFinishTime - activeRoundStart, 0)
+                if (stats.timeAlive or 0) < elapsed then
+                        stats.timeAlive = elapsed
+                end
+        end
+        if not stats.finalState then
+                if playerStates[plr] == "Alive" then
+                        stats.finalState = "Survived"
+                else
+                        stats.finalState = "Unknown"
+                end
+        elseif stats.finalState == "Escaped" then
+                -- keep escaped flag as-is
+        elseif stats.finalState == "Eliminated" then
+                -- already marked
+        end
+        return stats
+end
+
+local function quantize(amount)
+        amount = tonumber(amount) or 0
+        if amount >= 0 then
+                return math.floor(amount + 0.5)
+        else
+                return math.ceil(amount - 0.5)
+        end
+end
+
+local function getRewardLabel(config, fallback)
+        if type(config) == "table" then
+                return config.Name or config.Label or config.Description or fallback
+        end
+        return fallback
+end
+
+local function awardRoundRewards(roundFinishTime)
+        local rewardsConfig = Config.Rewards or {}
+        for userId in pairs(roundParticipants) do
+                local plr = Players:GetPlayerByUserId(userId)
+                if plr and plr.Parent then
+                        ensureLeaderstats(plr)
+                        local stats = finalizeStatsForPlayer(plr, roundFinishTime)
+                        if stats then
+                                local contributions = {}
+                                local totalCoins = 0
+                                local totalXP = 0
+                                local function addContribution(label, coinsAmount, xpAmount, details)
+                                        local coinsInt = quantize(coinsAmount)
+                                        local xpInt = quantize(xpAmount)
+                                        if coinsInt ~= 0 or xpInt ~= 0 then
+                                                totalCoins += coinsInt
+                                                totalXP += xpInt
+                                                table.insert(contributions, {
+                                                        label = label,
+                                                        coins = coinsInt,
+                                                        xp = xpInt,
+                                                        details = details,
+                                                })
+                                        end
+                                end
+
+                                if stats.participated and rewardsConfig.Participation then
+                                        addContribution(
+                                                getRewardLabel(rewardsConfig.Participation, "Deelname"),
+                                                rewardsConfig.Participation.Coins,
+                                                rewardsConfig.Participation.XP
+                                        )
+                                end
+
+                                local survivalConfig = rewardsConfig.Survival
+                                if survivalConfig and (stats.timeAlive or 0) > 0 and activeRoundStart then
+                                        local survivalSeconds = math.max(stats.timeAlive or 0, 0)
+                                        if survivalConfig.MaxSeconds then
+                                                survivalSeconds = math.min(survivalSeconds, survivalConfig.MaxSeconds)
+                                        end
+                                        local coins = (survivalConfig.CoinsPerSecond or 0) * survivalSeconds
+                                        local xp = (survivalConfig.XPPerSecond or 0) * survivalSeconds
+                                        addContribution(
+                                                getRewardLabel(survivalConfig, "Overleving"),
+                                                coins,
+                                                xp,
+                                                { seconds = survivalSeconds }
+                                        )
+                                end
+
+                                if stats.escaped and rewardsConfig.Escape then
+                                        addContribution(
+                                                getRewardLabel(rewardsConfig.Escape, "Ontsnapping"),
+                                                rewardsConfig.Escape.Coins,
+                                                rewardsConfig.Escape.XP
+                                        )
+                                end
+
+                                local eliminationCount = stats.eliminations or 0
+                                local eliminationConfig = rewardsConfig.Elimination
+                                if eliminationConfig and eliminationCount > 0 then
+                                        local coinsPer = eliminationConfig.CoinsPerAction or eliminationConfig.Coins or 0
+                                        local xpPer = eliminationConfig.XPPerAction or eliminationConfig.XP or 0
+                                        local coins = coinsPer * eliminationCount
+                                        local xp = xpPer * eliminationCount
+                                        addContribution(
+                                                getRewardLabel(eliminationConfig, "Eliminaties"),
+                                                coins,
+                                                xp,
+                                                { count = eliminationCount }
+                                        )
+                                end
+
+                                local awardResult
+                                if totalCoins ~= 0 or totalXP ~= 0 then
+                                        awardResult = ProgressionService.AwardCurrency(plr, totalCoins, totalXP)
+                                else
+                                        awardResult = ProgressionService.AwardCurrency(plr, 0, 0)
+                                end
+                                local unlocks = {}
+                                if awardResult then
+                                        if awardResult.coins ~= nil then
+                                                totalCoins = awardResult.coins
+                                        end
+                                        if awardResult.xp ~= nil then
+                                                totalXP = awardResult.xp
+                                        end
+                                        unlocks = awardResult.unlocks or {}
+                                end
+
+                                RoundRewards:FireClient(plr, {
+                                        totalCoins = totalCoins,
+                                        totalXP = totalXP,
+                                        contributions = contributions,
+                                        unlocks = unlocks,
+                                        finalState = stats.finalState,
+                                        escaped = stats.escaped,
+                                        eliminations = eliminationCount,
+                                        survivalSeconds = math.max(stats.timeAlive or 0, 0),
+                                })
+                        end
+                end
+        end
+end
+
 local function recordDefaultMovement(plr, humanoid)
         if defaultMovement[plr] then
                 return
@@ -582,6 +820,7 @@ local function eliminatePlayer(plr, position)
         end
         playerStates[plr] = "Out"
         eliminatedPlayers[plr] = true
+        recordElimination(plr)
         local char = plr.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
@@ -611,6 +850,7 @@ local function ensureLeaderstats(plr)
         local ls = plr:FindFirstChild("leaderstats")
         if not ls then ls = Instance.new("Folder"); ls.Name = "leaderstats"; ls.Parent = plr end
         if not ls:FindFirstChild("Coins") then local v = Instance.new("IntValue"); v.Name = "Coins"; v.Parent = ls end
+        if not ls:FindFirstChild("XP") then local v = Instance.new("IntValue"); v.Name = "XP"; v.Parent = ls end
         if not ls:FindFirstChild("Escapes") then local v = Instance.new("IntValue"); v.Name = "Escapes"; v.Parent = ls end
 end
 
@@ -654,6 +894,10 @@ Players.PlayerRemoving:Connect(function(plr)
         playerStates[plr] = nil
         eliminatedPlayers[plr] = nil
         defaultMovement[plr] = nil
+        if plr.UserId and plr.UserId ~= 0 then
+                roundParticipants[plr.UserId] = nil
+                roundStats[plr.UserId] = nil
+        end
         broadcastAliveStatus()
 end)
 
@@ -686,6 +930,7 @@ local function placeExit()
                 if humanoid then
                         local plr = Players:GetPlayerFromCharacter(humanoid.Parent)
                         if plr and roundActive then
+                                recordEscape(plr)
                                 local ls = plr:FindFirstChild("leaderstats"); if ls and ls:FindFirstChild("Escapes") then ls.Escapes.Value += 1 end
                                 -- End the round immediately when someone reaches the exit
                                 roundActive = false
@@ -696,6 +941,7 @@ end
 
 local function runRound()
         if roundActive then return end
+        resetRoundTracking()
         local selectedDifficulty = selectRandomDifficulty()
         if selectedDifficulty then
                 local loopChance = math.clamp(selectedDifficulty.loopChance or Config.LoopChance or 0, 0, 1)
@@ -720,6 +966,8 @@ local function runRound()
         eliminatedPlayers = {}
         for _, plr in ipairs(Players:GetPlayers()) do
                 playerStates[plr] = "Alive"
+                markParticipant(plr)
+                ensureLeaderstats(plr)
         end
         broadcastAliveStatus()
 
@@ -817,11 +1065,14 @@ local function runRound()
                 end
                 if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
                 phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
+                activeRoundStart = getServerTime()
         end
         local timeLeft = Config.RoundTime
 	while timeLeft > 0 and roundActive do Countdown:FireAllClients(timeLeft); task.wait(1); timeLeft -= 1 end
-	roundActive = false
+        roundActive = false
         phase = "END"; PhaseValue.Value = phase; RoundState:FireAllClients("END")
+        local roundFinishTime = getServerTime()
+        awardRoundRewards(roundFinishTime)
         task.wait(5)
         teleportToLobby()
         clearAliveStatus()
@@ -833,6 +1084,7 @@ local function runRound()
         if _G.Inventory and type(_G.Inventory.ResetAll) == "function" then
                 _G.Inventory.ResetAll()
         end
+        resetRoundTracking()
         phase = "IDLE"; PhaseValue.Value = phase; RoundState:FireAllClients("IDLE")
 end
 

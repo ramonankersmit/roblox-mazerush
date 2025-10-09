@@ -114,6 +114,58 @@ local Config = {
                 },
         },
 
+	-- Beloningsconfiguratie: ontwerpers kunnen deze waarden aanpassen zonder scripts te wijzigen.
+	-- Coins/XP zijn gehele bedragen; per-seconde/-actie waarden worden afgerond op hele nummers.
+	Rewards = {
+		Participation = {
+			Coins = 15,
+			XP = 20,
+			Description = "Basistoelage voor spelers die bij de start van de ronde aanwezig waren.",
+		},
+		Survival = {
+			CoinsPerSecond = 0.4,
+			XPPerSecond = 0.9,
+			MaxSeconds = 240,
+			Description = "Beloning per seconde dat de speler de actieve fase overleeft.",
+		},
+		Escape = {
+			Coins = 75,
+			XP = 150,
+			Description = "Bonus voor het bereiken van de uitgang voordat de tijd om is.",
+		},
+		Elimination = {
+			CoinsPerAction = 25,
+			XPPerAction = 45,
+			Description = "Beloning per vijand of val die door de speler wordt uitgeschakeld.",
+		},
+		Unlocks = {
+			{
+				Id = "ExitFinder",
+				Name = "Exit Finder",
+				Reward = "ExitFinder",
+				Coins = 200,
+				XP = 150,
+				Description = "Ontgrendelt de Exit Finder gadget in de inventaris.",
+			},
+			{
+				Id = "HunterFinder",
+				Name = "Hunter Finder",
+				Reward = "HunterFinder",
+				Coins = 400,
+				XP = 350,
+				Description = "Ontgrendelt de Hunter Finder gadget in de inventaris.",
+			},
+			{
+				Id = "KeyFinder",
+				Name = "Key Finder",
+				Reward = "KeyFinder",
+				Coins = 650,
+				XP = 550,
+				Description = "Ontgrendelt de Key Finder gadget in de inventaris.",
+			},
+		},
+	},
+
 	-- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
         MazeAlgorithm = "DFS", -- "DFS" of "PRIM"
         -- Kans (0-1) dat een bestaande muur na generatie alsnog wordt verwijderd om lussen te maken.
