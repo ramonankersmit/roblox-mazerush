@@ -1,5 +1,6 @@
 local Workspace = game:GetService("Workspace")
 local ServerStorage = game:GetService("ServerStorage")
+local RunService = game:GetService("RunService")
 
 local PREFABS_FOLDER_NAME = "Prefabs"
 local OBSTACLE_FOLDER_NAME = "Obstacles"
@@ -8,6 +9,62 @@ local MAX_RANDOM_ATTEMPTS = 250
 
 local ObstacleSpawner = {}
 ObstacleSpawner.LastSpawned = {}
+
+local fallbackPrefabs = {}
+local fallbackWarnings = {}
+
+local function createMovingPlatformPrefab()
+        local model = Instance.new("Model")
+        model.Name = "MovingPlatform"
+
+        local platform = Instance.new("Part")
+        platform.Name = "Platform"
+        platform.Anchored = true
+        platform.CanCollide = true
+        platform.CanTouch = true
+        platform.CanQuery = true
+        platform.Size = Vector3.new(12, 1, 4)
+        platform.CFrame = CFrame.new(0, 0.5, 0)
+        platform.Parent = model
+
+        model.PrimaryPart = platform
+
+        return model
+end
+
+local function createTrapDoorPrefab()
+        local model = Instance.new("Model")
+        model.Name = "TrapDoor"
+
+        local frame = Instance.new("Part")
+        frame.Name = "Frame"
+        frame.Anchored = true
+        frame.CanCollide = true
+        frame.CanTouch = true
+        frame.CanQuery = true
+        frame.Size = Vector3.new(8, 1, 8)
+        frame.CFrame = CFrame.new(0, 0.5, 0)
+        frame.Parent = model
+
+        local door = Instance.new("Part")
+        door.Name = "Door"
+        door.Anchored = true
+        door.CanCollide = true
+        door.CanTouch = true
+        door.CanQuery = true
+        door.Size = Vector3.new(6, 1, 6)
+        door.CFrame = CFrame.new(0, 1.01, 0)
+        door.Parent = model
+
+        model.PrimaryPart = frame
+
+        return model
+end
+
+local FALLBACK_GENERATORS = {
+        MovingPlatform = createMovingPlatformPrefab,
+        TrapDoor = createTrapDoorPrefab,
+}
 
 local function getMazeFolder(override)
         if override and override:IsA("Instance") then
@@ -77,6 +134,21 @@ local function getPrefab(name)
         if prefab and prefab:IsA("Model") then
                 return prefab
         end
+        local generator = FALLBACK_GENERATORS[name]
+        if generator then
+                prefab = fallbackPrefabs[name]
+                if not prefab then
+                        prefab = generator()
+                        fallbackPrefabs[name] = prefab
+                end
+                if prefab then
+                        if not fallbackWarnings[name] then
+                                warn(string.format("[ObstacleSpawner] Prefab '%s' niet gevonden in '%s/%s' - gebruik fallbackmodel", name, PREFABS_FOLDER_NAME, OBSTACLE_FOLDER_NAME))
+                                fallbackWarnings[name] = true
+                        end
+                        return prefab
+                end
+        end
         warn(string.format("[ObstacleSpawner] Prefab '%s' niet gevonden in '%s/%s'", name, PREFABS_FOLDER_NAME, OBSTACLE_FOLDER_NAME))
         return nil
 end
@@ -115,6 +187,237 @@ local function enableScripts(model)
                 if descendant:IsA("BaseScript") then
                         descendant.Disabled = false
                 end
+        end
+end
+
+local function hasBaseScript(model)
+        for _, descendant in ipairs(model:GetDescendants()) do
+                if descendant:IsA("BaseScript") then
+                        return true
+                end
+        end
+        return false
+end
+
+local function activateMovingPlatform(model)
+        local primary = ensurePrimaryPart(model)
+        if not primary then
+                return
+        end
+
+        model:SetAttribute("ObstacleControllerActive", true)
+
+        primary.Anchored = true
+
+        local travelTime = tonumber(model:GetAttribute("TravelTime")) or 4
+        if not travelTime or travelTime <= 0 then
+                travelTime = 4
+        end
+
+        local pauseDuration = tonumber(model:GetAttribute("PauseDuration")) or 0
+        if pauseDuration < 0 then
+                pauseDuration = 0
+        end
+
+        local distance = tonumber(model:GetAttribute("MovementDistance")) or 16
+        if distance < 0 then
+                distance = 0
+        end
+
+        local axis = string.upper(tostring(model:GetAttribute("MovementAxis") or "X"))
+        local unit = Vector3.new(1, 0, 0)
+        if axis == "Y" then
+                unit = Vector3.new(0, 1, 0)
+        elseif axis == "Z" then
+                unit = Vector3.new(0, 0, 1)
+        end
+
+        local halfDistance = distance / 2
+        local baseCFrame = primary.CFrame
+
+        local running = true
+
+        if model.Destroying then
+                model.Destroying:Connect(function()
+                        running = false
+                end)
+        end
+
+        model.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                        running = false
+                end
+        end)
+
+        local function setAlpha(alpha)
+                local offset = unit * ((alpha * 2) - 1) * halfDistance
+                local target = baseCFrame * CFrame.new(offset)
+                model:PivotTo(target)
+        end
+
+        setAlpha(0)
+
+        task.spawn(function()
+                while running and model.Parent do
+                        local progress = 0
+                        while running and progress < 1 do
+                                local dt = RunService.Heartbeat:Wait()
+                                if travelTime <= 0 then
+                                        progress = 1
+                                else
+                                        progress += dt / travelTime
+                                end
+                                if progress > 1 then
+                                        progress = 1
+                                end
+                                setAlpha(progress)
+                        end
+
+                        if not running or not model.Parent then
+                                break
+                        end
+
+                        if pauseDuration > 0 then
+                                task.wait(pauseDuration)
+                        end
+                end
+        end)
+end
+
+local function activateTrapDoor(model)
+        local door = model:FindFirstChild("Door")
+        if not (door and door:IsA("BasePart")) then
+                door = model:FindFirstChildWhichIsA("BasePart")
+        end
+        if not door then
+                return
+        end
+
+        model:SetAttribute("ObstacleControllerActive", true)
+
+        door.Anchored = true
+
+        local openDuration = tonumber(model:GetAttribute("OpenDuration")) or 2
+        if openDuration < 0 then
+                openDuration = 0
+        end
+
+        local closedDuration = tonumber(model:GetAttribute("ClosedDuration")) or 4
+        if closedDuration < 0 then
+                closedDuration = 0
+        end
+
+        local warningDuration = tonumber(model:GetAttribute("WarningDuration")) or 0.5
+        if warningDuration < 0 then
+                warningDuration = 0
+        end
+
+        local openTransparency = tonumber(model:GetAttribute("OpenTransparency")) or 0.85
+        local warningTransparency = tonumber(model:GetAttribute("WarningTransparency"))
+        if warningTransparency == nil then
+                warningTransparency = math.clamp(openTransparency * 0.5, 0, 1)
+        end
+
+        local closedTransparency = tonumber(model:GetAttribute("ClosedTransparency"))
+        if closedTransparency == nil then
+                closedTransparency = door.Transparency
+        end
+
+        local function setDoorState(state)
+                if state == "open" then
+                        door.CanCollide = false
+                        door.CanTouch = false
+                        door.Transparency = openTransparency
+                        model:SetAttribute("State", "Open")
+                elseif state == "warning" then
+                        door.CanCollide = true
+                        door.CanTouch = true
+                        door.Transparency = warningTransparency
+                        model:SetAttribute("State", "Warning")
+                else
+                        door.CanCollide = true
+                        door.CanTouch = true
+                        door.Transparency = closedTransparency
+                        model:SetAttribute("State", "Closed")
+                end
+        end
+
+        setDoorState("closed")
+
+        local running = true
+
+        if model.Destroying then
+                model.Destroying:Connect(function()
+                        running = false
+                end)
+        end
+
+        model.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                        running = false
+                end
+        end)
+
+        task.spawn(function()
+                while running and model.Parent do
+                        setDoorState("closed")
+                        if closedDuration > 0 then
+                                task.wait(closedDuration)
+                        end
+
+                        if not running or not model.Parent then
+                                break
+                        end
+
+                        if warningDuration > 0 then
+                                setDoorState("warning")
+                                task.wait(warningDuration)
+                        end
+
+                        if not running or not model.Parent then
+                                break
+                        end
+
+                        setDoorState("open")
+                        if openDuration > 0 then
+                                task.wait(openDuration)
+                        end
+
+                        if not running or not model.Parent then
+                                break
+                        end
+                end
+
+                setDoorState("closed")
+        end)
+end
+
+local OBSTACLE_ACTIVATORS = {
+        MovingPlatform = activateMovingPlatform,
+        TrapDoor = activateTrapDoor,
+}
+
+local function activateObstacleModel(model, attributes)
+        if not (model and model:IsA("Model")) then
+                return
+        end
+
+        if model:GetAttribute("ObstacleControllerActive") then
+                return
+        end
+
+        if hasBaseScript(model) then
+                return
+        end
+
+        local obstacleType = (attributes and attributes.ObstacleType) or model:GetAttribute("ObstacleType")
+        if not obstacleType then
+                return
+        end
+
+        local handler = OBSTACLE_ACTIVATORS[obstacleType]
+        if handler then
+                        handler(model)
         end
 end
 
@@ -265,6 +568,7 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
                 local target = CFrame.new(position) * orientation
                 clone:PivotTo(target)
                 enableScripts(clone)
+                activateObstacleModel(clone, attributes)
                 clone.Parent = container
                 local record = buildPlacementRecord(clone, cellX, cellY, position)
                 table.insert(placements, record)
@@ -327,6 +631,7 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
                         local target = CFrame.new(position + Vector3.new(0, height, 0)) * orientation
                         clone:SetAttribute("SpawnHeight", height)
                         enableScripts(clone)
+                        activateObstacleModel(clone, attributes)
                         clone.Parent = container
                         table.insert(placements, buildPlacementRecord(clone, nil, nil, position))
                         table.insert(placed, clone)
