@@ -6,6 +6,9 @@ local Modules = ReplicatedStorage:WaitForChild("Modules")
 local ThemeConfig = require(Modules:WaitForChild("ThemeConfig"))
 local RoundConfig = require(Modules:WaitForChild("RoundConfig"))
 
+local ServerModules = script.Parent:WaitForChild("Modules")
+local LightPlacer = require(ServerModules:WaitForChild("LightPlacer"))
+
 local State = ReplicatedStorage:WaitForChild("State")
 local ThemeValue = State:WaitForChild("Theme")
 local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
@@ -262,74 +265,6 @@ local function createSpookySconceFixtures(folder, baseCFrame, suffix)
     end
 end
 
-local function createSconceLights(context)
-    local mazeFolder = context.mazeFolder
-    if not mazeFolder then
-        return
-    end
-    local walls = {}
-    for _, child in ipairs(mazeFolder:GetChildren()) do
-        if child:IsA("BasePart") and child.Name:match("^W_%d+_%d+_[NESW]$") then
-            walls[#walls + 1] = child
-        end
-    end
-    table.sort(walls, function(a, b)
-        return a.Name < b.Name
-    end)
-
-    local created = 0
-    for index, wall in ipairs(walls) do
-        if index % 2 == 0 then
-            local wallHeight = wall.Size.Y
-            local forward = wall.CFrame.LookVector
-            local up = wall.CFrame.UpVector
-            local offset = forward * (wall.Size.Z * 0.5 + 0.4) + up * (wallHeight * 0.4)
-            local anchorPosition = wall.CFrame.Position + offset
-            local anchor = createAnchor(context.mazeLights, anchorPosition, string.format("SpookySconce_%d", index))
-            anchor.CFrame = CFrame.lookAt(anchorPosition, anchorPosition - forward, up)
-
-            local light = createPointLight(anchor, {
-                Color = Color3.fromRGB(255, 190, 120),
-                Brightness = 2.1,
-                Range = math.max(12, wall.Size.X * 0.9),
-                Shadows = true,
-            })
-            addFlicker(light, light.Brightness, light.Brightness * 0.22, 1.15 + (index % 5) * 0.18, index * 0.21)
-            createSpookySconceFixtures(context.mazeLights, anchor.CFrame, string.format("Maze_%d", index))
-            created += 1
-            if created >= 80 then
-                break
-            end
-        end
-    end
-
-    local center = Vector3.new(context.gridWidth * context.cellSize * 0.5, 2.6, context.gridHeight * context.cellSize * 0.5)
-    local mistAnchor = createAnchor(context.mazeLights, center, "SpookyMist")
-    createParticle(mistAnchor, {
-        Texture = "rbxassetid://769917651",
-        Color = ColorSequence.new(Color3.fromRGB(110, 90, 160), Color3.fromRGB(80, 60, 120)),
-        Size = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 4.5),
-            NumberSequenceKeypoint.new(1, 6.5),
-        }),
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.65),
-            NumberSequenceKeypoint.new(1, 0.95),
-        }),
-        Lifetime = NumberRange.new(5, 9),
-        Rate = 12,
-        Speed = NumberRange.new(0.2, 0.5),
-        Rotation = NumberRange.new(-20, 20),
-        RotSpeed = NumberRange.new(-10, 10),
-        SpreadAngle = Vector2.new(30, 30),
-    })
-    createPointLight(mistAnchor, {
-        Color = Color3.fromRGB(160, 120, 255),
-        Brightness = 0.8,
-        Range = 18,
-    })
-end
-
 local function createSpookyFillLights(context)
     local spacing = 4
     local startX = 2
@@ -368,6 +303,32 @@ local function createSpookyFillLights(context)
             Color = Color3.fromRGB(110, 90, 160),
         })
     end
+
+    local center = Vector3.new(context.gridWidth * context.cellSize * 0.5, 2.6, context.gridHeight * context.cellSize * 0.5)
+    local mistAnchor = createAnchor(context.mazeLights, center, "SpookyMist")
+    createParticle(mistAnchor, {
+        Texture = "rbxassetid://769917651",
+        Color = ColorSequence.new(Color3.fromRGB(110, 90, 160), Color3.fromRGB(80, 60, 120)),
+        Size = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 4.5),
+            NumberSequenceKeypoint.new(1, 6.5),
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.65),
+            NumberSequenceKeypoint.new(1, 0.95),
+        }),
+        Lifetime = NumberRange.new(5, 9),
+        Rate = 12,
+        Speed = NumberRange.new(0.2, 0.5),
+        Rotation = NumberRange.new(-20, 20),
+        RotSpeed = NumberRange.new(-10, 10),
+        SpreadAngle = Vector2.new(30, 30),
+    })
+    createPointLight(mistAnchor, {
+        Color = Color3.fromRGB(160, 120, 255),
+        Brightness = 0.8,
+        Range = 18,
+    })
 end
 
 local function createSpookyLobbyLights(context)
@@ -460,7 +421,6 @@ local function createSpookyLobbyLights(context)
 end
 
 local function applySpookyMaze(context)
-    createSconceLights(context)
     createSpookyFillLights(context)
     local exitPad = context.exitPad
     if exitPad then
@@ -792,6 +752,35 @@ local function applyMazeTheme(themeId)
     currentMazeThemeId = resolved
 
     local context = getContext()
+    local themeSpec = ThemeConfig.Themes[resolved]
+    local placedLights = {}
+    if context.mazeFolder and themeSpec then
+        placedLights = LightPlacer.Apply(resolved, context.mazeFolder, themeSpec, {
+            parentFolder = context.mazeLights,
+            cellSize = context.cellSize,
+        }) or {}
+
+        local lightSpec = themeSpec.lightSpec
+        local flickerSpec = lightSpec and lightSpec.flicker
+        if flickerSpec then
+            local amplitudeScale = flickerSpec.amplitudeScale or 0.2
+            local speedRange = flickerSpec.speedRange or { 1, 1.4 }
+            local speedMin = speedRange[1] or 1
+            local speedMax = speedRange[2] or speedMin
+            local offsetStep = flickerSpec.offsetStep or 0.2
+            local rng = Random.new()
+            for index, light in ipairs(placedLights) do
+                if light and light.Parent then
+                    local baseBrightness = light.Brightness
+                    local amplitude = math.max(0, baseBrightness * amplitudeScale)
+                    local speed = rng:NextNumber(speedMin, speedMax)
+                    local offset = offsetStep * index
+                    addFlicker(light, baseBrightness, amplitude, speed, offset)
+                end
+            end
+        end
+    end
+
     local plan = MAZE_PLANS[resolved]
     if not plan and resolved ~= ThemeConfig.Default then
         plan = MAZE_PLANS[ThemeConfig.Default]
