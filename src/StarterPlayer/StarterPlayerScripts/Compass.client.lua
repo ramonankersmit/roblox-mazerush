@@ -102,18 +102,18 @@ statusLabel.TextWrapped = true
 statusLabel.Visible = false
 statusLabel.Parent = container
 
-local hasExitFinder = nil
+local hasExitFinder = false
 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
 local inventoryUpdate = remotes and remotes:FindFirstChild("InventoryUpdate")
 
 local function updateVisibility()
-        compassGui.Enabled = hasExitFinder ~= false
+        compassGui.Enabled = hasExitFinder
 end
 
 if inventoryUpdate then
         inventoryUpdate.OnClientEvent:Connect(function(data)
                 if data and data.exitFinder ~= nil then
-                        hasExitFinder = data.exitFinder
+                        hasExitFinder = data.exitFinder == true
                         updateVisibility()
                 end
         end)
