@@ -10,61 +10,17 @@ local MAX_RANDOM_ATTEMPTS = 250
 local ObstacleSpawner = {}
 ObstacleSpawner.LastSpawned = {}
 
-local fallbackPrefabs = {}
+local ObstaclePrefabFactory = require(script.Parent:WaitForChild("ObstaclePrefabFactory"))
 local fallbackWarnings = {}
 
-local function createMovingPlatformPrefab()
-        local model = Instance.new("Model")
-        model.Name = "MovingPlatform"
-
-        local platform = Instance.new("Part")
-        platform.Name = "Platform"
-        platform.Anchored = true
-        platform.CanCollide = true
-        platform.CanTouch = true
-        platform.CanQuery = true
-        platform.Size = Vector3.new(12, 1, 4)
-        platform.CFrame = CFrame.new(0, 0.5, 0)
-        platform.Parent = model
-
-        model.PrimaryPart = platform
-
-        return model
+do
+        local folder = ObstaclePrefabFactory.ensureFolder()
+        if folder then
+                for _, name in ipairs(ObstaclePrefabFactory.listKnownPrefabs()) do
+                        ObstaclePrefabFactory.ensurePrefab(folder, name)
+                end
+        end
 end
-
-local function createTrapDoorPrefab()
-        local model = Instance.new("Model")
-        model.Name = "TrapDoor"
-
-        local frame = Instance.new("Part")
-        frame.Name = "Frame"
-        frame.Anchored = true
-        frame.CanCollide = true
-        frame.CanTouch = true
-        frame.CanQuery = true
-        frame.Size = Vector3.new(8, 1, 8)
-        frame.CFrame = CFrame.new(0, 0.5, 0)
-        frame.Parent = model
-
-        local door = Instance.new("Part")
-        door.Name = "Door"
-        door.Anchored = true
-        door.CanCollide = true
-        door.CanTouch = true
-        door.CanQuery = true
-        door.Size = Vector3.new(6, 1, 6)
-        door.CFrame = CFrame.new(0, 1.01, 0)
-        door.Parent = model
-
-        model.PrimaryPart = frame
-
-        return model
-end
-
-local FALLBACK_GENERATORS = {
-        MovingPlatform = createMovingPlatformPrefab,
-        TrapDoor = createTrapDoorPrefab,
-}
 
 local function getMazeFolder(override)
         if override and override:IsA("Instance") then
@@ -137,19 +93,14 @@ local function getPrefab(name)
         if prefab and prefab:IsA("Model") then
                 return prefab
         end
-        local generator = FALLBACK_GENERATORS[name]
-        if generator then
-                prefab = fallbackPrefabs[name]
-                if not prefab then
-                        prefab = generator()
-                        fallbackPrefabs[name] = prefab
-                end
-                if prefab then
-                        if not fallbackWarnings[name] then
+        if folder then
+                local ensured, created = ObstaclePrefabFactory.ensurePrefab(folder, name)
+                if ensured then
+                        if created and not fallbackWarnings[name] then
                                 warn(string.format("[ObstacleSpawner] Prefab '%s' niet gevonden in '%s/%s' - gebruik fallbackmodel", name, PREFABS_FOLDER_NAME, OBSTACLE_FOLDER_NAME))
                                 fallbackWarnings[name] = true
                         end
-                        return prefab
+                        return ensured
                 end
         end
         warn(string.format("[ObstacleSpawner] Prefab '%s' niet gevonden in '%s/%s'", name, PREFABS_FOLDER_NAME, OBSTACLE_FOLDER_NAME))
