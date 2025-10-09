@@ -11,6 +11,7 @@ local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
+local ObstacleSpawner = require(ServerScriptService:WaitForChild("ObstacleSpawner"))
 
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
 local Remotes = Replicated:FindFirstChild("Remotes") or Instance.new("Folder", Replicated); Remotes.Name = "Remotes"
@@ -759,6 +760,8 @@ local function runRound()
         end
 
         placeExit()
+
+        ObstacleSpawner.SpawnObstacles(Config, { MazeFolder = mazeFolder })
 
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
         enforceMinimumSentryCount()

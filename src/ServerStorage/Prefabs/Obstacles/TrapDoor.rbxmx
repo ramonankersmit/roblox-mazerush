@@ -1,0 +1,151 @@
+<roblox version="4">
+  <Item class="Model" referent="RBX0">
+    <Properties>
+      <string name="Name">TrapDoor</string>
+    </Properties>
+    <Item class="Part" referent="RBX1">
+      <Properties>
+        <string name="Name">Frame</string>
+        <bool name="Anchored">true</bool>
+        <bool name="CanCollide">true</bool>
+        <bool name="CanTouch">true</bool>
+        <bool name="CanQuery">true</bool>
+        <SurfaceType name="TopSurface">Smooth</SurfaceType>
+        <SurfaceType name="BottomSurface">Smooth</SurfaceType>
+        <Vector3 name="Size">8, 1, 8</Vector3>
+        <CoordinateFrame name="CFrame">1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0</CoordinateFrame>
+      </Properties>
+    </Item>
+    <Item class="Part" referent="RBX2">
+      <Properties>
+        <string name="Name">Door</string>
+        <bool name="Anchored">true</bool>
+        <bool name="CanCollide">true</bool>
+        <bool name="CanTouch">true</bool>
+        <bool name="CanQuery">true</bool>
+        <SurfaceType name="TopSurface">Smooth</SurfaceType>
+        <SurfaceType name="BottomSurface">Smooth</SurfaceType>
+        <Vector3 name="Size">6, 1, 6</Vector3>
+        <CoordinateFrame name="CFrame">1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.01, 0</CoordinateFrame>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="RBX3">
+      <Properties>
+        <string name="Name">TrapDoorController</string>
+        <bool name="Disabled">true</bool>
+        <ProtectedString name="Source"><![CDATA[local model = script.Parent
+if not (model and model:IsA("Model")) then
+    return
+end
+
+local door = model:FindFirstChild("Door")
+if not (door and door:IsA("BasePart")) then
+    door = model:FindFirstChildWhichIsA("BasePart")
+end
+if not door then
+    warn("[TrapDoor] Geen deur gevonden voor " .. model:GetFullName())
+    return
+end
+
+if not model:GetAttribute("ObstacleType") then
+    model:SetAttribute("ObstacleType", "TrapDoor")
+end
+
+door.Anchored = true
+
+local openDuration = tonumber(model:GetAttribute("OpenDuration")) or 2
+if openDuration < 0 then
+    openDuration = 0
+end
+
+local closedDuration = tonumber(model:GetAttribute("ClosedDuration")) or 4
+if closedDuration < 0 then
+    closedDuration = 0
+end
+
+local warningDuration = tonumber(model:GetAttribute("WarningDuration")) or 0.5
+if warningDuration < 0 then
+    warningDuration = 0
+end
+
+local openTransparency = tonumber(model:GetAttribute("OpenTransparency")) or 0.85
+local warningTransparency = tonumber(model:GetAttribute("WarningTransparency"))
+if warningTransparency == nil then
+    warningTransparency = math.clamp(openTransparency * 0.5, 0, 1)
+end
+
+local closedTransparency = tonumber(model:GetAttribute("ClosedTransparency"))
+if closedTransparency == nil then
+    closedTransparency = door.Transparency
+end
+
+local function setDoorState(state)
+    if state == "open" then
+        door.CanCollide = false
+        door.CanTouch = false
+        door.Transparency = openTransparency
+        model:SetAttribute("State", "Open")
+    elseif state == "warning" then
+        door.CanCollide = true
+        door.CanTouch = true
+        door.Transparency = warningTransparency
+        model:SetAttribute("State", "Warning")
+    else
+        door.CanCollide = true
+        door.CanTouch = true
+        door.Transparency = closedTransparency
+        model:SetAttribute("State", "Closed")
+    end
+end
+
+setDoorState("closed")
+
+local running = true
+
+script.Destroying:Connect(function()
+    running = false
+end)
+
+model.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        running = false
+    end
+end)
+
+local function cycle()
+    while running and model.Parent do
+        setDoorState("closed")
+        if closedDuration > 0 then
+            task.wait(closedDuration)
+        end
+
+        if not running or not model.Parent then
+            break
+        end
+
+        if warningDuration > 0 then
+            setDoorState("warning")
+            task.wait(warningDuration)
+        end
+
+        if not running or not model.Parent then
+            break
+        end
+
+        setDoorState("open")
+        if openDuration > 0 then
+            task.wait(openDuration)
+        end
+
+        if not running or not model.Parent then
+            break
+        end
+    end
+    setDoorState("closed")
+end
+
+task.spawn(cycle)]]></ProtectedString>
+      </Properties>
+    </Item>
+  </Item>
+</roblox>
