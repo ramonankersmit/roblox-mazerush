@@ -330,6 +330,46 @@ local function createSconceLights(context)
     })
 end
 
+local function createSpookyFillLights(context)
+    local spacing = 4
+    local startX = 2
+    local startZ = 2
+    local endX = math.max(startX, context.gridWidth - 1)
+    local endZ = math.max(startZ, context.gridHeight - 1)
+    local yHeight = WALL_HEIGHT * 0.55
+
+    for x = startX, endX, spacing do
+        for z = startZ, endZ, spacing do
+            local worldPosition = Vector3.new((x - 0.5) * context.cellSize, yHeight, (z - 0.5) * context.cellSize)
+            local anchor = createAnchor(context.mazeLights, worldPosition, string.format("SpookyFill_%d_%d", x, z))
+            createPointLight(anchor, {
+                Color = Color3.fromRGB(160, 120, 220),
+                Brightness = 1.15,
+                Range = context.cellSize * 1.8,
+                Shadows = false,
+            })
+        end
+    end
+
+    local perimeterStep = 6
+    local centerX = context.gridWidth * context.cellSize * 0.5
+    local centerZ = context.gridHeight * context.cellSize * 0.5
+    local radiusX = math.max(centerX - context.cellSize, context.cellSize * 2)
+    local radiusZ = math.max(centerZ - context.cellSize, context.cellSize * 2)
+    for theta = 0, math.pi * 2, math.pi / perimeterStep do
+        local x = centerX + math.cos(theta) * radiusX
+        local z = centerZ + math.sin(theta) * radiusZ
+        local anchor = createAnchor(context.mazeLights, Vector3.new(x, WALL_HEIGHT * 0.75, z), string.format("SpookyHalo_%d", theta * 1000))
+        createSpotLight(anchor, {
+            Face = Enum.NormalId.Bottom,
+            Angle = 70,
+            Brightness = 1.4,
+            Range = context.cellSize * 2.4,
+            Color = Color3.fromRGB(110, 90, 160),
+        })
+    end
+end
+
 local function createSpookyLobbyLights(context)
     local lobbyBase = context.lobbyBase
     if not lobbyBase then
@@ -409,10 +449,19 @@ local function createSpookyLobbyLights(context)
             createSpookySconceFixtures(context.lobbyLights, sconceAnchor.CFrame, string.format("Board_%d", i))
         end
     end
+
+    local ambientAnchor = createAnchor(context.lobbyLights, baseCFrame.Position + Vector3.new(0, baseSize.Y * 0.75 + 4, 0), "SpookyLobbyFill")
+    createPointLight(ambientAnchor, {
+        Color = Color3.fromRGB(150, 120, 200),
+        Brightness = 1.2,
+        Range = math.max(baseSize.X, baseSize.Z) * 0.9,
+        Shadows = false,
+    })
 end
 
 local function applySpookyMaze(context)
     createSconceLights(context)
+    createSpookyFillLights(context)
     local exitPad = context.exitPad
     if exitPad then
         local anchor = createAnchor(context.mazeLights, exitPad.Position + Vector3.new(0, 8, 0), "SpookyExitSpot")
