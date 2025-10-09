@@ -10,6 +10,7 @@ local Pickup = Remotes:WaitForChild("Pickup")
 local DoorOpened = Remotes:WaitForChild("DoorOpened")
 local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
+local RoundRewardsRemote = Remotes:WaitForChild("RoundRewards")
 local EventMonsterEffects = Remotes:WaitForChild("EventMonsterEffects")
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
@@ -197,6 +198,164 @@ eventWarningLabel.Parent = eventWarningFrame
 
 local defaultEventWarningColor = eventWarningFrame.BackgroundColor3
 local eventWarningToken
+
+local rewardFeedFrame = Instance.new("Frame")
+rewardFeedFrame.Name = "RoundRewardFeed"
+rewardFeedFrame.AnchorPoint = Vector2.new(1, 1)
+rewardFeedFrame.Position = UDim2.new(1, -30, 1, -40)
+rewardFeedFrame.Size = UDim2.new(0, 340, 0, 0)
+rewardFeedFrame.AutomaticSize = Enum.AutomaticSize.Y
+rewardFeedFrame.BackgroundTransparency = 0.25
+rewardFeedFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+rewardFeedFrame.BorderSizePixel = 0
+rewardFeedFrame.Visible = false
+rewardFeedFrame.ZIndex = 5
+rewardFeedFrame.Parent = gui
+
+local rewardCorner = Instance.new("UICorner")
+rewardCorner.CornerRadius = UDim.new(0, 12)
+rewardCorner.Parent = rewardFeedFrame
+
+local rewardStroke = Instance.new("UIStroke")
+rewardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+rewardStroke.Color = Color3.fromRGB(130, 160, 255)
+rewardStroke.Thickness = 1.5
+rewardStroke.Parent = rewardFeedFrame
+
+local rewardPadding = Instance.new("UIPadding")
+rewardPadding.PaddingTop = UDim.new(0, 10)
+rewardPadding.PaddingBottom = UDim.new(0, 10)
+rewardPadding.PaddingLeft = UDim.new(0, 12)
+rewardPadding.PaddingRight = UDim.new(0, 12)
+rewardPadding.Parent = rewardFeedFrame
+
+local rewardLayout = Instance.new("UIListLayout")
+rewardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+rewardLayout.Padding = UDim.new(0, 6)
+rewardLayout.Parent = rewardFeedFrame
+
+local rewardDisplayToken = 0
+
+local function clearRewardDisplay()
+        rewardDisplayToken += 1
+        rewardFeedFrame.Visible = false
+        for _, child in ipairs(rewardFeedFrame:GetChildren()) do
+                if child:IsA("TextLabel") then
+                        child:Destroy()
+                end
+        end
+end
+
+local function createRewardLabel(text, color, layoutOrder)
+        local label = Instance.new("TextLabel")
+        label.Name = "RewardLine"
+        label.LayoutOrder = layoutOrder or 0
+        label.AutomaticSize = Enum.AutomaticSize.Y
+        label.Size = UDim2.new(1, 0, 0, 20)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamSemibold
+        label.TextScaled = true
+        label.TextWrapped = true
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextYAlignment = Enum.TextYAlignment.Center
+        label.TextColor3 = color or Color3.fromRGB(235, 235, 235)
+        label.Text = text
+        label.Parent = rewardFeedFrame
+        return label
+end
+
+local function formatContribution(entry)
+        local coins = tonumber(entry.coins) or 0
+        local xp = tonumber(entry.xp) or 0
+        local label = entry.label or "Bonus"
+        local text = string.format("+%d munten / +%d XP — %s", coins, xp, label)
+        local details = entry.details
+        if details then
+                if details.seconds then
+                        local seconds = math.floor((details.seconds or 0) + 0.5)
+                        text = string.format("%s (%ds)", text, seconds)
+                elseif details.cells then
+                        local cells = math.floor((tonumber(details.cells) or 0) + 0.5)
+                        local total = tonumber(details.total)
+                        if total and total > 0 then
+                                local roundedTotal = math.floor(total + 0.5)
+                                text = string.format("%s (%d/%d tegels)", text, cells, roundedTotal)
+                        else
+                                text = string.format("%s (%d tegels)", text, cells)
+                        end
+                elseif details.count then
+                        text = string.format("%s (x%d)", text, details.count)
+                end
+        end
+        return text
+end
+
+local function showRoundRewards(data)
+        clearRewardDisplay()
+        if not data then
+                return
+        end
+        local token = rewardDisplayToken
+        rewardFeedFrame.Visible = true
+
+        local finalState = tostring(data.finalState or "")
+        if finalState ~= "" then
+                local stateText
+                local stateColor = Color3.fromRGB(235, 235, 235)
+                if finalState == "Escaped" then
+                        stateText = "Status: Ontsnapt!"
+                        stateColor = Color3.fromRGB(170, 255, 170)
+                elseif finalState == "Survived" then
+                        stateText = "Status: Overleefd"
+                        stateColor = Color3.fromRGB(150, 220, 255)
+                elseif finalState == "Eliminated" then
+                        stateText = "Status: Uitgeschakeld"
+                        stateColor = Color3.fromRGB(255, 150, 150)
+                else
+                        stateText = "Status: Onbekend"
+                end
+                createRewardLabel(stateText, stateColor, 0)
+        end
+
+        local totalCoins = tonumber(data.totalCoins or data.coins) or 0
+        local totalXP = tonumber(data.totalXP or data.xp) or 0
+        createRewardLabel(string.format("Totale beloning: +%d munten / +%d XP", totalCoins, totalXP), Color3.fromRGB(255, 240, 180), 1)
+
+        local contributions = {}
+        if typeof(data.contributions) == "table" then
+                contributions = data.contributions
+        end
+
+        if #contributions > 0 then
+                createRewardLabel("Details:", Color3.fromRGB(200, 210, 255), 2)
+                for index, entry in ipairs(contributions) do
+                        createRewardLabel(formatContribution(entry), Color3.fromRGB(235, 235, 235), 10 + index)
+                end
+        else
+                createRewardLabel("Geen individuele bonussen deze ronde.", Color3.fromRGB(210, 210, 210), 2)
+        end
+
+        local unlocks = {}
+        if typeof(data.unlocks) == "table" then
+                unlocks = data.unlocks
+        end
+        if #unlocks > 0 then
+                createRewardLabel("Nieuwe ontgrendelingen:", Color3.fromRGB(170, 255, 170), 100)
+                for index, unlock in ipairs(unlocks) do
+                        local unlockText = unlock.name or unlock.id or "Ontgrendeling"
+                        if unlock.description and unlock.description ~= "" then
+                                unlockText = string.format("%s – %s", unlockText, unlock.description)
+                        end
+                        createRewardLabel(unlockText, Color3.fromRGB(180, 255, 190), 100 + index)
+                end
+        end
+
+        task.delay(8, function()
+                if rewardDisplayToken == token then
+                        clearRewardDisplay()
+                end
+        end)
+end
 
 local currentEventStatus = "Onbekend"
 local eventStatusValue
@@ -891,6 +1050,9 @@ task.defer(connectExitPadListener)
 
 RoundState.OnClientEvent:Connect(function(state)
         currentRoundState = tostring(state)
+        if currentRoundState == "PREP" then
+                clearRewardDisplay()
+        end
         if currentRoundState ~= "ACTIVE" and eliminationCameraToken then
                 resetEliminationCamera(eliminationCameraToken)
         end
@@ -923,6 +1085,7 @@ PlayerEliminatedRemote.OnClientEvent:Connect(function(info)
                 playEliminationSequence(info.position)
         end
 end)
+RoundRewardsRemote.OnClientEvent:Connect(showRoundRewards)
 Pickup.OnClientEvent:Connect(function(item)
         playUISound(SOUND_IDS.Pickup)
 
