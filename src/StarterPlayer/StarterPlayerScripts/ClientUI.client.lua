@@ -2089,6 +2089,7 @@ local LobbyState = Replicated.Remotes:WaitForChild("LobbyState")
 local ToggleReady = Replicated.Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Replicated.Remotes:WaitForChild("StartGameRequest")
 local ThemeVote = Replicated.Remotes:WaitForChild("ThemeVote")
+local StartThemeVote = Replicated.Remotes:WaitForChild("StartThemeVote")
 
 local function getPreviewStands()
         local lobbyFolder = workspace:FindFirstChild("Lobby")
@@ -2205,6 +2206,42 @@ themeCountdown.TextXAlignment = Enum.TextXAlignment.Right; themeCountdown.Font =
 themeCountdown.TextSize = 16; themeCountdown.Position = UDim2.new(0,8,0,34)
 themeCountdown.Size = UDim2.new(1,-16,0,20); themeCountdown.TextColor3 = Color3.fromRGB(220,220,220)
 themeCountdown.Text = "Stemmen..."; themeCountdown.Parent = themePanel
+
+local themeStartButton = Instance.new("TextButton")
+themeStartButton.Name = "StartVoteButton"
+themeStartButton.BackgroundColor3 = Color3.fromRGB(40, 60, 110)
+themeStartButton.BackgroundTransparency = 0.1
+themeStartButton.AutoButtonColor = true
+themeStartButton.Font = Enum.Font.GothamSemibold
+themeStartButton.TextSize = 15
+themeStartButton.TextColor3 = Color3.fromRGB(235, 240, 255)
+themeStartButton.Text = "Start stemronde"
+themeStartButton.Size = UDim2.new(0, 160, 0, 30)
+themeStartButton.Position = UDim2.new(1, -170, 0, 32)
+themeStartButton.AnchorPoint = Vector2.new(1, 0)
+themeStartButton.Visible = false
+themeStartButton.Parent = themePanel
+
+local themeStartCorner = Instance.new("UICorner")
+themeStartCorner.CornerRadius = UDim.new(0, 12)
+themeStartCorner.Parent = themeStartButton
+
+themeStartButton.MouseButton1Click:Connect(function()
+        if not lastLobbyState then
+                return
+        end
+        if lastLobbyState.host ~= player.UserId then
+                return
+        end
+        if lastLobbyState.phase ~= "IDLE" then
+                return
+        end
+        local currentThemeState = lastLobbyState.themes or {}
+        if currentThemeState.active == true then
+                return
+        end
+        StartThemeVote:FireServer()
+end)
 
 local themeOptions = Instance.new("ScrollingFrame"); themeOptions.BackgroundTransparency = 1
 themeOptions.ScrollBarThickness = 4; themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -2386,28 +2423,41 @@ local function ensureThemeButton(themeId)
 end
 
 local function renderThemeState(themeState, lobbyState)
-        if not themeState or not themeState.options then
-                themePanel.Visible = false
-                activeThemeVote = false
-                themeCountdown.Text = "Geen stemming"
-                themeCountdown.TextColor3 = Color3.fromRGB(220, 220, 220)
+        lobbyState = lobbyState or {}
+        themeState = themeState or {}
+        local options = themeState.options or {}
+        local hasOptions = #options > 0
+
+        activeThemeVote = themeState.active == true
+        local countdownActive = themeState.countdownActive == true
+        themePanel.Visible = lobby.Visible
+
+        if not hasOptions then
+                themeCountdown.Text = activeThemeVote and "Voorbereiden..." or "Nog niet gestart"
+                themeCountdown.TextColor3 = Color3.fromRGB(180, 180, 180)
                 winningLabel.Text = "Volgende ronde: ?"
                 winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
                 if themeHeader then
-                        themeHeader.Text = "Kies een thema"
+                        themeHeader.Text = "Start een stemronde"
+                end
+                if themeHintLabel then
+                        themeHintLabel.Text = "Host: start een stemronde voor nieuwe thema's."
                 end
                 updatePreviewHighlights(nil, nil)
                 for _, entry in pairs(themeButtons) do
                         entry.button.Visible = false
                 end
+                if themeStartButton then
+                        local isHost = lobbyState.host == player.UserId
+                        local phase = lobbyState.phase or ""
+                        local canStartVote = isHost and phase == "IDLE" and lobby.Visible
+                        themeStartButton.Visible = canStartVote
+                        themeStartButton.Active = canStartVote
+                        themeStartButton.AutoButtonColor = canStartVote
+                        themeStartButton.Text = canStartVote and "Start stemronde" or (isHost and "Start stemronde" or "Alleen host")
+                end
                 return
         end
-
-        lobbyState = lobbyState or {}
-
-        activeThemeVote = themeState.active == true
-        local countdownActive = themeState.countdownActive == true
-        themePanel.Visible = lobby.Visible and #themeState.options > 0
 
         local totalVotes = themeState.totalVotes or 0
         local randomVotes = themeState.randomVotes or 0
@@ -2417,6 +2467,14 @@ local function renderThemeState(themeState, lobbyState)
         local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
         local readyCount = lobbyState.readyCount or 0
         local totalPlayers = lobbyState.total or 0
+
+        if themeHintLabel then
+                if activeThemeVote then
+                        themeHintLabel.Text = "Stem mee via de knoppen of console."
+                else
+                        themeHintLabel.Text = "Stemming afgerond. Host kan een nieuwe ronde starten."
+                end
+        end
 
         if activeThemeVote then
                 if countdownActive then
@@ -2439,7 +2497,7 @@ local function renderThemeState(themeState, lobbyState)
         local votesLookup = {}
         local optionColors = {}
         local optionNames = {}
-        for _, option in ipairs(themeState.options) do
+        for _, option in ipairs(options) do
                 local color = option.color or Color3.fromRGB(160,160,160)
                 votesLookup[option.id] = option.votes or 0
                 optionColors[option.id] = color
@@ -2449,7 +2507,7 @@ local function renderThemeState(themeState, lobbyState)
         local leaderId = themeState.current
         local leaderVotes = leaderId and votesLookup[leaderId] or -1
         if leaderVotes == nil then leaderVotes = -1 end
-        for index, option in ipairs(themeState.options) do
+        for index, option in ipairs(options) do
                 local votes = votesLookup[option.id] or 0
                 if votes > leaderVotes or leaderId == nil and index == 1 then
                         leaderId = option.id
@@ -2459,7 +2517,7 @@ local function renderThemeState(themeState, lobbyState)
         local highlightId = activeThemeVote and (leaderId or themeState.current) or (themeState.current or leaderId)
 
         local seen = {}
-        for index, option in ipairs(themeState.options) do
+        for index, option in ipairs(options) do
                 local entry = ensureThemeButton(option.id)
                 entry.button.LayoutOrder = index
                 entry.button.Visible = true
@@ -2496,8 +2554,8 @@ local function renderThemeState(themeState, lobbyState)
         if not activeThemeVote and themeState.current then
                 labelId = themeState.current
         end
-        if not labelId and #themeState.options > 0 then
-                labelId = themeState.options[1].id
+        if not labelId and #options > 0 then
+                labelId = options[1].id
         end
         local labelName = optionNames[labelId] or labelId or "?"
         if not activeThemeVote and themeState.currentName then
@@ -2538,6 +2596,28 @@ local function renderThemeState(themeState, lobbyState)
                 if not seen[themeId] then
                         entry.button:Destroy()
                         themeButtons[themeId] = nil
+                end
+        end
+
+        if themeStartButton then
+                local lobbyState = state or {}
+                local phase = lobbyState.phase or ""
+                local isHost = lobbyState.host == player.UserId
+                local canStartVote = isHost and phase == "IDLE" and not activeThemeVote
+                local shouldShow = canStartVote and lobby.Visible
+                themeStartButton.Visible = shouldShow
+                themeStartButton.Active = shouldShow
+                themeStartButton.AutoButtonColor = shouldShow
+                if shouldShow then
+                        themeStartButton.Text = "Start stemronde"
+                else
+                        if isHost and phase == "IDLE" and activeThemeVote then
+                                themeStartButton.Text = "Stemronde bezig"
+                        elseif isHost and phase ~= "IDLE" then
+                                themeStartButton.Text = "Maze bezig"
+                        else
+                                themeStartButton.Text = "Start stemronde"
+                        end
                 end
         end
 end

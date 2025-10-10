@@ -8,6 +8,7 @@ local ThemeConfig = require(Modules.ThemeConfig)
 local State = ReplicatedStorage:WaitForChild("State")
 local ThemeValue = State:WaitForChild("Theme")
 local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
+local ThemeOptionsFolder = State:WaitForChild("LobbyThemeOptions")
 
 local function ensureLobbyFolder()
     local lobby = Workspace:FindFirstChild("Lobby")
@@ -132,14 +133,25 @@ local function getLobbyBase()
     return nil
 end
 
+local function getActiveThemeId()
+    if LobbyPreviewThemeValue and LobbyPreviewThemeValue.Value ~= "" then
+        return LobbyPreviewThemeValue.Value
+    end
+    return ThemeValue.Value
+end
+
+local previewTargetIds = {}
+
 local function computePreviewSlots()
-    local order = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds() or {}
-    if not order or #order == 0 then
-        order = {}
-        for themeId in pairs(ThemeConfig.Themes) do
-            table.insert(order, themeId)
+    local order = {}
+    for index, themeId in ipairs(previewTargetIds) do
+        order[index] = themeId
+    end
+    if #order == 0 then
+        local fallback = getActiveThemeId()
+        if fallback and ThemeConfig.Themes[fallback] then
+            order[1] = fallback
         end
-        table.sort(order)
     end
     local slots = {}
     local total = math.max(#order, 1)
@@ -198,6 +210,105 @@ local function recomputePreviewSlots()
     for _, record in pairs(activePreviews) do
         updatePreviewSlot(record)
     end
+end
+
+local function destroyPreviewRecord(themeId)
+    local record = activePreviews[themeId]
+    if not record then
+        return
+    end
+    if record.ambientSound then
+        if activeAmbientSound == record.ambientSound then
+            activeAmbientSound = nil
+        end
+        record.ambientSound:Destroy()
+    end
+    if record.model then
+        record.model:Destroy()
+    end
+    activePreviews[themeId] = nil
+end
+
+local function parseOptionOrder(child, defaultOrder)
+    if not child then
+        return defaultOrder or 0
+    end
+    local orderAttr = child:GetAttribute("Order") or child:GetAttribute("Index")
+    if typeof(orderAttr) == "number" then
+        return orderAttr
+    end
+    local digits = string.match(child.Name or "", "%d+")
+    if digits then
+        local numeric = tonumber(digits)
+        if numeric then
+            return numeric
+        end
+    end
+    return defaultOrder or 0
+end
+
+local function readPreviewTargetIds()
+    local entries = {}
+    local index = 0
+    for _, child in ipairs(ThemeOptionsFolder:GetChildren()) do
+        if child:IsA("StringValue") then
+            local value = child.Value
+            if typeof(value) == "string" and value ~= "" then
+                index += 1
+                entries[#entries + 1] = {
+                    order = parseOptionOrder(child, index),
+                    name = child.Name,
+                    themeId = value,
+                }
+            end
+        end
+    end
+    table.sort(entries, function(a, b)
+        if a.order == b.order then
+            return (a.name or "") < (b.name or "")
+        end
+        return a.order < b.order
+    end)
+    local results = {}
+    local seen = {}
+    for _, entry in ipairs(entries) do
+        local themeId = entry.themeId
+        if ThemeConfig.Themes[themeId] and not seen[themeId] then
+            results[#results + 1] = themeId
+            seen[themeId] = true
+        end
+    end
+    return results
+end
+
+local optionConnections = {}
+
+local function addOptionConnection(conn)
+    if conn then
+        optionConnections[#optionConnections + 1] = conn
+    end
+    return conn
+end
+
+local function updatePreviewTargetsFromState()
+    local ids = readPreviewTargetIds()
+    if #ids == 0 then
+        local fallback = getActiveThemeId()
+        if fallback and ThemeConfig.Themes[fallback] then
+            ids = {fallback}
+        end
+    end
+    previewTargetIds = ids
+    ensurePreviewsExist()
+end
+
+local function connectOptionChild(child)
+    if not child or not child:IsA("StringValue") then
+        return
+    end
+    addOptionConnection(child:GetPropertyChangedSignal("Value"):Connect(function()
+        updatePreviewTargetsFromState()
+    end))
 end
 
 local function trackLobbyBase(base)
@@ -537,14 +648,17 @@ local function createPreviewRecord(themeId)
 end
 
 local function ensurePreviewsExist()
-    for _, themeId in ipairs(ThemeConfig.GetOrderedIds()) do
-        if not activePreviews[themeId] then
+    local desiredSet = {}
+    for _, themeId in ipairs(previewTargetIds) do
+        desiredSet[themeId] = true
+        local record = activePreviews[themeId]
+        if not record or not record.model or not record.model.Parent then
             activePreviews[themeId] = createPreviewRecord(themeId)
         end
     end
-    for themeId, record in pairs(activePreviews) do
-        if not record or not record.model or not record.model.Parent then
-            activePreviews[themeId] = createPreviewRecord(themeId)
+    for themeId in pairs(activePreviews) do
+        if not desiredSet[themeId] then
+            destroyPreviewRecord(themeId)
         end
     end
     recomputePreviewSlots()
@@ -629,17 +743,27 @@ local function applyTheme(themeId)
     applyLightingOverrides(overrides)
 end
 
-local function getActiveThemeId()
-    if LobbyPreviewThemeValue and LobbyPreviewThemeValue.Value ~= "" then
-        return LobbyPreviewThemeValue.Value
-    end
-    return ThemeValue.Value
-end
-
 local function onThemeChanged()
     applyTheme(getActiveThemeId())
 end
 
+for _, child in ipairs(ThemeOptionsFolder:GetChildren()) do
+    connectOptionChild(child)
+end
+
+addOptionConnection(ThemeOptionsFolder.ChildAdded:Connect(function(child)
+    connectOptionChild(child)
+    updatePreviewTargetsFromState()
+end))
+
+addOptionConnection(ThemeOptionsFolder.ChildRemoved:Connect(function()
+    updatePreviewTargetsFromState()
+end))
+
+addOptionConnection(ThemeOptionsFolder:GetAttributeChangedSignal("UpdatedAt"):Connect(updatePreviewTargetsFromState))
+addOptionConnection(ThemeOptionsFolder:GetAttributeChangedSignal("Count"):Connect(updatePreviewTargetsFromState))
+
+updatePreviewTargetsFromState()
 monitorLobbyBase()
 ensurePreviewsExist()
 ThemeValue.Changed:Connect(onThemeChanged)

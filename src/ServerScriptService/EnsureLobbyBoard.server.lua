@@ -611,6 +611,26 @@ local function ensureLobbyBoard()
     startButton.Color = Color3.fromRGB(255, 183, 72)
     startButton.Parent = boardModel
 
+    local votePanel = Instance.new("Part")
+    votePanel.Name = "VotePanel"
+    votePanel.Anchored = true
+    votePanel.CanCollide = false
+    votePanel.CastShadow = false
+    votePanel.Material = Enum.Material.SmoothPlastic
+    votePanel.Color = Color3.fromRGB(34, 38, 54)
+    votePanel.Size = Vector3.new(1.4, math.max(1.6, boardHeight * 0.22), 0.35)
+    votePanel.Parent = boardModel
+
+    local voteButton = Instance.new("Part")
+    voteButton.Name = "VoteButton"
+    voteButton.Anchored = true
+    voteButton.CanCollide = false
+    voteButton.CastShadow = false
+    voteButton.Size = Vector3.new(0.7, 0.7, 0.24)
+    voteButton.Material = Enum.Material.Neon
+    voteButton.Color = Color3.fromRGB(90, 190, 255)
+    voteButton.Parent = boardModel
+
     local playerSurface = createSurface(playerStand, "PlayerSurface")
     local playerBoard = createFrame(playerSurface, "PlayerBoard", UDim2.new(1, 0, 1, 0), UDim2.new(), {
         BackgroundTransparency = 0.2,
@@ -841,6 +861,30 @@ local function ensureLobbyBoard()
         TextScaled = true,
     })
 
+    local votePrompt = createPrompt(voteButton, "VotePrompt", "Start stemronde", "Themaknop", Enum.KeyCode.Q, 0, Vector2.new(0, -4))
+    votePrompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+
+    local voteClickDetector = Instance.new("ClickDetector")
+    voteClickDetector.Name = "VoteClick"
+    voteClickDetector.MaxActivationDistance = 14
+    voteClickDetector.Parent = voteButton
+
+    local voteGui = Instance.new("SurfaceGui")
+    voteGui.Name = "ButtonLabel"
+    voteGui.Face = Enum.NormalId.Front
+    voteGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    voteGui.PixelsPerStud = 80
+    voteGui.LightInfluence = 0
+    voteGui.Adornee = voteButton
+    voteGui.ResetOnSpawn = false
+    voteGui.Parent = voteButton
+
+    createTextLabel(voteGui, "Label", "STEM", UDim2.new(1, 0, 1, 0), UDim2.new(), {
+        Font = Enum.Font.GothamBlack,
+        TextColor3 = Color3.fromRGB(24, 28, 38),
+        TextScaled = true,
+    })
+
     -- Apply the default theme accent to the theme name when possible
     if ThemeConfig then
         local defaultTheme = ThemeConfig.Default and ThemeConfig.Get and ThemeConfig.Get(ThemeConfig.Default)
@@ -857,6 +901,8 @@ local function ensureLobbyBoard()
         themeStand = themeStand,
         startPanel = startPanel,
         startButton = startButton,
+        votePanel = votePanel,
+        voteButton = voteButton,
         billboardAnchor = billboardAnchor,
     }
 end
@@ -870,9 +916,11 @@ local playerStand = components.playerStand
 local themeStand = components.themeStand
 local startPanel = components.startPanel
 local startButton = components.startButton
+local votePanel = components.votePanel
+local voteButton = components.voteButton
 local billboardAnchor = components.billboardAnchor
 
-if not playerStand or not themeStand or not startPanel or not startButton then
+if not playerStand or not themeStand or not startPanel or not startButton or not votePanel or not voteButton then
     return
 end
 
@@ -1040,6 +1088,12 @@ local function updateBoardPlacement()
     local buttonHeightOffset = 0
     startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
     startButton.CFrame = startPanel.CFrame * CFrame.new(0, 0, -(startPanel.Size.Z * 0.5 + startButton.Size.Z * 0.5 - 0.01))
+
+    votePanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
+    local voteOffsetX = -buttonOffsetX
+    local voteDepth = -(playerStand.Size.Z * 0.5 - votePanel.Size.Z * 0.5 - 0.02)
+    votePanel.CFrame = pivot * CFrame.new(voteOffsetX, buttonHeightOffset, voteDepth)
+    voteButton.CFrame = votePanel.CFrame * CFrame.new(0, 0, -(votePanel.Size.Z * 0.5 + voteButton.Size.Z * 0.5 - 0.01))
 
     boardModel.PrimaryPart = playerStand
     boardModel:PivotTo(pivot)

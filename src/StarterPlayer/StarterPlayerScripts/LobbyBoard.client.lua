@@ -10,6 +10,7 @@ local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
+local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
 
 local ThemeModule = ReplicatedStorage:FindFirstChild("Modules")
 local ThemeConfig = ThemeModule and require(ThemeModule:WaitForChild("ThemeConfig"))
@@ -40,6 +41,7 @@ if not themeStand or not themeStand:IsA("BasePart") then
 end
 
 local startPanel = boardModel:FindFirstChild("StartPanel")
+local votePanel = boardModel:FindFirstChild("VotePanel")
 local playerSurface = playerStand:FindFirstChild("PlayerSurface")
 if not playerSurface or not playerSurface:IsA("SurfaceGui") then
     warn("[LobbyBoard] PlayerSurface SurfaceGui missing")
@@ -106,9 +108,16 @@ local consolePrompt = playerStand:FindFirstChild("ConsolePrompt")
 local startButton = boardModel:FindFirstChild("StartButton")
 local startPrompt = startButton and startButton:FindFirstChild("StartPrompt")
 local startClickDetector = startButton and startButton:FindFirstChild("StartClick")
+local voteButton = boardModel:FindFirstChild("VoteButton")
+local votePrompt = voteButton and voteButton:FindFirstChild("VotePrompt")
+local voteClickDetector = voteButton and voteButton:FindFirstChild("VoteClick")
 
 if startClickDetector then
     startClickDetector.MaxActivationDistance = 0
+end
+
+if voteClickDetector then
+    voteClickDetector.MaxActivationDistance = 0
 end
 
 local setConsoleOpen
@@ -430,6 +439,8 @@ local function updateBoardVisibility(state)
     setPartVisible(themeStand, shouldShow)
     setPartVisible(startPanel, shouldShow)
     setPartVisible(startButton, shouldShow)
+    setPartVisible(votePanel, shouldShow)
+    setPartVisible(voteButton, shouldShow)
 
     if playerSurface then
         playerSurface.Enabled = shouldShow
@@ -446,6 +457,13 @@ local function updateBoardVisibility(state)
         local buttonGui = startButton:FindFirstChildWhichIsA("SurfaceGui")
         if buttonGui then
             buttonGui.Enabled = shouldShow
+        end
+    end
+
+    if voteButton then
+        local voteGui = voteButton:FindFirstChildWhichIsA("SurfaceGui")
+        if voteGui then
+            voteGui.Enabled = shouldShow
         end
     end
 
@@ -1060,17 +1078,14 @@ local function applyThemePanelVisibility(themeState)
     if not themePanel then
         return
     end
-    if not themeState or not themeState.options or #themeState.options == 0 then
-        themePanel.Visible = false
-    else
-        themePanel.Visible = true
-    end
+    local hasOptions = themeState and themeState.options and #themeState.options > 0
+    themePanel.Visible = true
 
     if themeOptionsFrame then
-        themeOptionsFrame.Visible = themePanel.Visible
+        themeOptionsFrame.Visible = hasOptions
     end
     if themeHintLabel then
-        themeHintLabel.Visible = themePanel.Visible
+        themeHintLabel.Visible = true
     end
 end
 
@@ -1092,10 +1107,31 @@ local function updateThemePanel(themeState, state)
     local activeVote = themeState.active == true
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
+    local hasOptions = themeState.options and #themeState.options > 0
 
     handleCountdownState(activeVote, countdownActive, endsIn)
 
-    if not themePanel.Visible then
+    if not hasOptions then
+        if themeHeader then
+            themeHeader.Text = "Start een stemronde"
+        end
+        if winningLabel then
+            winningLabel.Text = "Wacht op thema-keuze"
+            winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+        end
+        if themeCountdown then
+            themeCountdown.Text = activeVote and "Voorbereiden..." or "Nog niet gestart"
+            themeCountdown.TextColor3 = Color3.fromRGB(180, 180, 180)
+        end
+        if themeHintLabel then
+            themeHintLabel.Text = "Host: druk op de linkse knop om vier thema's te kiezen."
+        end
+        updatePreviewHighlights(nil, nil)
+        for _, entry in pairs(themeButtons) do
+            if entry and entry.button then
+                entry.button.Visible = false
+            end
+        end
         return
     end
 
@@ -1448,6 +1484,8 @@ local function updatePrompts(state)
 
     local isHost = state.host == localPlayer.UserId
     local readyCount = state.readyCount or 0
+    local themeState = state.themes or {}
+    local voteActive = themeState.active == true
 
     if startPrompt then
         startPrompt.Enabled = showPrompts and isHost
@@ -1460,11 +1498,34 @@ local function updatePrompts(state)
         end
     end
 
+    if votePrompt then
+        votePrompt.Enabled = showPrompts and isHost and not voteActive
+        if isHost then
+            if voteActive then
+                votePrompt.ActionText = "Stemronde bezig"
+            else
+                votePrompt.ActionText = "Start stemronde"
+            end
+            votePrompt.ObjectText = "Themaknop"
+        else
+            votePrompt.ActionText = "Alleen host"
+            votePrompt.ObjectText = "Themaknop"
+        end
+    end
+
     if startClickDetector then
         if showPrompts and isHost and readyCount > 0 then
             startClickDetector.MaxActivationDistance = 14
         else
             startClickDetector.MaxActivationDistance = 0
+        end
+    end
+
+    if voteClickDetector then
+        if showPrompts and isHost and not voteActive then
+            voteClickDetector.MaxActivationDistance = 14
+        else
+            voteClickDetector.MaxActivationDistance = 0
         end
     end
 
@@ -1478,7 +1539,15 @@ local function updatePrompts(state)
                 actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
             end
         else
-            actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+            if isHost then
+                if voteActive then
+                    actionHint.Text = "Stemronde actief. Gebruik de knoppen om het spel te starten."
+                else
+                    actionHint.Text = "Host: druk op de themaknop om een stemronde te starten."
+                end
+            else
+                actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+            end
         end
     end
 
@@ -1580,6 +1649,29 @@ local function attemptStart()
     end
 end
 
+local function canLocalStartVote()
+    if not latestState then
+        return false
+    end
+    if latestState.phase ~= "IDLE" then
+        return false
+    end
+    if latestState.host ~= localPlayer.UserId then
+        return false
+    end
+    local themeState = latestState.themes or {}
+    if themeState.active == true then
+        return false
+    end
+    return true
+end
+
+local function attemptStartVote()
+    if canLocalStartVote() then
+        StartThemeVote:FireServer()
+    end
+end
+
 local function renderState(state)
     if not state then
         return
@@ -1634,7 +1726,7 @@ end
 
 LobbyState.OnClientEvent:Connect(renderState)
 
-if consolePrompt or startPrompt then
+if consolePrompt or startPrompt or votePrompt then
     ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
         if player ~= localPlayer then
             return
@@ -1648,6 +1740,8 @@ if consolePrompt or startPrompt then
             end
         elseif prompt == startPrompt then
             attemptStart()
+        elseif prompt == votePrompt then
+            attemptStartVote()
         end
     end)
 end
@@ -1667,6 +1761,26 @@ if startClickDetector then
         touchTapSignal:Connect(function(player)
             if player == localPlayer then
                 attemptStart()
+            end
+        end)
+    end
+end
+
+if voteClickDetector then
+    voteClickDetector.MouseClick:Connect(function(player)
+        if player == localPlayer then
+            attemptStartVote()
+        end
+    end)
+
+    local ok, touchTapSignal = pcall(function()
+        return voteClickDetector.TouchTap
+    end)
+
+    if ok and touchTapSignal then
+        touchTapSignal:Connect(function(player)
+            if player == localPlayer then
+                attemptStartVote()
             end
         end)
     end

@@ -10,6 +10,7 @@ local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
+local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
 
 local RANDOM_THEME_ID = "__random__"
 local RANDOM_THEME_NAME = "Kies willekeurig"
@@ -42,20 +43,12 @@ if not LobbyPreviewThemeValue then
         LobbyPreviewThemeValue.Parent = State
 end
 
-local function setLobbyPreviewTheme(themeId)
-        local resolved = themeId
-        if not ThemeConfig.Themes[resolved] then
-                resolved = ThemeConfig.Default
-        end
-        if resolved == "" then
-                resolved = ThemeConfig.Default
-        end
-        if LobbyPreviewThemeValue.Value ~= resolved then
-                LobbyPreviewThemeValue.Value = resolved
-        end
+local ThemeOptionsFolder = State:FindFirstChild("LobbyThemeOptions")
+if not ThemeOptionsFolder then
+        ThemeOptionsFolder = Instance.new("Folder")
+        ThemeOptionsFolder.Name = "LobbyThemeOptions"
+        ThemeOptionsFolder.Parent = State
 end
-
-setLobbyPreviewTheme(currentTheme)
 
 local VOTE_DURATION = 30
 local voteDeadline = nil
@@ -85,6 +78,121 @@ local function tableClear(t)
         end
 end
 
+local function sanitizeThemeList(themeIds)
+        local result = {}
+        local seen = {}
+        if type(themeIds) ~= "table" then
+                return result
+        end
+        for _, themeId in ipairs(themeIds) do
+                if typeof(themeId) == "string" and ThemeConfig.Themes[themeId] and not seen[themeId] then
+                        result[#result + 1] = themeId
+                        seen[themeId] = true
+                end
+        end
+        return result
+end
+
+local function updatePreviewTargets(themeIds)
+        local validIds = sanitizeThemeList(themeIds)
+        local used = {}
+        for index, themeId in ipairs(validIds) do
+                local childName = string.format("Option%d", index)
+                local valueObject = ThemeOptionsFolder:FindFirstChild(childName)
+                if not valueObject then
+                        valueObject = Instance.new("StringValue")
+                        valueObject.Name = childName
+                        valueObject.Parent = ThemeOptionsFolder
+                end
+                valueObject.Value = themeId
+                used[valueObject] = true
+        end
+        for _, child in ipairs(ThemeOptionsFolder:GetChildren()) do
+                if child:IsA("StringValue") and not used[child] then
+                        child:Destroy()
+                end
+        end
+        ThemeOptionsFolder:SetAttribute("Count", #validIds)
+        ThemeOptionsFolder:SetAttribute("UpdatedAt", os.clock())
+end
+
+local function setThemeOptions(themeIds)
+        local validIds = sanitizeThemeList(themeIds)
+        tableClear(currentThemeOptions)
+        tableClear(currentThemeOptionSet)
+        for index, themeId in ipairs(validIds) do
+                currentThemeOptions[index] = themeId
+                currentThemeOptionSet[themeId] = true
+        end
+end
+
+local function pickRandomPreviewTheme()
+        local pool = {}
+        for _, themeId in ipairs(NEW_THEME_POOL) do
+                if ThemeConfig.Themes[themeId] then
+                        table.insert(pool, themeId)
+                end
+        end
+        if #pool == 0 then
+                for themeId in pairs(ThemeConfig.Themes) do
+                        table.insert(pool, themeId)
+                end
+        end
+        if #pool == 0 then
+                return ThemeConfig.Default
+        end
+        local rng = Random.new(os.clock())
+        local index = rng:NextInteger(1, #pool)
+        return pool[index]
+end
+
+local function resolvePreviewThemeValue()
+        local previewTheme = LobbyPreviewThemeValue.Value
+        if previewTheme == nil or previewTheme == "" or not ThemeConfig.Themes[previewTheme] then
+                previewTheme = pickRandomPreviewTheme()
+                LobbyPreviewThemeValue.Value = previewTheme
+        end
+        return previewTheme
+end
+
+local function setLobbyPreviewTheme(themeId)
+        local resolved = themeId
+        if not ThemeConfig.Themes[resolved] or resolved == "" then
+                resolved = ThemeConfig.Default
+        end
+        if LobbyPreviewThemeValue.Value ~= resolved then
+                LobbyPreviewThemeValue.Value = resolved
+        end
+end
+
+local function applyIdlePreview(themeId)
+        local previewTheme = themeId
+        if previewTheme == nil or previewTheme == "" or not ThemeConfig.Themes[previewTheme] then
+                previewTheme = resolvePreviewThemeValue()
+        end
+        setLobbyPreviewTheme(previewTheme)
+        local resolved = LobbyPreviewThemeValue.Value
+        updatePreviewTargets({resolved})
+        setThemeOptions({resolved})
+        return resolved
+end
+
+local function initializeLobbyPreview()
+        local previewTheme = resolvePreviewThemeValue()
+        if previewTheme == currentTheme then
+                local alternate = pickRandomPreviewTheme()
+                if ThemeConfig.Themes[alternate] then
+                        previewTheme = alternate
+                        LobbyPreviewThemeValue.Value = alternate
+                end
+        end
+        setLobbyPreviewTheme(previewTheme)
+        updatePreviewTargets({previewTheme})
+        setThemeOptions({previewTheme})
+end
+
+initializeLobbyPreview()
+
 local function shuffle(list, rng)
         for index = #list, 2, -1 do
                 local swapIndex = rng:NextInteger(1, index)
@@ -100,8 +208,7 @@ local function selectThemeOptions()
                 end
         end
 
-        tableClear(currentThemeOptions)
-        tableClear(currentThemeOptionSet)
+        local selection = {}
 
         if #pool > 0 then
                 local rng = Random.new(os.clock())
@@ -109,18 +216,19 @@ local function selectThemeOptions()
                 local count = math.min(4, #pool)
                 for index = 1, count do
                         local themeId = pool[index]
-                        currentThemeOptions[index] = themeId
-                        currentThemeOptionSet[themeId] = true
+                        selection[#selection + 1] = themeId
                 end
         end
 
-        if #currentThemeOptions == 0 then
+        if #selection == 0 then
                 local fallback = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds() or {}
                 for index, themeId in ipairs(fallback) do
-                        currentThemeOptions[index] = themeId
-                        currentThemeOptionSet[themeId] = true
+                        selection[#selection + 1] = themeId
                 end
         end
+
+        setThemeOptions(selection)
+        return currentThemeOptions
 end
 
 local function anyPlayersReady()
@@ -137,11 +245,11 @@ local function clearVoteCountdown()
         voteDeadline = nil
 end
 
-local function tryActivateVoteCountdown()
+local function tryActivateVoteCountdown(force)
         if not voteActive or voteCountdownActive then
                 return false
         end
-        if not anyPlayersReady() then
+        if not force and not anyPlayersReady() then
                 return false
         end
         voteCountdownActive = true
@@ -300,32 +408,15 @@ end
 
 local function startVoteCycle()
         ThemeVotes = {}
-        selectThemeOptions()
+        local options = selectThemeOptions()
+        updatePreviewTargets(options)
         voteActive = true
-        clearVoteCountdown()
+        voteCountdownActive = true
+        voteDeadline = os.clock() + VOTE_DURATION
         selectionFlashInfo = nil
         selectionFlashExpireAt = nil
         pendingAutoStartAt = nil
         broadcast()
-        if tryActivateVoteCountdown() then
-                broadcast()
-        end
-end
-
-local function tryStartVoteCycle()
-        if voteActive then
-                return
-        end
-        if Phase.Value ~= "IDLE" then
-                return
-        end
-        if #Players:GetPlayers() == 0 then
-                ThemeVotes = {}
-                clearVoteCountdown()
-                broadcast()
-                return
-        end
-        startVoteCycle()
 end
 
 local function finalizeVote(autoStart)
@@ -356,7 +447,7 @@ local function finalizeVote(autoStart)
         if not changed then
                 broadcast(counts)
         end
-        setLobbyPreviewTheme(currentTheme)
+        applyIdlePreview(currentTheme)
         return winner
 end
 
@@ -365,18 +456,12 @@ ThemeValue:GetPropertyChangedSignal("Value"):Connect(function()
         currentTheme = resolved
         RoundConfig.Theme = resolved
         if not voteActive then
-                setLobbyPreviewTheme(currentTheme)
+                applyIdlePreview(currentTheme)
         end
         broadcast()
 end)
 
-selectThemeOptions()
-
-if Phase.Value == "IDLE" then
-        tryStartVoteCycle()
-else
-        broadcast()
-end
+broadcast()
 
 task.spawn(function()
         while true do
@@ -396,11 +481,9 @@ task.spawn(function()
                         if Phase.Value ~= "IDLE" then
                                 pendingAutoStartAt = nil
                         elseif os.clock() >= pendingAutoStartAt then
-                                if anyPlayersReady() and _G.StartRound then
-                                        pendingAutoStartAt = nil
+                                pendingAutoStartAt = nil
+                                if _G.StartRound then
                                         _G.StartRound()
-                                else
-                                        pendingAutoStartAt = nil
                                 end
                         end
                 end
@@ -412,9 +495,6 @@ Players.PlayerAdded:Connect(function(plr)
         Ready[plr.UserId] = false
         ThemeVotes[plr.UserId] = nil
         broadcast()
-        if Phase.Value == "IDLE" then
-                tryStartVoteCycle()
-        end
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
@@ -430,8 +510,11 @@ Players.PlayerRemoving:Connect(function(plr)
                         voteActive = false
                         ThemeVotes = {}
                         clearVoteCountdown()
-                elseif voteActive and voteCountdownActive and not anyPlayersReady() then
-                        clearVoteCountdown()
+                        selectionFlashInfo = nil
+                        selectionFlashExpireAt = nil
+                        pendingAutoStartAt = nil
+                        local nextPreview = pickRandomPreviewTheme()
+                        applyIdlePreview(nextPreview)
                         broadcast()
                 end
         end)
@@ -461,9 +544,9 @@ end)
 ToggleReady.OnServerEvent:Connect(function(plr)
         if Phase.Value ~= "IDLE" and Phase.Value ~= "PREP" then return end
         Ready[plr.UserId] = not Ready[plr.UserId]
-        if anyPlayersReady() then
-                tryActivateVoteCountdown()
-        else
+        if voteActive then
+                tryActivateVoteCountdown(false)
+        elseif not anyPlayersReady() then
                 clearVoteCountdown()
         end
         broadcast()
@@ -486,6 +569,22 @@ StartGameRequest.OnServerEvent:Connect(function(plr)
         end
 end)
 
+StartThemeVote.OnServerEvent:Connect(function(plr)
+        if Phase.Value ~= "IDLE" then
+                return
+        end
+        if voteActive then
+                return
+        end
+        if not plr or plr.UserId ~= HostUserId then
+                return
+        end
+        if #Players:GetPlayers() == 0 then
+                return
+        end
+        startVoteCycle()
+end)
+
 -- Keep clients updated on phase changes
 Phase:GetPropertyChangedSignal("Value"):Connect(function()
         if Phase.Value == "IDLE" then
@@ -498,7 +597,8 @@ Phase:GetPropertyChangedSignal("Value"):Connect(function()
                 pendingAutoStartAt = nil
                 selectionFlashInfo = nil
                 selectionFlashExpireAt = nil
-                tryStartVoteCycle()
+                applyIdlePreview(currentTheme)
+                broadcast()
         else
                 if voteActive then
                         finalizeVote(false)
