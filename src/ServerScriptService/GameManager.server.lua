@@ -326,6 +326,25 @@ local function applyWallHeight(newHeight)
         end
 end
 
+local temporaryWallHeightToken
+
+local function setTemporaryWallHeight(newHeight, duration)
+        local previousHeight = Config.WallHeight
+        applyWallHeight(newHeight)
+        if duration and duration > 0 then
+                local token = {}
+                temporaryWallHeightToken = token
+                task.delay(duration, function()
+                        if temporaryWallHeightToken == token then
+                                applyWallHeight(previousHeight)
+                                temporaryWallHeightToken = nil
+                        end
+                end)
+        end
+end
+
+_G.Game_SetTemporaryWallHeight = setTemporaryWallHeight
+
 ToggleWallHeight.OnServerEvent:Connect(function()
         local newHeight = Config.WallHeight > 8 and 8 or 24
         applyWallHeight(newHeight)
@@ -1017,6 +1036,16 @@ local function eliminatePlayer(plr, position)
         if playerStates[plr] ~= "Alive" then
                 return
         end
+        if _G.PowerUps and type(_G.PowerUps.TryPreventElimination) == "function" then
+                local ok, prevented = pcall(_G.PowerUps.TryPreventElimination, plr)
+                if ok then
+                        if prevented then
+                                return
+                        end
+                else
+                        warn("[GameManager] PowerUps.TryPreventElimination failed:", prevented)
+                end
+        end
         local char = plr.Character
         local floor = getMazeFloor()
         if floor and char then
@@ -1094,6 +1123,9 @@ Players.PlayerRemoving:Connect(function(plr)
         playerStates[plr] = nil
         eliminatedPlayers[plr] = nil
         defaultMovement[plr] = nil
+        if _G.PowerUps and type(_G.PowerUps.OnPlayerRemoving) == "function" then
+                pcall(_G.PowerUps.OnPlayerRemoving, plr)
+        end
         if plr.UserId and plr.UserId ~= 0 then
                 roundParticipants[plr.UserId] = nil
                 roundStats[plr.UserId] = nil
@@ -1275,6 +1307,9 @@ local function runRound()
                         root.CFrame = CFrame.new(startPos)
                 end
                 if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
+                if _G.PowerUps_OnRoundStart then
+                        pcall(_G.PowerUps_OnRoundStart)
+                end
                 phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
                 activeRoundStart = getServerTime()
                 recordAlivePlayersCurrentCells()
@@ -1294,6 +1329,9 @@ local function runRound()
                 eliminatedPlayers[plr] = nil
                 playerStates[plr] = nil
                 restoreMovement(plr)
+        end
+        if _G.PowerUps_OnRoundEnd then
+                pcall(_G.PowerUps_OnRoundEnd)
         end
         if _G.Inventory and type(_G.Inventory.ResetAll) == "function" then
                 _G.Inventory.ResetAll()

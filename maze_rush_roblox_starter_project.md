@@ -39,9 +39,14 @@
 - **Event Monster:** verschijnt willekeurig met effecten (*Doors*-stijl).  
 
 ### Power-ups
-- Speed Boost  
-- Invisibility Cloak  
-- Compass (wijst naar uitgang)  
+- **Turbo Boots** – verhoogt de loopsnelheid 5 seconden lang met 50%, geeft lichte motion blur en een vurige trail voor een spectaculair gevoel van snelheid.
+- **Ghost Mode** – speler kan drie seconden door muren lopen; om balans te houden geldt een cooldown van twintig seconden.
+- **Magnet Power** – trekt automatisch coins, punten en power-ups binnen een straal van tien studs naar de speler toe.
+- **Time Freeze** – bevriest alle bewegende muren, traps, monsters en andere spelers voor vijf seconden, terwijl alleen de gebruiker kan bewegen.
+- **Shadow Clone** – spawnt een AI-kloon die vijanden en vallen afleidt zodat de speler kan ontsnappen of herpositioneren.
+- **No Wall** – verlaagt tijdelijk (drie seconden) alle binnenmuren tot twintig procent van hun hoogte, waardoor nieuwe zichtlijnen ontstaan.
+- **Slow Down** – verlaagt de maximumsnelheid van alle andere spelers naar dertig procent voor een korte periode.
+- **Extra Life** – geeft één extra kans; na activatie overleeft de speler een dodelijke situatie en blijft daarna twee seconden onaantastbaar.
 
 ---
 
