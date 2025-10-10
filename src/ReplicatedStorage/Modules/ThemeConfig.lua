@@ -34,20 +34,11 @@ local ThemeList = {
             spacingStuds = 12,
             wallHeightFactor = 0.75,
             outwardOffset = 0.35,
-            edgePadding = 2,
             fallback = {
                 ceilingPrefabName = "CeilingLantern_Spooky",
                 floorPrefabName = "FloorLamp_Spooky",
-                floorHeight = 2.25,
                 minWallsPerCell = 2,
-                density = 0.55,
-                neighborRadius = 14,
-                maxCeilingDistance = 48,
-            },
-            flicker = {
-                amplitudeScale = 0.22,
-                speedRange = { 0.9, 1.4 },
-                offsetStep = 0.18,
+                density = 1.0,
             },
         },
         lobby = {

@@ -96,35 +96,26 @@ local function createFallbackFixture(spec)
     fixture.Transparency = 1
     fixture.Size = Vector3.new(0.4, 0.4, 0.4)
 
-    local props = {
-        Color = spec.color or Color3.new(1, 1, 1),
-        Brightness = spec.brightness or 1.8,
-        Range = spec.range or 16,
-        Shadows = spec.shadow,
-    }
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "ThemeLight_FallbackAttachment"
+    attachment.Parent = fixture
 
-    local existingLight = fixture:FindFirstChildWhichIsA("PointLight", true)
-        or fixture:FindFirstChildWhichIsA("SpotLight", true)
-        or fixture:FindFirstChildWhichIsA("SurfaceLight", true)
-
-    if not existingLight then
-        local point = Instance.new("PointLight")
-        point.Color = props.Color
-        point.Brightness = props.Brightness
-        point.Range = props.Range
-        if props.Shadows ~= nil then
-            point.Shadows = props.Shadows
-        end
-        point.Parent = fixture
-        existingLight = point
+    local light = Instance.new("PointLight")
+    light.Name = "FallbackPointLight"
+    light.Color = spec.color or Color3.new(1, 1, 1)
+    light.Brightness = spec.brightness or 1.8
+    light.Range = spec.range or 16
+    if spec.shadow ~= nil then
+        light.Shadows = spec.shadow
     end
+    light.Parent = attachment
 
-    applyLightSettings(existingLight.Parent or fixture, spec)
+    applyLightSettings(light.Parent, spec)
 
     return fixture
 end
 
-local function clonePrefab(spec, name)
+local function clonePrefab(spec, name, useFallback)
     local prefab = findPrefab(name)
     if prefab then
         local clone = prefab:Clone()
@@ -139,7 +130,11 @@ local function clonePrefab(spec, name)
         return clone
     end
 
-    return createFallbackFixture(spec)
+    if useFallback ~= false then
+        return createFallbackFixture(spec)
+    end
+
+    return nil
 end
 
 local function ensurePrimaryPart(model)
@@ -215,65 +210,55 @@ local function placeWallLights(walls, spec, options, parentFolder, placedLights)
         wallSpacing = 12
     end
 
-    local outwardOffset = spec.outwardOffset or 0.3
+    local outwardOffset = spec.outwardOffset or 0.35
     local wallHeightFactor = spec.wallHeightFactor or 0.75
     local edgePadding = spec.edgePadding or 2
+    local basePrefab = clonePrefab(spec, spec.prefabName, false)
+    if not basePrefab and spec.prefabName then
+        warn("[LightPlacer] prefabName ontbreekt:", tostring(spec.prefabName), "-> gebruik fallback prefab")
+    end
 
-    for index, wall in ipairs(walls) do
+    for _, wall in ipairs(walls) do
         if wall.Parent then
-            local orientation = orientationFromWall(wall)
-            local normal
-            local alongVector
-            if orientation == "N" then
-                normal = -wall.CFrame.LookVector
-                alongVector = wall.CFrame.RightVector
-            elseif orientation == "S" then
-                normal = wall.CFrame.LookVector
-                alongVector = wall.CFrame.RightVector
-            elseif orientation == "E" then
-                normal = -wall.CFrame.RightVector
-                alongVector = wall.CFrame.LookVector
-            elseif orientation == "W" then
-                normal = wall.CFrame.RightVector
-                alongVector = wall.CFrame.LookVector
-            else
-                normal = -wall.CFrame.LookVector
-                alongVector = wall.CFrame.RightVector
-            end
-
-            local length = (orientation == "N" or orientation == "S") and wall.Size.X or wall.Size.Z
+            local size = wall.Size
+            local cframe = wall.CFrame
+            local thicknessIsX = size.X <= size.Z
+            local length = thicknessIsX and size.Z or size.X
+            local alongVector = thicknessIsX and cframe.LookVector or cframe.RightVector
+            local outwardVector = thicknessIsX and cframe.RightVector or cframe.LookVector
             local pad = math.min(edgePadding, length * 0.45)
             local start = -length * 0.5 + pad
             local finish = length * 0.5 - pad
-
-            local offsets = {}
             if start > finish then
-                offsets[1] = 0
-            else
-                local step = wallSpacing
-                local t = start
-                while t <= finish + 0.001 do
-                    offsets[#offsets + 1] = t
-                    t += step
-                end
-                if #offsets == 0 then
-                    offsets[1] = 0
-                end
+                start = 0
+                finish = 0
             end
 
-            for _, offset in ipairs(offsets) do
-                local height = math.clamp(wallHeightFactor * wall.Size.Y, 2, wall.Size.Y - 0.25)
-                local basePosition = wall.Position + wall.CFrame.UpVector * (-wall.Size.Y * 0.5 + height)
-                local worldPosition = basePosition + alongVector * offset + normal * outwardOffset
+            local outwardDistance = (math.min(size.X, size.Z) * 0.5) + outwardOffset
+            local height = math.clamp(wallHeightFactor * size.Y, 2, size.Y - 0.5)
 
-                local fixture = clonePrefab(spec, spec.prefabName)
-                placeFixture(fixture, CFrame.lookAt(worldPosition, worldPosition + normal, wall.CFrame.UpVector), parentFolder)
+            local t = start
+            while t <= finish + 0.001 do
+                local alongOffset = alongVector * t
+                local heightOffset = cframe.UpVector * (-size.Y * 0.5 + height)
+                local worldPosition = wall.Position + alongOffset + heightOffset + outwardVector * outwardDistance
+
+                local fixture
+                if basePrefab then
+                    fixture = basePrefab:Clone()
+                else
+                    fixture = createFallbackFixture(spec)
+                end
+
+                placeFixture(fixture, CFrame.lookAt(worldPosition, worldPosition + outwardVector, cframe.UpVector), parentFolder)
                 CollectionService:AddTag(fixture, TAG_LIGHT)
 
                 local light = applyLightSettings(fixture, spec)
                 if light then
                     placedLights[#placedLights + 1] = light
                 end
+
+                t += wallSpacing
             end
         end
     end
@@ -398,11 +383,14 @@ function LightPlacer.Apply(themeId, mazeModel, themeSpec, options)
     local placedLights = {}
 
     local walls = getWalls(mazeModel)
+    local cells = getCells(mazeModel)
+
+    print(string.format("[LightPlacer] theme=%s walls=%d cells=%d", tostring(themeId), #walls, #cells))
+
     if #walls > 0 then
         placeWallLights(walls, spec, options or {}, parentFolder, placedLights)
     end
 
-    local cells = getCells(mazeModel)
     if #cells > 0 then
         placeFallbackLights(cells, walls, spec, options or {}, parentFolder, placedLights)
     end

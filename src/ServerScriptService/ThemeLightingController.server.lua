@@ -755,6 +755,8 @@ local function applyMazeTheme(themeId)
     local themeSpec = ThemeConfig.Themes[resolved]
     local placedLights = {}
     if context.mazeFolder and themeSpec then
+        print(string.format("[ThemeLightingController] Applying LightPlacer for %s (maze=%s)", resolved, context.mazeFolder:GetFullName()))
+        -- Zorg dat dit NA MazeBuilder.Build wordt aangeroepen!
         placedLights = LightPlacer.Apply(resolved, context.mazeFolder, themeSpec, {
             parentFolder = context.mazeLights,
             cellSize = context.cellSize,
