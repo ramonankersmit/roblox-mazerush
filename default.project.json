@@ -37,6 +37,9 @@
         "LobbyState": {
           "$className": "RemoteEvent"
         },
+        "LobbyActivityUpdate": {
+          "$className": "RemoteEvent"
+        },
         "ToggleReady": {
           "$className": "RemoteEvent"
         },
