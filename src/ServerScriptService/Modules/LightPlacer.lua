@@ -214,7 +214,11 @@ local function placeWallLights(walls, spec, options, parentFolder, placedLights)
     local wallHeightFactor = spec.wallHeightFactor or 0.75
     local edgePadding = spec.edgePadding or 2
     local basePrefab = clonePrefab(spec, spec.prefabName, false)
-    if not basePrefab and spec.prefabName then
+    local prefabMissing = false
+    if spec.prefabName then
+        prefabMissing = basePrefab == nil
+    end
+    if prefabMissing then
         warn("[LightPlacer] prefabName ontbreekt:", tostring(spec.prefabName), "-> gebruik fallback prefab")
     end
 
@@ -262,6 +266,8 @@ local function placeWallLights(walls, spec, options, parentFolder, placedLights)
             end
         end
     end
+
+    return prefabMissing
 end
 
 local function rngForCell(cell)
@@ -387,15 +393,21 @@ function LightPlacer.Apply(themeId, mazeModel, themeSpec, options)
 
     print(string.format("[LightPlacer] theme=%s walls=%d cells=%d", tostring(themeId), #walls, #cells))
 
+    local prefabMissing = false
+
     if #walls > 0 then
-        placeWallLights(walls, spec, options or {}, parentFolder, placedLights)
+        prefabMissing = placeWallLights(walls, spec, options or {}, parentFolder, placedLights)
     end
 
     if #cells > 0 then
         placeFallbackLights(cells, walls, spec, options or {}, parentFolder, placedLights)
     end
 
-    return placedLights
+    return placedLights, {
+        prefabMissing = prefabMissing,
+        wallCount = #walls,
+        cellCount = #cells,
+    }
 end
 
 return LightPlacer

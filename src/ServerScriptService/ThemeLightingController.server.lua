@@ -744,6 +744,11 @@ local function getPreviewThemeId()
     return ThemeValue.Value
 end
 
+local scheduleMazeRefresh
+local scheduleLobbyRefresh
+local queueMazeWallRetry
+local queuePrefabRetry
+
 local function applyMazeTheme(themeId)
     stopFlicker()
     clearFolder(MazeLightsFolder)
@@ -754,13 +759,26 @@ local function applyMazeTheme(themeId)
     local context = getContext()
     local themeSpec = ThemeConfig.Themes[resolved]
     local placedLights = {}
+    local placementStats
     if context.mazeFolder and themeSpec then
         print(string.format("[ThemeLightingController] Applying LightPlacer for %s (maze=%s)", resolved, context.mazeFolder:GetFullName()))
         -- Zorg dat dit NA MazeBuilder.Build wordt aangeroepen!
-        placedLights = LightPlacer.Apply(resolved, context.mazeFolder, themeSpec, {
+        placedLights, placementStats = LightPlacer.Apply(resolved, context.mazeFolder, themeSpec, {
             parentFolder = context.mazeLights,
             cellSize = context.cellSize,
         }) or {}
+
+        placementStats = placementStats or {}
+        local wallCount = placementStats.wallCount or 0
+        local cellCount = placementStats.cellCount or 0
+        local mazeChildren = context.mazeFolder and #context.mazeFolder:GetChildren() or 0
+        if (wallCount == 0 or cellCount == 0) and mazeChildren > 0 then
+            queueMazeWallRetry()
+        end
+
+        if placementStats.prefabMissing and themeSpec.lightSpec and themeSpec.lightSpec.prefabName then
+            queuePrefabRetry()
+        end
 
         local lightSpec = themeSpec.lightSpec
         local flickerSpec = lightSpec and lightSpec.flicker
@@ -810,21 +828,79 @@ local function applyLobbyTheme(themeId)
     end
 end
 
-local pendingRefresh = false
-local function scheduleRefresh()
-    if pendingRefresh then
+local pendingMazeRefresh = false
+local lastMazeChangeTick = 0
+local MAZE_IDLE_SECONDS = 0.75
+local MAZE_CHECK_INTERVAL = 0.2
+local mazeWallRetryQueued = false
+local prefabRetryQueued = false
+local pendingLobbyRefresh = false
+local LOBBY_REFRESH_DELAY = 0.25
+
+scheduleMazeRefresh = function(forceImmediate)
+    if forceImmediate then
+        if pendingMazeRefresh then
+            pendingMazeRefresh = false
+        end
+        applyMazeTheme(currentMazeThemeId or ThemeValue.Value)
         return
     end
-    pendingRefresh = true
-    task.delay(0.25, function()
-        pendingRefresh = false
-        applyMazeTheme(currentMazeThemeId or ThemeValue.Value)
+
+    lastMazeChangeTick = os.clock()
+    if pendingMazeRefresh then
+        return
+    end
+
+    pendingMazeRefresh = true
+    task.spawn(function()
+        while pendingMazeRefresh do
+            local waitTime = lastMazeChangeTick + MAZE_IDLE_SECONDS - os.clock()
+            if waitTime <= 0 then
+                pendingMazeRefresh = false
+                applyMazeTheme(currentMazeThemeId or ThemeValue.Value)
+                break
+            end
+            task.wait(math.min(MAZE_CHECK_INTERVAL, math.max(waitTime, 0.05)))
+        end
+    end)
+end
+
+queueMazeWallRetry = function()
+    if mazeWallRetryQueued then
+        return
+    end
+    mazeWallRetryQueued = true
+    task.delay(1, function()
+        mazeWallRetryQueued = false
+        scheduleMazeRefresh()
+    end)
+end
+
+queuePrefabRetry = function()
+    if prefabRetryQueued then
+        return
+    end
+    prefabRetryQueued = true
+    task.delay(1, function()
+        prefabRetryQueued = false
+        scheduleMazeRefresh()
+    end)
+end
+
+scheduleLobbyRefresh = function()
+    if pendingLobbyRefresh then
+        return
+    end
+    pendingLobbyRefresh = true
+    task.delay(LOBBY_REFRESH_DELAY, function()
+        pendingLobbyRefresh = false
         applyLobbyTheme(currentLobbyThemeId or getPreviewThemeId())
     end)
 end
 
 ThemeValue.Changed:Connect(function()
-    applyMazeTheme(ThemeValue.Value)
+    currentMazeThemeId = resolveThemeId(ThemeValue.Value)
+    scheduleMazeRefresh(true)
     applyLobbyTheme(getPreviewThemeId())
 end)
 
@@ -836,36 +912,68 @@ end
 
 local mazeFolder = Workspace:FindFirstChild("Maze")
 if mazeFolder then
-    mazeFolder.ChildAdded:Connect(scheduleRefresh)
-    mazeFolder.ChildRemoved:Connect(scheduleRefresh)
+    mazeFolder.ChildAdded:Connect(function()
+        scheduleMazeRefresh()
+    end)
+    mazeFolder.ChildRemoved:Connect(function()
+        scheduleMazeRefresh()
+    end)
 end
 
 Workspace.ChildAdded:Connect(function(child)
     if child.Name == "Maze" then
         mazeFolder = child
-        mazeFolder.ChildAdded:Connect(scheduleRefresh)
-        mazeFolder.ChildRemoved:Connect(scheduleRefresh)
-        scheduleRefresh()
+        mazeFolder.ChildAdded:Connect(function()
+            scheduleMazeRefresh()
+        end)
+        mazeFolder.ChildRemoved:Connect(function()
+            scheduleMazeRefresh()
+        end)
+        scheduleMazeRefresh()
     elseif child.Name == "Lobby" then
-        child.ChildAdded:Connect(scheduleRefresh)
-        child.ChildRemoved:Connect(scheduleRefresh)
-        scheduleRefresh()
+        child.ChildAdded:Connect(function()
+            scheduleLobbyRefresh()
+        end)
+        child.ChildRemoved:Connect(function()
+            scheduleLobbyRefresh()
+        end)
+        scheduleLobbyRefresh()
     elseif child.Name == "Spawns" then
-        child.ChildAdded:Connect(scheduleRefresh)
-        child.ChildRemoved:Connect(scheduleRefresh)
-        scheduleRefresh()
+        child.ChildAdded:Connect(function()
+            scheduleMazeRefresh()
+            scheduleLobbyRefresh()
+        end)
+        child.ChildRemoved:Connect(function()
+            scheduleMazeRefresh()
+            scheduleLobbyRefresh()
+        end)
+        scheduleMazeRefresh()
+        scheduleLobbyRefresh()
     end
 end)
 
-if Workspace:FindFirstChild("Lobby") then
-    Workspace.Lobby.ChildAdded:Connect(scheduleRefresh)
-    Workspace.Lobby.ChildRemoved:Connect(scheduleRefresh)
+local existingLobby = Workspace:FindFirstChild("Lobby")
+if existingLobby then
+    existingLobby.ChildAdded:Connect(function()
+        scheduleLobbyRefresh()
+    end)
+    existingLobby.ChildRemoved:Connect(function()
+        scheduleLobbyRefresh()
+    end)
 end
 
-if Workspace:FindFirstChild("Spawns") then
-    Workspace.Spawns.ChildAdded:Connect(scheduleRefresh)
-    Workspace.Spawns.ChildRemoved:Connect(scheduleRefresh)
+local existingSpawns = Workspace:FindFirstChild("Spawns")
+if existingSpawns then
+    existingSpawns.ChildAdded:Connect(function()
+        scheduleMazeRefresh()
+        scheduleLobbyRefresh()
+    end)
+    existingSpawns.ChildRemoved:Connect(function()
+        scheduleMazeRefresh()
+        scheduleLobbyRefresh()
+    end)
 end
 
-applyMazeTheme(ThemeValue.Value)
+currentMazeThemeId = resolveThemeId(ThemeValue.Value)
+scheduleMazeRefresh()
 applyLobbyTheme(getPreviewThemeId())
