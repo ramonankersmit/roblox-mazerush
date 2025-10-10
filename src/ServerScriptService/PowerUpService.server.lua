@@ -88,6 +88,8 @@ local activePowerUpModels = {}
 local EXTRA_LIFE_INVULN_DURATION = 2
 local MAGNET_RADIUS = 10
 local MAGNET_SCAN_INTERVAL = 0.2
+local MIN_SPAWNS_PER_TYPE = 3
+local MAX_SPAWNS_PER_TYPE = 10
 
 local function ensurePlayerState(plr)
         local state = playerStates[plr]
@@ -889,15 +891,25 @@ local function spawnAllPowerUps()
         if not maze then
                 return
         end
+        local spawnSummary = {}
         for _, def in ipairs(POWER_UP_DEFINITIONS) do
                 local prefab = ensurePowerUpPrefab(def)
                 if prefab then
-                        local model = placeModelRandom(prefab)
-                        if model then
-                                configurePowerUpPrompt(model, def)
-                                table.insert(activePowerUpModels, model)
+                        local targetCount = math.random(MIN_SPAWNS_PER_TYPE, MAX_SPAWNS_PER_TYPE)
+                        local spawnedCount = 0
+                        for _ = 1, targetCount do
+                                local model = placeModelRandom(prefab)
+                                if model then
+                                        configurePowerUpPrompt(model, def)
+                                        table.insert(activePowerUpModels, model)
+                                        spawnedCount = spawnedCount + 1
+                                end
                         end
+                        table.insert(spawnSummary, string.format("%s=%d", def.displayName or def.id, spawnedCount))
                 end
+        end
+        if #spawnSummary > 0 then
+                print("[PowerUps] Spawned power-ups: " .. table.concat(spawnSummary, ", "))
         end
 end
 
