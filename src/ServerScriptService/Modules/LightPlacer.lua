@@ -3,12 +3,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
+local LightPrefabs = require(script.Parent:WaitForChild("LightPrefabs"))
+
 local TAG_LIGHT = "ThemeLight"
 local TAG_WALL = "MazeWall"
 local TAG_CELL = "MazeCell"
 local TAG_CEILING = "MazeCeiling"
 
 local LightPlacer = {}
+
+LightPrefabs.Ensure()
 
 local function findPrefab(name)
     if not name or name == "" then
@@ -116,7 +120,7 @@ local function createFallbackFixture(spec)
 end
 
 local function clonePrefab(spec, name, useFallback)
-    local prefab = findPrefab(name)
+    local prefab = LightPrefabs.Get(name) or findPrefab(name)
     if prefab then
         local clone = prefab:Clone()
         for _, descendant in ipairs(clone:GetDescendants()) do
