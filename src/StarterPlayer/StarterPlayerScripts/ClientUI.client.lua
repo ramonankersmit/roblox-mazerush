@@ -12,6 +12,8 @@ local AliveStatus = Remotes:WaitForChild("AliveStatus")
 local PlayerEliminatedRemote = Remotes:WaitForChild("PlayerEliminated")
 local RoundRewardsRemote = Remotes:WaitForChild("RoundRewards")
 local EventMonsterEffects = Remotes:WaitForChild("EventMonsterEffects")
+local LobbyActivityUpdate = Remotes:WaitForChild("LobbyActivityUpdate")
+local Workspace = workspace
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local ThemeConfig = require(game.ReplicatedStorage.Modules.ThemeConfig)
@@ -195,6 +197,335 @@ eventWarningLabel.TextScaled = true
 eventWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
 eventWarningLabel.Text = ""
 eventWarningLabel.Parent = eventWarningFrame
+
+local activityFrame = Instance.new("Frame")
+activityFrame.Name = "LobbyActivity"
+activityFrame.Size = UDim2.new(0, 400, 0, 110)
+activityFrame.Position = UDim2.new(0.5, -200, 0, 12)
+activityFrame.BackgroundTransparency = 0.18
+activityFrame.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
+activityFrame.BorderSizePixel = 0
+activityFrame.Visible = false
+activityFrame.Parent = gui
+
+local activityCorner = Instance.new("UICorner")
+activityCorner.CornerRadius = UDim.new(0, 14)
+activityCorner.Parent = activityFrame
+
+local activityStroke = Instance.new("UIStroke")
+activityStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+activityStroke.Thickness = 2
+activityStroke.Color = Color3.fromRGB(140, 180, 255)
+activityStroke.Parent = activityFrame
+
+local activityTitle = Instance.new("TextLabel")
+activityTitle.Name = "Title"
+activityTitle.BackgroundTransparency = 1
+activityTitle.Size = UDim2.new(1, -24, 0, 30)
+activityTitle.Position = UDim2.new(0, 12, 0, 8)
+activityTitle.Font = Enum.Font.GothamBlack
+activityTitle.TextScaled = true
+activityTitle.TextWrapped = true
+activityTitle.TextXAlignment = Enum.TextXAlignment.Left
+activityTitle.TextColor3 = Color3.fromRGB(245, 248, 255)
+activityTitle.Text = "Lobby-activiteit"
+activityTitle.Parent = activityFrame
+
+local activityThemeLabel = Instance.new("TextLabel")
+activityThemeLabel.Name = "ThemeLabel"
+activityThemeLabel.BackgroundTransparency = 1
+activityThemeLabel.Size = UDim2.new(1, -24, 0, 22)
+activityThemeLabel.Position = UDim2.new(0, 12, 0, 42)
+activityThemeLabel.Font = Enum.Font.GothamSemibold
+activityThemeLabel.TextScaled = true
+activityThemeLabel.TextWrapped = true
+activityThemeLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityThemeLabel.TextColor3 = Color3.fromRGB(200, 220, 255)
+activityThemeLabel.Text = "Thema: Onbekend"
+activityThemeLabel.Parent = activityFrame
+
+local activityDescriptionLabel = Instance.new("TextLabel")
+activityDescriptionLabel.Name = "Description"
+activityDescriptionLabel.BackgroundTransparency = 1
+activityDescriptionLabel.Size = UDim2.new(1, -24, 0, 32)
+activityDescriptionLabel.Position = UDim2.new(0, 12, 0, 64)
+activityDescriptionLabel.Font = Enum.Font.GothamMedium
+activityDescriptionLabel.TextScaled = true
+activityDescriptionLabel.TextWrapped = true
+activityDescriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityDescriptionLabel.TextColor3 = Color3.fromRGB(220, 228, 255)
+activityDescriptionLabel.Text = "Zoek de gemarkeerde zone en voltooi de uitdaging."
+activityDescriptionLabel.Parent = activityFrame
+
+local activityRewardLabel = Instance.new("TextLabel")
+activityRewardLabel.Name = "RewardLabel"
+activityRewardLabel.BackgroundTransparency = 1
+activityRewardLabel.Size = UDim2.new(1, -24, 0, 20)
+activityRewardLabel.Position = UDim2.new(0, 12, 0, 92)
+activityRewardLabel.Font = Enum.Font.GothamBold
+activityRewardLabel.TextScaled = true
+activityRewardLabel.TextWrapped = true
+activityRewardLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityRewardLabel.TextColor3 = Color3.fromRGB(165, 235, 140)
+activityRewardLabel.Text = "Beloning: +0 coins  |  +0 XP"
+activityRewardLabel.Parent = activityFrame
+
+local waypointBillboard = Instance.new("BillboardGui")
+waypointBillboard.Name = "LobbyActivityWaypoint"
+waypointBillboard.Size = UDim2.new(0, 180, 0, 60)
+waypointBillboard.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
+waypointBillboard.Enabled = false
+waypointBillboard.AlwaysOnTop = true
+
+local waypointFrame = Instance.new("Frame")
+waypointFrame.Name = "Container"
+waypointFrame.Size = UDim2.new(1, 0, 1, 0)
+waypointFrame.BackgroundTransparency = 0.2
+waypointFrame.BackgroundColor3 = Color3.fromRGB(70, 120, 255)
+waypointFrame.BorderSizePixel = 0
+waypointFrame.Parent = waypointBillboard
+
+local waypointCorner = Instance.new("UICorner")
+waypointCorner.CornerRadius = UDim.new(0, 12)
+waypointCorner.Parent = waypointFrame
+
+local waypointTitle = Instance.new("TextLabel")
+waypointTitle.Name = "Title"
+waypointTitle.BackgroundTransparency = 1
+waypointTitle.Size = UDim2.new(1, -16, 0, 30)
+waypointTitle.Position = UDim2.new(0, 8, 0, 6)
+waypointTitle.Font = Enum.Font.GothamBold
+waypointTitle.TextScaled = true
+waypointTitle.TextWrapped = true
+waypointTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+waypointTitle.Text = "Activiteit"
+waypointTitle.Parent = waypointFrame
+
+local waypointAction = Instance.new("TextLabel")
+waypointAction.Name = "Action"
+waypointAction.BackgroundTransparency = 1
+waypointAction.Size = UDim2.new(1, -16, 0, 22)
+waypointAction.Position = UDim2.new(0, 8, 0, 34)
+waypointAction.Font = Enum.Font.GothamSemibold
+waypointAction.TextScaled = true
+waypointAction.TextWrapped = true
+waypointAction.TextColor3 = Color3.fromRGB(230, 240, 255)
+waypointAction.Text = "Voltooi uitdaging"
+waypointAction.Parent = waypointFrame
+
+local rewardToastFrame = Instance.new("Frame")
+rewardToastFrame.Name = "LobbyActivityReward"
+rewardToastFrame.Size = UDim2.new(0, 340, 0, 90)
+rewardToastFrame.Position = UDim2.new(0.5, -170, 0.65, 0)
+rewardToastFrame.BackgroundTransparency = 1
+rewardToastFrame.Visible = false
+rewardToastFrame.Parent = gui
+
+local rewardToastInner = Instance.new("Frame")
+rewardToastInner.Name = "Inner"
+rewardToastInner.Size = UDim2.new(1, 0, 1, 0)
+rewardToastInner.BackgroundTransparency = 1
+rewardToastInner.BackgroundColor3 = Color3.fromRGB(22, 70, 32)
+rewardToastInner.BorderSizePixel = 0
+rewardToastInner.Parent = rewardToastFrame
+
+local rewardToastCorner = Instance.new("UICorner")
+rewardToastCorner.CornerRadius = UDim.new(0, 14)
+rewardToastCorner.Parent = rewardToastInner
+
+local rewardToastStroke = Instance.new("UIStroke")
+rewardToastStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+rewardToastStroke.Thickness = 2
+rewardToastStroke.Color = Color3.fromRGB(120, 220, 120)
+rewardToastStroke.Transparency = 1
+rewardToastStroke.Parent = rewardToastInner
+
+local rewardToastLabel = Instance.new("TextLabel")
+rewardToastLabel.Name = "Label"
+rewardToastLabel.BackgroundTransparency = 1
+rewardToastLabel.Size = UDim2.new(1, -20, 1, -20)
+rewardToastLabel.Position = UDim2.new(0, 10, 0, 10)
+rewardToastLabel.Font = Enum.Font.GothamBold
+rewardToastLabel.TextScaled = true
+rewardToastLabel.TextWrapped = true
+rewardToastLabel.TextColor3 = Color3.fromRGB(240, 255, 240)
+rewardToastLabel.TextTransparency = 1
+rewardToastLabel.Text = ""
+rewardToastLabel.Parent = rewardToastInner
+
+local lobbyActivityState = {
+zone = nil,
+theme = nil,
+themeName = nil,
+displayName = nil,
+}
+
+local rewardToastCounter = 0
+local rewardShowTween
+local rewardTextTween
+local rewardHideTween
+local rewardStrokeTween
+
+local function getActivityZoneFolder(zoneName)
+if not zoneName then
+return nil
+end
+local lobby = Workspace:FindFirstChild("Lobby")
+if not lobby then
+return nil
+end
+local zones = lobby:FindFirstChild("ActivityZones")
+if not zones then
+return nil
+end
+return zones:FindFirstChild(zoneName)
+end
+
+local function updateWaypoint(zoneName, displayName)
+local zoneFolder = getActivityZoneFolder(zoneName)
+local waypointPart
+local promptText
+if zoneFolder then
+waypointPart = zoneFolder:FindFirstChild("Waypoint")
+if waypointPart then
+local prompt = waypointPart:FindFirstChildWhichIsA("ProximityPrompt")
+if prompt then
+promptText = prompt.ActionText
+end
+end
+end
+if waypointPart and waypointPart:IsA("BasePart") then
+waypointBillboard.Enabled = true
+waypointBillboard.Adornee = waypointPart
+waypointBillboard.Parent = waypointPart
+waypointTitle.Text = displayName or zoneName or "Activiteit"
+waypointAction.Text = promptText or "Voltooi uitdaging"
+else
+waypointBillboard.Enabled = false
+waypointBillboard.Adornee = nil
+waypointBillboard.Parent = nil
+end
+end
+
+local function updateActivityPanel(payload)
+if type(payload) ~= "table" then
+return
+end
+lobbyActivityState.zone = payload.zone
+lobbyActivityState.theme = payload.theme
+lobbyActivityState.themeName = payload.themeDisplayName
+lobbyActivityState.displayName = payload.displayName or payload.zone or "Activiteit"
+local rewardCoins = 0
+local rewardXp = 0
+if type(payload.reward) == "table" then
+rewardCoins = math.floor(tonumber(payload.reward.coins or payload.reward.Coins) or 0)
+rewardXp = math.floor(tonumber(payload.reward.xp or payload.reward.XP) or 0)
+end
+local themeLabelText = payload.themeDisplayName or payload.theme or "Onbekend"
+local descriptionText = payload.description or "Zoek de gemarkeerde zone en voltooi de uitdaging."
+activityTitle.Text = string.format("Lobby-activiteit: %s", lobbyActivityState.displayName)
+activityThemeLabel.Text = string.format("Thema: %s", themeLabelText)
+activityDescriptionLabel.Text = descriptionText
+activityRewardLabel.Text = string.format("Beloning: +%d coins  |  +%d XP", rewardCoins, rewardXp)
+activityFrame.Visible = true
+local theme = ThemeConfig.Get(payload.theme)
+local accent = theme and theme.primaryColor or Color3.fromRGB(140, 180, 255)
+activityStroke.Color = accent
+waypointFrame.BackgroundColor3 = accent
+rewardToastStroke.Color = accent
+rewardToastInner.BackgroundColor3 = Color3.new(
+math.clamp(accent.R * 0.35, 0, 1),
+math.clamp(accent.G * 0.55, 0, 1),
+math.clamp(accent.B * 0.35, 0, 1)
+)
+updateWaypoint(payload.zone, lobbyActivityState.displayName)
+if not waypointBillboard.Enabled then
+task.delay(1, function()
+if lobbyActivityState.zone == payload.zone then
+updateWaypoint(payload.zone, lobbyActivityState.displayName)
+end
+end)
+end
+end
+
+local function showRewardToast(message)
+rewardToastCounter += 1
+local toastId = rewardToastCounter
+rewardToastLabel.Text = message
+rewardToastFrame.Visible = true
+rewardToastInner.BackgroundTransparency = 1
+rewardToastLabel.TextTransparency = 1
+rewardToastStroke.Transparency = 1
+if rewardShowTween then
+rewardShowTween:Cancel()
+end
+if rewardTextTween then
+rewardTextTween:Cancel()
+end
+if rewardHideTween then
+rewardHideTween:Cancel()
+end
+if rewardStrokeTween then
+rewardStrokeTween:Cancel()
+end
+local showInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+rewardShowTween = TweenService:Create(rewardToastInner, showInfo, { BackgroundTransparency = 0.08 })
+rewardTextTween = TweenService:Create(rewardToastLabel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 })
+rewardStrokeTween = TweenService:Create(rewardToastStroke, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0 })
+rewardShowTween:Play()
+rewardTextTween:Play()
+rewardStrokeTween:Play()
+task.delay(4, function()
+if rewardToastCounter ~= toastId then
+return
+end
+local hideInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+rewardHideTween = TweenService:Create(rewardToastInner, hideInfo, { BackgroundTransparency = 1 })
+local hideTextTween = TweenService:Create(rewardToastLabel, hideInfo, { TextTransparency = 1 })
+local hideStroke = TweenService:Create(rewardToastStroke, hideInfo, { Transparency = 1 })
+rewardHideTween:Play()
+hideTextTween:Play()
+hideStroke:Play()
+hideTextTween.Completed:Connect(function()
+if rewardToastCounter == toastId then
+rewardToastFrame.Visible = false
+end
+end)
+end)
+end
+
+local function handleActivityReward(payload)
+if type(payload) ~= "table" then
+return
+end
+local displayName = payload.displayName or lobbyActivityState.displayName or payload.zone or "Activiteit"
+local applied = payload.applied or {}
+local coinsEarned = tonumber(applied.coins or applied.Coins) or 0
+local xpEarned = tonumber(applied.xp or applied.XP) or 0
+if coinsEarned == 0 and xpEarned == 0 and payload.reward then
+coinsEarned = tonumber(payload.reward.coins or payload.reward.Coins) or 0
+xpEarned = tonumber(payload.reward.xp or payload.reward.XP) or 0
+end
+local lines = {
+string.format("%s voltooid!", displayName),
+string.format("+%d Coins  |  +%d XP", coinsEarned, xpEarned),
+}
+local unlocks = applied.unlocks
+if type(unlocks) == "table" and #unlocks > 0 then
+local unlockLabels = {}
+for _, unlock in ipairs(unlocks) do
+if type(unlock) == "table" then
+unlockLabels[#unlockLabels + 1] = unlock.name or unlock.id or "Nieuwe ontgrendeling"
+elseif type(unlock) == "string" then
+unlockLabels[#unlockLabels + 1] = unlock
+end
+end
+if #unlockLabels > 0 then
+lines[#lines + 1] = "Ontgrendeld: " .. table.concat(unlockLabels, ", ")
+end
+end
+showRewardToast(table.concat(lines, "\n"))
+end
 
 local defaultEventWarningColor = eventWarningFrame.BackgroundColor3
 local eventWarningToken
@@ -506,6 +837,18 @@ EventMonsterEffects.OnClientEvent:Connect(function(stage, payload)
                 applyEventWarning(payload)
         elseif stage == "Stop" then
                 stopEventMonsterWarning()
+        end
+end)
+
+LobbyActivityUpdate.OnClientEvent:Connect(function(payload)
+        if type(payload) ~= "table" then
+                return
+        end
+        local action = payload.action
+        if action == "ActivityChanged" then
+                updateActivityPanel(payload)
+        elseif action == "RewardGranted" then
+                handleActivityReward(payload)
         end
 end)
 
