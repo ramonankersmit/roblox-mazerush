@@ -1250,12 +1250,11 @@ local function onCharacterAdded(plr, char)
         if humanoid then
                 recordDefaultMovement(plr, humanoid)
         end
-        if phase ~= "ACTIVE" then
-                hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
-                restoreMovement(plr)
-        elseif eliminatedPlayers[plr] then
+        if eliminatedPlayers[plr] then
                 hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
                 applySpectatorState(plr)
+        elseif phase ~= "ACTIVE" then
+                restoreMovement(plr)
         end
 end
 
@@ -1290,12 +1289,20 @@ Players.PlayerRemoving:Connect(function(plr)
         broadcastAliveStatus()
 end)
 
-local function teleportToLobby()
+-- Restore lobby defaults for everyone and optionally move them back onto the lobby spawn.
+local function teleportToLobby(repositionCharacters)
+        if repositionCharacters == nil then
+                repositionCharacters = true
+        end
         for _, plr in ipairs(Players:GetPlayers()) do
                 local char = plr.Character or plr.CharacterAdded:Wait()
                 local root = char:WaitForChild("HumanoidRootPart")
                 restoreMovement(plr)
-                root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
+                if repositionCharacters then
+                        root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
+                        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                end
         end
 end
 
@@ -1350,7 +1357,7 @@ local function runRound()
         applyTheme(activeThemeId)
         local previousLobbyTransparency = lobbyDefaultTransparency
         phase = "PREP"; PhaseValue.Value = phase; RoundState:FireAllClients("PREP")
-        teleportToLobby()
+        teleportToLobby(false)
 
         playerStates = {}
         eliminatedPlayers = {}
@@ -1469,7 +1476,7 @@ local function runRound()
         local roundFinishTime = getServerTime()
         awardRoundRewards(roundFinishTime)
         task.wait(5)
-        teleportToLobby()
+        teleportToLobby(true)
         clearAliveStatus()
         for _, plr in ipairs(Players:GetPlayers()) do
                 eliminatedPlayers[plr] = nil
