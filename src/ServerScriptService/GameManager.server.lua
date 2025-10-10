@@ -1250,12 +1250,11 @@ local function onCharacterAdded(plr, char)
         if humanoid then
                 recordDefaultMovement(plr, humanoid)
         end
-        if phase ~= "ACTIVE" then
-                hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
-                restoreMovement(plr)
-        elseif eliminatedPlayers[plr] then
+        if eliminatedPlayers[plr] then
                 hrp.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0, 3, 0))
                 applySpectatorState(plr)
+        elseif phase ~= "ACTIVE" then
+                restoreMovement(plr)
         end
 end
 
@@ -1295,7 +1294,6 @@ local function teleportToLobby()
                 local char = plr.Character or plr.CharacterAdded:Wait()
                 local root = char:WaitForChild("HumanoidRootPart")
                 restoreMovement(plr)
-                root.CFrame = CFrame.new(lobbyBase.Position + Vector3.new(0,3,0))
         end
 end
 
