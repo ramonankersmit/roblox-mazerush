@@ -16,6 +16,13 @@ local RANDOM_THEME_NAME = "Kies willekeurig"
 local RANDOM_THEME_DESCRIPTION = "Laat Maze Rush een willekeurig thema kiezen."
 local RANDOM_THEME_COLOR = Color3.fromRGB(200, 215, 255)
 
+local NEW_THEME_POOL = {
+        "Realistic",
+        "Lava",
+        "Candy",
+        "Future",
+}
+
 local State = Replicated:WaitForChild("State")
 local Phase = State:WaitForChild("Phase")
 local ThemeValue = State:FindFirstChild("Theme") or Instance.new("StringValue", State)
@@ -65,6 +72,57 @@ local selectionFlashInfo = nil
 local selectionFlashExpireAt = nil
 local selectionFlashSequence = 0
 
+local currentThemeOptions = {}
+local currentThemeOptionSet = {}
+
+local function tableClear(t)
+        if table.clear then
+                table.clear(t)
+        else
+                for key in pairs(t) do
+                        t[key] = nil
+                end
+        end
+end
+
+local function shuffle(list, rng)
+        for index = #list, 2, -1 do
+                local swapIndex = rng:NextInteger(1, index)
+                list[index], list[swapIndex] = list[swapIndex], list[index]
+        end
+end
+
+local function selectThemeOptions()
+        local pool = {}
+        for _, themeId in ipairs(NEW_THEME_POOL) do
+                if ThemeConfig.Themes[themeId] then
+                        table.insert(pool, themeId)
+                end
+        end
+
+        tableClear(currentThemeOptions)
+        tableClear(currentThemeOptionSet)
+
+        if #pool > 0 then
+                local rng = Random.new(os.clock())
+                shuffle(pool, rng)
+                local count = math.min(4, #pool)
+                for index = 1, count do
+                        local themeId = pool[index]
+                        currentThemeOptions[index] = themeId
+                        currentThemeOptionSet[themeId] = true
+                end
+        end
+
+        if #currentThemeOptions == 0 then
+                local fallback = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds() or {}
+                for index, themeId in ipairs(fallback) do
+                        currentThemeOptions[index] = themeId
+                        currentThemeOptionSet[themeId] = true
+                end
+        end
+end
+
 local function anyPlayersReady()
         for _, isReady in pairs(Ready) do
                 if isReady then
@@ -92,12 +150,11 @@ local function tryActivateVoteCountdown()
 end
 
 local function getThemeOrder()
-        local order = ThemeConfig.GetOrderedIds and ThemeConfig.GetOrderedIds()
-        if order and #order > 0 then
-                return order
+        if #currentThemeOptions > 0 then
+                return currentThemeOptions
         end
 
-        order = {}
+        local order = {}
         for themeId in pairs(ThemeConfig.Themes) do
                 table.insert(order, themeId)
         end
@@ -162,29 +219,15 @@ local function broadcast(precomputedCounts)
                 setLobbyPreviewTheme(currentTheme)
         end
         local options = {}
-        local orderedThemes = ThemeConfig.GetOrderedThemes and ThemeConfig.GetOrderedThemes() or nil
-        if orderedThemes and #orderedThemes > 0 then
-                for _, info in ipairs(orderedThemes) do
-                        local themeId = info.id
-                        table.insert(options, {
-                                id = themeId,
-                                name = info.displayName or themeId,
-                                description = info.description or "",
-                                votes = counts[themeId] or 0,
-                                color = info.primaryColor,
-                        })
-                end
-        else
-                for _, themeId in ipairs(getThemeOrder()) do
-                        local info = ThemeConfig.Themes[themeId]
-                        table.insert(options, {
-                                id = themeId,
-                                name = info and info.displayName or themeId,
-                                description = info and info.description or "",
-                                votes = counts[themeId] or 0,
-                                color = info and info.primaryColor,
-                        })
-                end
+        for _, themeId in ipairs(getThemeOrder()) do
+                local info = ThemeConfig.Themes[themeId]
+                table.insert(options, {
+                        id = themeId,
+                        name = info and info.displayName or themeId,
+                        description = info and info.description or "",
+                        votes = counts[themeId] or 0,
+                        color = info and info.primaryColor,
+                })
         end
 
         table.insert(options, {
@@ -257,6 +300,7 @@ end
 
 local function startVoteCycle()
         ThemeVotes = {}
+        selectThemeOptions()
         voteActive = true
         clearVoteCountdown()
         selectionFlashInfo = nil
@@ -325,6 +369,8 @@ ThemeValue:GetPropertyChangedSignal("Value"):Connect(function()
         end
         broadcast()
 end)
+
+selectThemeOptions()
 
 if Phase.Value == "IDLE" then
         tryStartVoteCycle()
@@ -405,6 +451,9 @@ ThemeVote.OnServerEvent:Connect(function(plr, themeId)
                 return
         end
         if not ThemeConfig.Themes[themeId] then return end
+        if #currentThemeOptions > 0 and not currentThemeOptionSet[themeId] then
+                return
+        end
         ThemeVotes[plr.UserId] = themeId
         broadcast()
 end)
