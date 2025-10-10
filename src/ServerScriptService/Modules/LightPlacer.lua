@@ -8,11 +8,6 @@ local TAG_WALL = "MazeWall"
 local TAG_CELL = "MazeCell"
 local TAG_CEILING = "MazeCeiling"
 
-local PREFAB_ROOTS = {
-    ReplicatedStorage:FindFirstChild("Prefabs"),
-    ServerStorage:FindFirstChild("Prefabs"),
-}
-
 local LightPlacer = {}
 
 local function findPrefab(name)
@@ -20,7 +15,12 @@ local function findPrefab(name)
         return nil
     end
 
-    for _, root in ipairs(PREFAB_ROOTS) do
+    local prefabRoots = {
+        ReplicatedStorage:FindFirstChild("Prefabs"),
+        ServerStorage:FindFirstChild("Prefabs"),
+    }
+
+    for _, root in ipairs(prefabRoots) do
         if root then
             local lights = root:FindFirstChild("Lights")
             if lights then
