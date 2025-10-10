@@ -120,7 +120,7 @@ local function createFallbackFixture(spec)
 end
 
 local function clonePrefab(spec, name, useFallback)
-    local prefab = findPrefab(name)
+    local prefab = LightPrefabs.Get(name) or findPrefab(name)
     if prefab then
         local clone = prefab:Clone()
         for _, descendant in ipairs(clone:GetDescendants()) do

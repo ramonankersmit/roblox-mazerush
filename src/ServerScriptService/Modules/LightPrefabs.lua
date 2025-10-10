@@ -1,6 +1,9 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local LightPrefabs = {}
+
+local prefabCache = {}
 
 local function ensureFolder(parent, name)
     local existing = parent:FindFirstChild(name)
@@ -13,6 +16,31 @@ local function ensureFolder(parent, name)
     folder.Parent = parent
 
     return folder
+end
+
+local function cachePrefab(prefab)
+    if not prefab then
+        return nil
+    end
+
+    prefabCache[prefab.Name] = prefab
+    return prefab
+end
+
+local function replicatePrefab(prefab)
+    if not prefab or not prefab.Parent then
+        return
+    end
+
+    local prefabsFolder = ensureFolder(ReplicatedStorage, "Prefabs")
+    local lightsFolder = ensureFolder(prefabsFolder, "Lights")
+
+    if lightsFolder:FindFirstChild(prefab.Name) then
+        return
+    end
+
+    local clone = prefab:Clone()
+    clone.Parent = lightsFolder
 end
 
 local function configureLightPart(part)
@@ -182,7 +210,7 @@ end
 local function ensureLightPrefab(lightsFolder, name, builder)
     local existing = lightsFolder:FindFirstChild(name)
     if existing then
-        return existing
+        return cachePrefab(existing)
     end
 
     local model = Instance.new("Model")
@@ -191,7 +219,7 @@ local function ensureLightPrefab(lightsFolder, name, builder)
 
     builder(model)
 
-    return model
+    return cachePrefab(model)
 end
 
 function LightPrefabs.Ensure(prefabsFolder)
@@ -204,11 +232,34 @@ function LightPrefabs.Ensure(prefabsFolder)
 
     local lightsFolder = ensureFolder(prefabsFolder, "Lights")
 
-    ensureLightPrefab(lightsFolder, "WallLantern_Spooky", buildWallLantern)
-    ensureLightPrefab(lightsFolder, "CeilingLantern_Spooky", buildCeilingLantern)
-    ensureLightPrefab(lightsFolder, "FloorLamp_Spooky", buildFloorLamp)
+    local lantern = ensureLightPrefab(lightsFolder, "WallLantern_Spooky", buildWallLantern)
+    local ceiling = ensureLightPrefab(lightsFolder, "CeilingLantern_Spooky", buildCeilingLantern)
+    local floor = ensureLightPrefab(lightsFolder, "FloorLamp_Spooky", buildFloorLamp)
+
+    replicatePrefab(lantern)
+    replicatePrefab(ceiling)
+    replicatePrefab(floor)
 
     return lightsFolder
+end
+
+function LightPrefabs.Get(name)
+    if not name or name == "" then
+        return nil
+    end
+
+    local cached = prefabCache[name]
+    if cached and cached.Parent then
+        return cached
+    end
+
+    local lightsFolder = LightPrefabs.Ensure()
+    if not lightsFolder then
+        return nil
+    end
+
+    local prefab = lightsFolder:FindFirstChild(name)
+    return cachePrefab(prefab)
 end
 
 return LightPrefabs
