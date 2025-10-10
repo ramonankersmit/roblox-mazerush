@@ -195,6 +195,134 @@ end
 
 -- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
+local lightsPrefabs = prefabs:FindFirstChild("Lights")
+if not lightsPrefabs then
+    lightsPrefabs = Instance.new("Folder")
+    lightsPrefabs.Name = "Lights"
+    lightsPrefabs.Parent = prefabs
+end
+
+local function configureLightPart(part)
+    part.Anchored = true
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+    part.Material = Enum.Material.Metal
+    part.Color = Color3.fromRGB(50, 50, 50)
+    part.CastShadow = false
+end
+
+local function ensureLightPrefab(name, builder)
+    local existing = lightsPrefabs:FindFirstChild(name)
+    if existing then
+        return existing
+    end
+
+    local model = Instance.new("Model")
+    model.Name = name
+    model.Parent = lightsPrefabs
+
+    builder(model)
+
+    return model
+end
+
+local function buildWallLantern(model)
+    local mount = Instance.new("Part")
+    mount.Name = "Mount"
+    mount.Size = Vector3.new(0.6, 1.6, 0.6)
+    configureLightPart(mount)
+    mount.Material = Enum.Material.Glass
+    mount.Color = Color3.fromRGB(70, 70, 70)
+    mount.Parent = model
+
+    local mesh = Instance.new("SpecialMesh")
+    mesh.MeshType = Enum.MeshType.Sphere
+    mesh.Scale = Vector3.new(1.2, 1.2, 1.2)
+    mesh.Parent = mount
+
+    local light = Instance.new("PointLight")
+    light.Color = Color3.fromRGB(255, 210, 160)
+    light.Brightness = 2.2
+    light.Range = 18
+    light.Shadows = true
+    light.Parent = mount
+
+    model.PrimaryPart = mount
+end
+
+local function buildCeilingLantern(model)
+    local fixture = Instance.new("Part")
+    fixture.Name = "Fixture"
+    fixture.Size = Vector3.new(0.8, 0.8, 0.8)
+    configureLightPart(fixture)
+    fixture.Material = Enum.Material.Glass
+    fixture.Color = Color3.fromRGB(255, 214, 170)
+    fixture.Transparency = 0.2
+    fixture.Parent = model
+
+    local attachment = Instance.new("Attachment")
+    attachment.Parent = fixture
+
+    local light = Instance.new("PointLight")
+    light.Color = Color3.fromRGB(255, 210, 160)
+    light.Brightness = 2.2
+    light.Range = 18
+    light.Shadows = true
+    light.Parent = attachment
+
+    model.PrimaryPart = fixture
+end
+
+local function buildFloorLamp(model)
+    local base = Instance.new("Part")
+    base.Name = "Base"
+    base.Size = Vector3.new(1, 0.4, 1)
+    configureLightPart(base)
+    base.Parent = model
+
+    local rod = Instance.new("Part")
+    rod.Name = "Rod"
+    rod.Size = Vector3.new(0.25, 3, 0.25)
+    configureLightPart(rod)
+    rod.Parent = model
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = base
+    weld.Part1 = rod
+    weld.Parent = base
+
+    rod.CFrame = base.CFrame * CFrame.new(0, 1.7, 0)
+
+    local shade = Instance.new("Part")
+    shade.Name = "Shade"
+    shade.Size = Vector3.new(1.4, 1.4, 1.4)
+    configureLightPart(shade)
+    shade.Material = Enum.Material.Glass
+    shade.Color = Color3.fromRGB(255, 214, 170)
+    shade.Transparency = 0.25
+    shade.Parent = model
+
+    local weldShade = Instance.new("WeldConstraint")
+    weldShade.Part0 = rod
+    weldShade.Part1 = shade
+    weldShade.Parent = rod
+
+    shade.CFrame = rod.CFrame * CFrame.new(0, 1.1, 0)
+
+    local light = Instance.new("PointLight")
+    light.Color = Color3.fromRGB(255, 210, 160)
+    light.Brightness = 2.2
+    light.Range = 18
+    light.Shadows = true
+    light.Parent = shade
+
+    model.PrimaryPart = base
+end
+
+ensureLightPrefab("WallLantern_Spooky", buildWallLantern)
+ensureLightPrefab("CeilingLantern_Spooky", buildCeilingLantern)
+ensureLightPrefab("FloorLamp_Spooky", buildFloorLamp)
 
 local Config = require(Replicated.Modules.RoundConfig)
 
