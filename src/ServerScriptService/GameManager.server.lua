@@ -228,27 +228,88 @@ local function ensureLightPrefab(name, builder)
 end
 
 local function buildWallLantern(model)
-    local mount = Instance.new("Part")
-    mount.Name = "Mount"
-    mount.Size = Vector3.new(0.6, 1.6, 0.6)
-    configureLightPart(mount)
-    mount.Material = Enum.Material.Glass
-    mount.Color = Color3.fromRGB(70, 70, 70)
-    mount.Parent = model
+    local root = Instance.new("Part")
+    root.Name = "Root"
+    root.Anchored = true
+    root.CanCollide = false
+    root.CanTouch = false
+    root.CanQuery = false
+    root.CastShadow = false
+    root.Transparency = 1
+    root.Size = Vector3.new(0.2, 0.2, 0.2)
+    root.Parent = model
 
-    local mesh = Instance.new("SpecialMesh")
-    mesh.MeshType = Enum.MeshType.Sphere
-    mesh.Scale = Vector3.new(1.2, 1.2, 1.2)
-    mesh.Parent = mount
+    local bracket = Instance.new("Part")
+    bracket.Name = "Bracket"
+    bracket.Anchored = true
+    bracket.CanCollide = false
+    bracket.CanTouch = false
+    bracket.CanQuery = false
+    bracket.CastShadow = false
+    bracket.Material = Enum.Material.Metal
+    bracket.Color = Color3.fromRGB(45, 32, 28)
+    bracket.Size = Vector3.new(0.7, 1.5, 0.25)
+    bracket.CFrame = root.CFrame * CFrame.new(0, 0, -0.12)
+    bracket.Parent = model
+
+    local candle = Instance.new("Part")
+    candle.Name = "Candle"
+    candle.Anchored = true
+    candle.CanCollide = false
+    candle.CanTouch = false
+    candle.CanQuery = false
+    candle.CastShadow = false
+    candle.Material = Enum.Material.SmoothPlastic
+    candle.Color = Color3.fromRGB(255, 244, 220)
+    candle.Shape = Enum.PartType.Cylinder
+    candle.Size = Vector3.new(0.36, 1.05, 0.36)
+    candle.CFrame = root.CFrame * CFrame.new(0, 0.65, -0.05)
+    candle.Parent = model
+
+    local flameAnchor = Instance.new("Part")
+    flameAnchor.Name = "FlameAnchor"
+    flameAnchor.Anchored = true
+    flameAnchor.CanCollide = false
+    flameAnchor.CanTouch = false
+    flameAnchor.CanQuery = false
+    flameAnchor.CastShadow = false
+    flameAnchor.Transparency = 1
+    flameAnchor.Size = Vector3.new(0.2, 0.2, 0.2)
+    flameAnchor.CFrame = root.CFrame * CFrame.new(0, 1.1, -0.05)
+    flameAnchor.Parent = model
+
+    local particle = Instance.new("ParticleEmitter")
+    particle.Texture = "rbxassetid://241594314"
+    particle.LightInfluence = 0
+    particle.Speed = NumberRange.new(1.5, 2.2)
+    particle.Lifetime = NumberRange.new(0.4, 0.8)
+    particle.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.45),
+        NumberSequenceKeypoint.new(0.35, 0.35),
+        NumberSequenceKeypoint.new(1, 0.05),
+    })
+    particle.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    particle.Color = ColorSequence.new(Color3.fromRGB(255, 215, 160), Color3.fromRGB(255, 120, 50))
+    particle.Rotation = NumberRange.new(-45, 45)
+    particle.RotSpeed = NumberRange.new(-90, 90)
+    particle.Drag = 2
+    particle.EmissionDirection = Enum.NormalId.Front
+    particle.Acceleration = Vector3.new(0, 10, 0)
+    particle.Rate = 12
+    particle.LockedToPart = true
+    particle.Parent = flameAnchor
 
     local light = Instance.new("PointLight")
     light.Color = Color3.fromRGB(255, 210, 160)
     light.Brightness = 2.2
     light.Range = 18
     light.Shadows = true
-    light.Parent = mount
+    light.Parent = flameAnchor
 
-    model.PrimaryPart = mount
+    model.PrimaryPart = root
 end
 
 local function buildCeilingLantern(model)
