@@ -11,6 +11,7 @@ local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Modules.RoundConfig)
 local InventoryProvider = require(ServerScriptService:WaitForChild("InventoryProvider"))
+local PowerUpDefinitions = require(ReplicatedStorage.Modules.PowerUpDefinitions)
 
 local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
 local PickupRemote = Remotes and Remotes:FindFirstChild("Pickup")
@@ -26,61 +27,8 @@ if not powerUpPrefabFolder then
         powerUpPrefabFolder.Parent = prefabs
 end
 
-local POWER_UP_DEFINITIONS = {
-        {
-                id = "TurboBoots",
-                displayName = "Turbo Boots",
-                color = Color3.fromRGB(255, 140, 0),
-                duration = 5,
-        },
-        {
-                id = "GhostMode",
-                displayName = "Ghost Mode",
-                color = Color3.fromRGB(180, 200, 255),
-                duration = 3,
-                cooldown = 20,
-        },
-        {
-                id = "MagnetPower",
-                displayName = "Magnet Power",
-                color = Color3.fromRGB(255, 85, 255),
-                duration = 8,
-        },
-        {
-                id = "TimeFreeze",
-                displayName = "Time Freeze",
-                color = Color3.fromRGB(210, 255, 255),
-                duration = 5,
-        },
-        {
-                id = "ShadowClone",
-                displayName = "Shadow Clone",
-                color = Color3.fromRGB(60, 60, 60),
-                duration = 8,
-        },
-        {
-                id = "NoWall",
-                displayName = "No Wall",
-                color = Color3.fromRGB(200, 200, 200),
-                duration = 3,
-        },
-        {
-                id = "SlowDown",
-                displayName = "Slow Down",
-                color = Color3.fromRGB(0, 85, 255),
-                duration = 6,
-        },
-        {
-                id = "ExtraLife",
-                displayName = "Extra Life",
-                color = Color3.fromRGB(0, 255, 170),
-        },
-}
-
-local powerUpsById = {}
-for _, definition in ipairs(POWER_UP_DEFINITIONS) do
-        powerUpsById[definition.id] = definition
-end
+local POWER_UP_DEFINITIONS = PowerUpDefinitions.Definitions
+local powerUpsById = PowerUpDefinitions.ById
 
 local playerStates = {}
 local activePowerUpModels = {}
