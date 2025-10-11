@@ -17,6 +17,8 @@ local Workspace = workspace
 local State = game.ReplicatedStorage:WaitForChild("State")
 local RoundConfig = require(game.ReplicatedStorage.Modules.RoundConfig)
 local ThemeConfig = require(game.ReplicatedStorage.Modules.ThemeConfig)
+local PowerUpDefinitions = require(game.ReplicatedStorage.Modules.PowerUpDefinitions)
+local PowerUpDefsById = PowerUpDefinitions and PowerUpDefinitions.ById or {}
 
 local SOUND_IDS = {
         Pickup = "rbxassetid://138186576",
@@ -2030,6 +2032,8 @@ local function initializeMinimap()
         mapCanvas.ClipsDescendants = true
         mapCanvas.Parent = mapFrame
 
+        local dotPowerUpsFolder = nil
+
         local mazeWallFolder = Instance.new("Folder")
         mazeWallFolder.Name = "MazeWalls"
         mazeWallFolder.Parent = mapCanvas
@@ -2109,6 +2113,84 @@ local function initializeMinimap()
         local mazeFolderConnections = {}
         local currentMazeFolder = nil
         local pendingMazeRefresh = false
+        local trackedPowerUps = {}
+        local trackedPowerUpSignals = {}
+
+        local function disconnectPowerUpInstanceSignals(instance)
+                local connections = trackedPowerUpSignals[instance]
+                if connections then
+                        for _, conn in ipairs(connections) do
+                                conn:Disconnect()
+                        end
+                        trackedPowerUpSignals[instance] = nil
+                end
+                trackedPowerUps[instance] = nil
+        end
+
+        local function updateTrackedPowerUp(instance)
+                local id = instance:GetAttribute("MazeRushPowerUpId")
+                if type(id) ~= "string" then
+                        id = instance.Name
+                end
+                local definition = (type(id) == "string") and PowerUpDefsById[id] or nil
+                if definition then
+                        trackedPowerUps[instance] = definition
+                else
+                        trackedPowerUps[instance] = nil
+                end
+        end
+
+        local function observePowerUpInstance(instance)
+                if not instance:IsA("Model") then
+                        return
+                end
+
+                if trackedPowerUpSignals[instance] then
+                        updateTrackedPowerUp(instance)
+                        return
+                end
+
+                local id = instance:GetAttribute("MazeRushPowerUpId")
+                if type(id) ~= "string" then
+                        id = instance.Name
+                end
+                if type(id) ~= "string" or not PowerUpDefsById[id] then
+                        return
+                end
+
+                updateTrackedPowerUp(instance)
+
+                local connections = {}
+                connections[#connections + 1] = instance:GetAttributeChangedSignal("MazeRushPowerUpId"):Connect(function()
+                        updateTrackedPowerUp(instance)
+                end)
+                connections[#connections + 1] = instance.Destroying:Connect(function()
+                        disconnectPowerUpInstanceSignals(instance)
+                end)
+                connections[#connections + 1] = instance.AncestryChanged:Connect(function(_, parent)
+                        if not parent or (currentMazeFolder and not instance:IsDescendantOf(currentMazeFolder)) then
+                                disconnectPowerUpInstanceSignals(instance)
+                        end
+                end)
+                trackedPowerUpSignals[instance] = connections
+        end
+
+        local function clearPowerUpTracking()
+                local toClear = {}
+                for instance in pairs(trackedPowerUpSignals) do
+                        toClear[#toClear + 1] = instance
+                end
+                for _, instance in ipairs(toClear) do
+                        disconnectPowerUpInstanceSignals(instance)
+                end
+                table.clear(trackedPowerUps)
+                table.clear(trackedPowerUpSignals)
+                if dotPowerUpsFolder then
+                        for _, child in ipairs(dotPowerUpsFolder:GetChildren()) do
+                                child:Destroy()
+                        end
+                end
+        end
 
         local function disconnectMazeFolderConnections()
                 for _, conn in ipairs(mazeFolderConnections) do
@@ -2135,11 +2217,21 @@ local function initializeMinimap()
                 end
 
                 disconnectMazeFolderConnections()
+                clearPowerUpTracking()
                 currentMazeFolder = folder
 
                 if currentMazeFolder then
                         table.insert(mazeFolderConnections, currentMazeFolder.ChildAdded:Connect(scheduleMazeRefresh))
                         table.insert(mazeFolderConnections, currentMazeFolder.ChildRemoved:Connect(scheduleMazeRefresh))
+                        table.insert(mazeFolderConnections, currentMazeFolder.DescendantAdded:Connect(function(descendant)
+                                observePowerUpInstance(descendant)
+                        end))
+                        table.insert(mazeFolderConnections, currentMazeFolder.DescendantRemoving:Connect(function(descendant)
+                                disconnectPowerUpInstanceSignals(descendant)
+                        end))
+                        for _, descendant in ipairs(currentMazeFolder:GetDescendants()) do
+                                observePowerUpInstance(descendant)
+                        end
                 end
 
                 scheduleMazeRefresh()
@@ -2226,6 +2318,8 @@ local function initializeMinimap()
         dotSentriesFolder.Name = "Sentries"
         local dotEventsFolder = mapCanvas:FindFirstChild("Events") or Instance.new("Folder", mapCanvas)
         dotEventsFolder.Name = "Events"
+        dotPowerUpsFolder = mapCanvas:FindFirstChild("PowerUps") or Instance.new("Folder", mapCanvas)
+        dotPowerUpsFolder.Name = "PowerUps"
 
         local function hunters()
                 local list = {}
@@ -2276,6 +2370,12 @@ local function initializeMinimap()
                                 child:Destroy()
                         end
                         for _, child in ipairs(dotSentriesFolder:GetChildren()) do
+                                child:Destroy()
+                        end
+                        for _, child in ipairs(dotEventsFolder:GetChildren()) do
+                                child:Destroy()
+                        end
+                        for _, child in ipairs(dotPowerUpsFolder:GetChildren()) do
                                 child:Destroy()
                         end
                 end
@@ -2418,6 +2518,28 @@ local function initializeMinimap()
                                 dot.Name = "EV" .. index
                                 dot.Parent = dotEventsFolder
                                 dot.Position = worldToMap(position)
+                        end
+                end
+
+                if dotPowerUpsFolder then
+                        for _, child in ipairs(dotPowerUpsFolder:GetChildren()) do
+                                child:Destroy()
+                        end
+                        for instance, definition in pairs(trackedPowerUps) do
+                                if definition then
+                                        local position = getModelPosition(instance)
+                                        if position then
+                                                local dot = Instance.new("Frame")
+                                                dot.Size = UDim2.new(0, 5, 0, 5)
+                                                dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                                                dot.BackgroundColor3 = definition.color or Color3.fromRGB(255, 255, 255)
+                                                dot.BorderSizePixel = 0
+                                                dot.ZIndex = 2
+                                                dot.Name = definition.id
+                                                dot.Parent = dotPowerUpsFolder
+                                                dot.Position = worldToMap(position)
+                                        end
+                                end
                         end
                 end
         end)
