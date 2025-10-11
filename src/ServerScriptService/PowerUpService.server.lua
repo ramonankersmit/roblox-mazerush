@@ -90,6 +90,44 @@ local MAGNET_RADIUS = 10
 local MAGNET_SCAN_INTERVAL = 0.2
 local MIN_SPAWNS_PER_TYPE = 3
 local MAX_SPAWNS_PER_TYPE = 10
+local POWER_UP_SPAWN_HEIGHT = 2
+local MAZE_CELL_TAG = "MazeCell"
+
+local function cloneArray(list)
+        local newList = {}
+        for index = 1, #list do
+                newList[index] = list[index]
+        end
+        return newList
+end
+
+local function setModelAnchored(model, anchored)
+        for _, descendant in ipairs(model:GetDescendants()) do
+                if descendant:IsA("BasePart") then
+                        descendant.Anchored = anchored
+                end
+        end
+end
+
+local function collectMazeCellAnchors(maze)
+        if not maze then
+                return {}
+        end
+
+        local ok, tagged = pcall(CollectionService.GetTagged, CollectionService, MAZE_CELL_TAG)
+        if not ok then
+                warn("[PowerUps] Failed to collect maze cell anchors:", tagged)
+                return {}
+        end
+
+        local anchors = {}
+        for _, anchor in ipairs(tagged) do
+                if anchor and anchor:IsA("BasePart") and anchor.Parent and anchor:IsDescendantOf(maze) then
+                        table.insert(anchors, anchor)
+                end
+        end
+        return anchors
+end
 
 local function ensurePlayerState(plr)
         local state = playerStates[plr]
@@ -221,6 +259,7 @@ local function ensurePowerUpPrefab(definition)
         orb.Shape = Enum.PartType.Ball
         orb.Material = Enum.Material.Neon
         orb.Color = definition.color or Color3.fromRGB(255, 255, 255)
+        orb.Anchored = true
         orb.CanCollide = false
         orb.CanTouch = false
         orb.CanQuery = false
@@ -244,15 +283,36 @@ local function ensurePowerUpPrefab(definition)
         return model
 end
 
-local function placeModelRandom(model)
+local function placeModelRandom(model, maze, anchor)
+        local targetMaze = maze or Workspace:FindFirstChild("Maze")
+        if not targetMaze then
+                return nil
+        end
+
         local clone = model:Clone()
-        local gridWidth = Config.GridWidth
-        local gridHeight = Config.GridHeight
-        local cellSize = Config.CellSize
-        local rx = math.random(1, gridWidth)
-        local ry = math.random(1, gridHeight)
-        clone:PivotTo(CFrame.new(rx * cellSize - (cellSize / 2), 2, ry * cellSize - (cellSize / 2)))
-        clone.Parent = Workspace:WaitForChild("Maze")
+        setModelAnchored(clone, true)
+        clone.Parent = targetMaze
+
+        local primary = clone.PrimaryPart or clone:FindFirstChildWhichIsA("BasePart")
+        local verticalOffset = POWER_UP_SPAWN_HEIGHT
+        if primary then
+                verticalOffset = math.max(POWER_UP_SPAWN_HEIGHT, (primary.Size.Y / 2) + 0.5)
+        end
+
+        local pivotCFrame
+        if anchor and anchor.Parent then
+                local anchorPosition = anchor.Position
+                pivotCFrame = CFrame.new(anchorPosition.X, anchorPosition.Y + verticalOffset, anchorPosition.Z)
+        else
+                local gridWidth = Config.GridWidth
+                local gridHeight = Config.GridHeight
+                local cellSize = Config.CellSize
+                local rx = math.random(1, gridWidth)
+                local ry = math.random(1, gridHeight)
+                pivotCFrame = CFrame.new(rx * cellSize - (cellSize / 2), verticalOffset, ry * cellSize - (cellSize / 2))
+        end
+
+        clone:PivotTo(pivotCFrame)
         return clone
 end
 
@@ -891,6 +951,50 @@ local function spawnAllPowerUps()
         if not maze then
                 return
         end
+
+        local baseAnchors = collectMazeCellAnchors(maze)
+        local anchorPool = cloneArray(baseAnchors)
+        local reusedAnchors = false
+        local totalSpawned = 0
+
+        local function refreshAnchorPool()
+                local refreshed = {}
+                for _, anchor in ipairs(baseAnchors) do
+                        if anchor and anchor.Parent and anchor:IsDescendantOf(maze) then
+                                table.insert(refreshed, anchor)
+                        end
+                end
+                anchorPool = refreshed
+        end
+
+        local function takeAnchor()
+                local attempts = 0
+                while true do
+                        if #anchorPool == 0 then
+                                refreshAnchorPool()
+                                if #anchorPool == 0 then
+                                        return nil
+                                end
+                                if totalSpawned > 0 then
+                                        reusedAnchors = true
+                                end
+                        end
+                        local index = math.random(1, #anchorPool)
+                        local anchor = table.remove(anchorPool, index)
+                        if anchor and anchor.Parent and anchor:IsDescendantOf(maze) then
+                                return anchor
+                        end
+                        attempts = attempts + 1
+                        if attempts > 50 then
+                                return nil
+                        end
+                end
+        end
+
+        if #baseAnchors == 0 then
+                warn("[PowerUps] No maze cell anchors detected; using grid-based spawn positions")
+        end
+
         local spawnSummary = {}
         for _, def in ipairs(POWER_UP_DEFINITIONS) do
                 local prefab = ensurePowerUpPrefab(def)
@@ -898,18 +1002,26 @@ local function spawnAllPowerUps()
                         local targetCount = math.random(MIN_SPAWNS_PER_TYPE, MAX_SPAWNS_PER_TYPE)
                         local spawnedCount = 0
                         for _ = 1, targetCount do
-                                local model = placeModelRandom(prefab)
+                                local anchor = takeAnchor()
+                                local model = placeModelRandom(prefab, maze, anchor)
                                 if model then
                                         configurePowerUpPrompt(model, def)
                                         table.insert(activePowerUpModels, model)
                                         spawnedCount = spawnedCount + 1
+                                        totalSpawned = totalSpawned + 1
+                                else
+                                        warn(string.format("[PowerUps] Failed to spawn %s power-up", def.id))
                                 end
                         end
                         table.insert(spawnSummary, string.format("%s=%d", def.displayName or def.id, spawnedCount))
                 end
         end
+
         if #spawnSummary > 0 then
                 print("[PowerUps] Spawned power-ups: " .. table.concat(spawnSummary, ", "))
+        end
+        if reusedAnchors then
+                warn("[PowerUps] Reused maze cells while spawning power-ups; consider increasing maze size for more variety")
         end
 end
 
