@@ -608,10 +608,10 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
                 clone:SetAttribute("SpawnCellY", cellY)
                 clone:SetAttribute("SpawnHeight", height)
                 local target = CFrame.new(position) * orientation
+                clone.Parent = container
                 clone:PivotTo(target)
                 enableScripts(clone)
                 activateObstacleModel(clone, attributes)
-                clone.Parent = container
                 local record = buildPlacementRecord(clone, cellX, cellY, position)
                 table.insert(placements, record)
                 return clone
@@ -672,9 +672,10 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
                         local height = resolveHeightOffset(spawnConfig, primary)
                         local target = CFrame.new(position + Vector3.new(0, height, 0)) * orientation
                         clone:SetAttribute("SpawnHeight", height)
+                        clone.Parent = container
+                        clone:PivotTo(target)
                         enableScripts(clone)
                         activateObstacleModel(clone, attributes)
-                        clone.Parent = container
                         table.insert(placements, buildPlacementRecord(clone, nil, nil, position))
                         table.insert(placed, clone)
                         created += 1
