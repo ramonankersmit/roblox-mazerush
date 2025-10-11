@@ -9,6 +9,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
+local StartThemeCountdown = Remotes:WaitForChild("StartThemeCountdown")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
 
 local ThemeModule = ReplicatedStorage:FindFirstChild("Modules")
@@ -40,6 +41,7 @@ if not themeStand or not themeStand:IsA("BasePart") then
 end
 
 local startPanel = boardModel:FindFirstChild("StartPanel")
+local countdownPanel = boardModel:FindFirstChild("CountdownPanel")
 local playerSurface = playerStand:FindFirstChild("PlayerSurface")
 if not playerSurface or not playerSurface:IsA("SurfaceGui") then
     warn("[LobbyBoard] PlayerSurface SurfaceGui missing")
@@ -107,8 +109,16 @@ local startButton = boardModel:FindFirstChild("StartButton")
 local startPrompt = startButton and startButton:FindFirstChild("StartPrompt")
 local startClickDetector = startButton and startButton:FindFirstChild("StartClick")
 
+local countdownButton = boardModel:FindFirstChild("CountdownButton")
+local countdownPrompt = countdownButton and countdownButton:FindFirstChild("CountdownPrompt")
+local countdownClickDetector = countdownButton and countdownButton:FindFirstChild("CountdownClick")
+
 if startClickDetector then
     startClickDetector.MaxActivationDistance = 0
+end
+
+if countdownClickDetector then
+    countdownClickDetector.MaxActivationDistance = 0
 end
 
 local setConsoleOpen
@@ -430,6 +440,8 @@ local function updateBoardVisibility(state)
     setPartVisible(themeStand, shouldShow)
     setPartVisible(startPanel, shouldShow)
     setPartVisible(startButton, shouldShow)
+    setPartVisible(countdownPanel, shouldShow)
+    setPartVisible(countdownButton, shouldShow)
 
     if playerSurface then
         playerSurface.Enabled = shouldShow
@@ -464,9 +476,8 @@ end
 local function gatherThemeOptions(themeState)
     themeState = themeState or {}
     local options = {}
-    local seenRandom = false
     for index, option in ipairs(themeState.options or {}) do
-        local id = option.id == "random" and RANDOM_THEME_ID or option.id
+        local id = option.id
         if id then
             local normalized = {
                 id = id,
@@ -476,42 +487,8 @@ local function gatherThemeOptions(themeState)
                 color = option.color,
                 layoutOrder = index,
             }
-            if id == RANDOM_THEME_ID then
-                seenRandom = true
-            end
             table.insert(options, normalized)
         end
-    end
-
-    local randomVotes = math.max(0, themeState.randomVotes or 0)
-    if themeState.votesByPlayer then
-        local counted = 0
-        for _, voteId in pairs(themeState.votesByPlayer) do
-            if voteId == RANDOM_THEME_ID or voteId == "random" then
-                counted += 1
-            end
-        end
-        randomVotes = math.max(randomVotes, counted)
-    end
-
-    if seenRandom then
-        for _, option in ipairs(options) do
-            if option.id == RANDOM_THEME_ID then
-                option.votes = randomVotes
-                option.name = option.name or RANDOM_THEME_NAME
-                option.description = option.description or RANDOM_THEME_DESCRIPTION
-                option.color = option.color or RANDOM_THEME_COLOR
-            end
-        end
-    else
-        table.insert(options, {
-            id = RANDOM_THEME_ID,
-            name = RANDOM_THEME_NAME,
-            description = RANDOM_THEME_DESCRIPTION,
-            votes = randomVotes,
-            color = RANDOM_THEME_COLOR,
-            layoutOrder = #options + 1,
-        })
     end
 
     table.sort(options, function(a, b)
@@ -1225,9 +1202,7 @@ local function updateThemePanel(themeState, state)
     if themeHintLabel and themeHintLabel:IsA("TextLabel") then
         if activeVote then
             themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
-            if readyCount == 0 then
-                themeHintLabel.Text = "Meld je klaar om de stemming te starten."
-            elseif myVote then
+            if myVote then
                 local myName = resolveThemeName(myVote, themeState)
                 themeHintLabel.Text = string.format("Je stem: %s · tik om te wijzigen.", myName or myVote)
             else
@@ -1235,7 +1210,11 @@ local function updateThemePanel(themeState, state)
             end
         else
             themeHintLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
-            themeHintLabel.Text = string.format("Thema vastgezet: %s", leaderName)
+            if themeState.canStartCountdown then
+                themeHintLabel.Text = "Gebruik de aftelknop om nieuwe thema's te kiezen."
+            else
+                themeHintLabel.Text = string.format("Thema vastgezet: %s", leaderName)
+            end
         end
     end
 end
@@ -1439,6 +1418,8 @@ local function updatePrompts(state)
     local myReady = myInfo and myInfo.ready or false
     local phase = state.phase
     local showPrompts = phase == "IDLE" or phase == "PREP"
+    local themeState = state.themes or {}
+    local canStartCountdown = themeState.canStartCountdown == true and showPrompts
 
     if consolePrompt then
         consolePrompt.Enabled = showPrompts
@@ -1468,17 +1449,49 @@ local function updatePrompts(state)
         end
     end
 
+    if countdownPrompt then
+        if canStartCountdown then
+            countdownPrompt.Enabled = true
+            countdownPrompt.ActionText = "Start aftellen"
+            countdownPrompt.ObjectText = "Aftelknop"
+        else
+            countdownPrompt.Enabled = false
+            countdownPrompt.ActionText = themeState.active and "Stemming bezig" or "Niet beschikbaar"
+            countdownPrompt.ObjectText = "Aftelknop"
+        end
+    end
+
+    if countdownClickDetector then
+        if canStartCountdown then
+            countdownClickDetector.MaxActivationDistance = 14
+        else
+            countdownClickDetector.MaxActivationDistance = 0
+        end
+    end
+
     if actionHint then
         if not showPrompts then
             actionHint.Text = "Maze bezig – console tijdelijk vergrendeld."
         elseif myReady then
             if isHost then
-                actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
+                if canStartCountdown then
+                    actionHint.Text = "Host klaar. Gebruik de aftelknop om de stemming te starten."
+                else
+                    actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
+                end
             else
-                actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
+                if canStartCountdown then
+                    actionHint.Text = "Klaar gemeld. Wacht op aftelknop of gebruik console voor wijzigingen."
+                else
+                    actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
+                end
             end
         else
-            actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+            if canStartCountdown then
+                actionHint.Text = "Druk op de aftelknop om een thema te kiezen."
+            else
+                actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+            end
         end
     end
 
@@ -1580,6 +1593,26 @@ local function attemptStart()
     end
 end
 
+local function canLocalStartCountdown()
+    if not latestState then
+        return false
+    end
+    if latestState.phase ~= "IDLE" then
+        return false
+    end
+    local themeState = latestState.themes or {}
+    if not themeState.canStartCountdown then
+        return false
+    end
+    return true
+end
+
+local function attemptStartCountdown()
+    if canLocalStartCountdown() then
+        StartThemeCountdown:FireServer()
+    end
+end
+
 local function renderState(state)
     if not state then
         return
@@ -1634,7 +1667,7 @@ end
 
 LobbyState.OnClientEvent:Connect(renderState)
 
-if consolePrompt or startPrompt then
+if consolePrompt or startPrompt or countdownPrompt then
     ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
         if player ~= localPlayer then
             return
@@ -1648,6 +1681,8 @@ if consolePrompt or startPrompt then
             end
         elseif prompt == startPrompt then
             attemptStart()
+        elseif prompt == countdownPrompt then
+            attemptStartCountdown()
         end
     end)
 end
@@ -1667,6 +1702,26 @@ if startClickDetector then
         touchTapSignal:Connect(function(player)
             if player == localPlayer then
                 attemptStart()
+            end
+        end)
+    end
+end
+
+if countdownClickDetector then
+    countdownClickDetector.MouseClick:Connect(function(player)
+        if player == localPlayer then
+            attemptStartCountdown()
+        end
+    end)
+
+    local ok, touchTapSignal = pcall(function()
+        return countdownClickDetector.TouchTap
+    end)
+
+    if ok and touchTapSignal then
+        touchTapSignal:Connect(function(player)
+            if player == localPlayer then
+                attemptStartCountdown()
             end
         end)
     end

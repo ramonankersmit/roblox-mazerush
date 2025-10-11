@@ -46,6 +46,9 @@
         "StartGameRequest": {
           "$className": "RemoteEvent"
         },
+        "StartThemeCountdown": {
+          "$className": "RemoteEvent"
+        },
         "ThemeVote": {
           "$className": "RemoteEvent"
         },
