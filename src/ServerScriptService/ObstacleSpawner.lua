@@ -77,6 +77,54 @@ local function getObstaclePrefabsFolder()
         return obstacles
 end
 
+local function resolveMazeStartPosition(config)
+        local cellSize = 16
+        local startHeight = 3
+        local cellX, cellY = 1, 1
+        local worldOverride
+
+        if type(config) == "table" then
+                local resolvedCellSize = tonumber(config.CellSize)
+                if resolvedCellSize and resolvedCellSize > 0 then
+                        cellSize = resolvedCellSize
+                end
+
+                local resolvedHeight = tonumber(config.StartHeight)
+                        or tonumber(config.PlayerStartHeight)
+                if resolvedHeight then
+                        startHeight = resolvedHeight
+                end
+
+                local explicit = config.StartPosition or config.MazeStartPosition
+                if typeof(explicit) == "Vector3" then
+                        worldOverride = explicit
+                end
+
+                local startCell = config.StartCell or config.Start
+                if typeof(startCell) == "Vector2" then
+                        cellX = tonumber(startCell.X) or cellX
+                        cellY = tonumber(startCell.Y) or cellY
+                elseif typeof(startCell) == "Vector3" then
+                        worldOverride = Vector3.new(
+                                tonumber(startCell.X) or cellSize * 0.5,
+                                tonumber(startCell.Y) or startHeight,
+                                tonumber(startCell.Z) or cellSize * 0.5
+                        )
+                elseif type(startCell) == "table" then
+                        cellX = tonumber(startCell.X or startCell.x) or cellX
+                        cellY = tonumber(startCell.Y or startCell.y) or cellY
+                end
+        end
+
+        if worldOverride then
+                return worldOverride
+        end
+
+        local worldX = (cellX - 0.5) * cellSize
+        local worldZ = (cellY - 0.5) * cellSize
+        return Vector3.new(worldX, startHeight, worldZ)
+end
+
 local function getPrefab(name)
         if type(name) ~= "string" or name == "" then
                 return nil
@@ -370,6 +418,21 @@ local function activateTrapDoor(model)
         local dropCooldowns = setmetatable({}, { __mode = "k" })
         local DROP_COOLDOWN = 1.5
         local cachedSpawnPart
+        local teleportTargetPosition
+
+        local function updateTeleportTarget()
+                local attr = model:GetAttribute("TeleportTargetPosition")
+                if typeof(attr) == "Vector3" then
+                        teleportTargetPosition = attr
+                else
+                        teleportTargetPosition = nil
+                end
+        end
+
+        updateTeleportTarget()
+        if model.GetAttributeChangedSignal then
+                model:GetAttributeChangedSignal("TeleportTargetPosition"):Connect(updateTeleportTarget)
+        end
 
         local function findPlayerSpawn()
                 if cachedSpawnPart and cachedSpawnPart.Parent then
@@ -388,6 +451,10 @@ local function activateTrapDoor(model)
         end
 
         local function computeTeleportCFrame()
+                if teleportTargetPosition then
+                        return CFrame.new(teleportTargetPosition)
+                end
+
                 local spawnPart = findPlayerSpawn()
                 if spawnPart then
                         local offsetY = (spawnPart.Size.Y or 1) + 4
@@ -698,6 +765,8 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
         local gridWidth = config.GridWidth or 0
         local gridHeight = config.GridHeight or 0
         local orientation = resolveOrientation(spawnConfig)
+        local mazeStartPosition = resolveMazeStartPosition(config)
+        local isTrapDoor = attributes.ObstacleType == "TrapDoor"
 
         local function placeAtCell(cellX, cellY)
                 if not (cellX and cellY) then
@@ -711,6 +780,9 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
                 end
                 applyAttributes(clone, attributes)
                 clone:SetAttribute("ObstacleType", attributes.ObstacleType)
+                if isTrapDoor and typeof(mazeStartPosition) == "Vector3" then
+                        clone:SetAttribute("TeleportTargetPosition", mazeStartPosition)
+                end
                 local height = resolveHeightOffset(spawnConfig, primary)
                 local position = cellToWorld(config, cellX, cellY, height)
                 local key = makeCellKey(cellX, cellY)
@@ -780,6 +852,9 @@ local function spawnForConfig(name, entry, container, config, usedCells, placeme
                 if primary then
                         applyAttributes(clone, attributes)
                         clone:SetAttribute("ObstacleType", attributes.ObstacleType)
+                        if isTrapDoor and typeof(mazeStartPosition) == "Vector3" then
+                                clone:SetAttribute("TeleportTargetPosition", mazeStartPosition)
+                        end
                         local height = resolveHeightOffset(spawnConfig, primary)
                         local target = CFrame.new(position + Vector3.new(0, height, 0)) * orientation
                         clone:SetAttribute("SpawnHeight", height)

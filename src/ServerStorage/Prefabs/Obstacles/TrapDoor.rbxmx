@@ -119,6 +119,21 @@ dropTrigger.CFrame = baseCFrame
 local dropCooldowns = setmetatable({}, { __mode = "k" })
 local DROP_COOLDOWN = 1.5
 local cachedSpawnPart
+local teleportTargetPosition
+
+local function updateTeleportTarget()
+    local attr = model:GetAttribute("TeleportTargetPosition")
+    if typeof(attr) == "Vector3" then
+        teleportTargetPosition = attr
+    else
+        teleportTargetPosition = nil
+    end
+end
+
+updateTeleportTarget()
+if model.GetAttributeChangedSignal then
+    model:GetAttributeChangedSignal("TeleportTargetPosition"):Connect(updateTeleportTarget)
+end
 
 local function findPlayerSpawn()
     if cachedSpawnPart and cachedSpawnPart.Parent then
@@ -137,6 +152,10 @@ local function findPlayerSpawn()
 end
 
 local function computeTeleportCFrame()
+    if teleportTargetPosition then
+        return CFrame.new(teleportTargetPosition)
+    end
+
     local spawnPart = findPlayerSpawn()
     if spawnPart then
         local offsetY = (spawnPart.Size.Y or 1) + 4
