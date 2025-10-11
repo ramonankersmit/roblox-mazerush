@@ -282,6 +282,7 @@ local function readPreviewTargetIds()
 end
 
 local optionConnections = {}
+local ensurePreviewsExist
 
 local function addOptionConnection(conn)
     if conn then
@@ -299,7 +300,9 @@ local function updatePreviewTargetsFromState()
         end
     end
     previewTargetIds = ids
-    ensurePreviewsExist()
+    if ensurePreviewsExist then
+        ensurePreviewsExist()
+    end
 end
 
 local function connectOptionChild(child)
@@ -647,7 +650,7 @@ local function createPreviewRecord(themeId)
     return record
 end
 
-local function ensurePreviewsExist()
+ensurePreviewsExist = function()
     local desiredSet = {}
     for _, themeId in ipairs(previewTargetIds) do
         desiredSet[themeId] = true
