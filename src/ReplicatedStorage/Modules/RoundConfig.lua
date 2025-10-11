@@ -164,6 +164,102 @@ local Config = {
                 },
         },
 	-- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
+	-- Beloningsconfiguratie: ontwerpers kunnen deze waarden aanpassen zonder scripts te wijzigen.
+	-- Coins/XP zijn gehele bedragen; per-seconde/-actie waarden worden afgerond op hele nummers.
+        Rewards = {
+                Participation = {
+                        Coins = 15,
+                        XP = 20,
+                        Description = "Basistoelage voor spelers die bij de start van de ronde aanwezig waren.",
+                },
+		Survival = {
+			CoinsPerSecond = 0.4,
+			XPPerSecond = 0.9,
+			MaxSeconds = 240,
+			Description = "Beloning per seconde dat de speler de actieve fase overleeft.",
+		},
+                Escape = {
+                        Coins = 75,
+                        XP = 150,
+                        Description = "Bonus voor het bereiken van de uitgang voordat de tijd om is.",
+                },
+                FullMazeExploration = {
+                        Coins = 30000,
+                        XP = 20000,
+                        Name = "Volledige verkenning",
+                        Description = "Volledige beloning voor spelers die elke tegel van de maze in één ronde bezoeken.",
+                },
+                Elimination = {
+                        CoinsPerAction = 25,
+                        XPPerAction = 45,
+                        Description = "Beloning per vijand of val die door de speler wordt uitgeschakeld.",
+                },
+		Unlocks = {
+			{
+				Id = "ExitFinder",
+				Name = "Exit Finder",
+				Reward = "ExitFinder",
+				Coins = 200,
+				XP = 150,
+				Description = "Ontgrendelt de Exit Finder gadget in de inventaris.",
+			},
+			{
+				Id = "HunterFinder",
+				Name = "Hunter Finder",
+				Reward = "HunterFinder",
+				Coins = 400,
+				XP = 350,
+				Description = "Ontgrendelt de Hunter Finder gadget in de inventaris.",
+			},
+			{
+				Id = "KeyFinder",
+				Name = "Key Finder",
+				Reward = "KeyFinder",
+				Coins = 650,
+				XP = 550,
+				Description = "Ontgrendelt de Key Finder gadget in de inventaris.",
+			},
+                },
+        },
+
+        LobbyActivities = {
+                Parkour = {
+                        DisplayName = "Parkour Parcours",
+                        Description = "Ren en spring over obstakels totdat je de finish haalt.",
+                        ThemeIds = { "Spooky" },
+                        Reward = { Coins = 20, XP = 30 },
+                        WaypointPosition = Vector3.new(0, 5, -60),
+                        PromptActionText = "Voltooi parkour",
+                        HoldDuration = 1.5,
+                },
+                Puzzle = {
+                        DisplayName = "Puzzelhoek",
+                        Description = "Los de lichtpuzzel op door de juiste tegels te activeren.",
+                        ThemeIds = { "Frost" },
+                        Reward = { Coins = 18, XP = 28 },
+                        WaypointPosition = Vector3.new(48, 5, 0),
+                        PromptActionText = "Los puzzel op",
+                        HoldDuration = 1.5,
+                },
+                Minigame = {
+                        DisplayName = "Minigame Arena",
+                        Description = "Doe mee aan een snelle minigame-uitdaging voor extra beloningen.",
+                        ThemeIds = { "Jungle", "Glaze" },
+                        Reward = { Coins = 16, XP = 24 },
+                        WaypointPosition = Vector3.new(-48, 5, 0),
+                        PromptActionText = "Start minigame",
+                        HoldDuration = 1.5,
+                },
+        },
+
+        LobbyActivityDefaults = {
+                CompletionCooldown = 15,
+                ResetDelay = 4,
+                Reward = { Coins = 12, XP = 18 },
+                DefaultZone = "Minigame",
+        },
+
+        -- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
         MazeAlgorithm = "DFS", -- "DFS" of "PRIM"
         -- Kans (0-1) dat een bestaande muur na generatie alsnog wordt verwijderd om lussen te maken.
         LoopChance = 0.05,

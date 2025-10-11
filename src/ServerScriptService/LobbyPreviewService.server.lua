@@ -7,6 +7,7 @@ local ThemeConfig = require(Modules.ThemeConfig)
 
 local State = ReplicatedStorage:WaitForChild("State")
 local ThemeValue = State:WaitForChild("Theme")
+local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
 
 local function ensureLobbyFolder()
     local lobby = Workspace:FindFirstChild("Lobby")
@@ -37,11 +38,86 @@ local LIGHTING_PROPERTIES = {
         "ColorShift_Top",
         "ColorShift_Bottom",
         "ClockTime",
+        "EnvironmentDiffuseScale",
+        "EnvironmentSpecularScale",
+        "GlobalShadows",
 }
 
 local defaultLighting = {}
 for _, prop in ipairs(LIGHTING_PROPERTIES) do
         defaultLighting[prop] = Lighting[prop]
+end
+
+local EFFECT_CLASSES = {
+        ColorCorrection = "ColorCorrectionEffect",
+        Atmosphere = "Atmosphere",
+        SunRays = "SunRaysEffect",
+        Bloom = "BloomEffect",
+        DepthOfField = "DepthOfFieldEffect",
+}
+
+local effectInstances = {}
+
+local function ensureEffectInstance(effectName)
+        local className = EFFECT_CLASSES[effectName]
+        if not className then
+                return nil
+        end
+        local instance = effectInstances[effectName]
+        if not instance or not instance.Parent then
+                instance = Instance.new(className)
+                instance.Name = string.format("LobbyPreview_%s", tostring(effectName))
+                instance.Parent = Lighting
+                effectInstances[effectName] = instance
+        end
+        return instance
+end
+
+local function applyEffectOverrides(overrides)
+        local active = {}
+        if overrides then
+                for effectName, props in pairs(overrides) do
+                        local instance = ensureEffectInstance(effectName)
+                        if instance then
+                                active[effectName] = true
+                                if instance:IsA("PostEffect") then
+                                        local ok, err = pcall(function()
+                                                instance.Enabled = true
+                                        end)
+                                        if not ok then
+                                                warn(string.format("[LobbyPreviewService] Unable to enable %s: %s", tostring(instance.Name), tostring(err)))
+                                        end
+                                elseif instance:IsA("Atmosphere") then
+                                        instance.Parent = Lighting
+                                end
+                                if props then
+                                        for prop, value in pairs(props) do
+                                                local ok, err = pcall(function()
+                                                        instance[prop] = value
+                                                end)
+                                                if not ok then
+                                                        warn(string.format("[LobbyPreviewService] Unable to set %s.%s: %s", tostring(instance.Name), tostring(prop), tostring(err)))
+                                                end
+                                        end
+                                end
+                        end
+                end
+        end
+
+        for effectName, instance in pairs(effectInstances) do
+                if not active[effectName] then
+                        if instance:IsA("PostEffect") then
+                                local ok, err = pcall(function()
+                                        instance.Enabled = false
+                                end)
+                                if not ok then
+                                        warn(string.format("[LobbyPreviewService] Unable to disable %s: %s", tostring(instance.Name), tostring(err)))
+                                end
+                        elseif instance:IsA("Atmosphere") then
+                                instance.Parent = nil
+                        end
+                end
+        end
 end
 
 local function getLobbyBase()
@@ -518,6 +594,8 @@ local function clearInactiveAmbient()
 end
 
 local function applyLightingOverrides(overrides)
+    local effects = overrides and overrides.effects or nil
+    applyEffectOverrides(effects)
     for _, prop in ipairs(LIGHTING_PROPERTIES) do
         local value = overrides and overrides[prop]
         if value == nil then
@@ -535,7 +613,7 @@ end
 local function applyTheme(themeId)
     ensurePreviewsExist()
     local resolved = themeId
-    if resolved == nil or resolved == "" then
+    if resolved == nil or resolved == "" or not ThemeConfig.Themes[resolved] then
         resolved = ThemeConfig.Default
     end
     clearInactiveAmbient()
@@ -551,12 +629,21 @@ local function applyTheme(themeId)
     applyLightingOverrides(overrides)
 end
 
+local function getActiveThemeId()
+    if LobbyPreviewThemeValue and LobbyPreviewThemeValue.Value ~= "" then
+        return LobbyPreviewThemeValue.Value
+    end
+    return ThemeValue.Value
+end
+
 local function onThemeChanged()
-    local themeId = ThemeValue.Value
-    applyTheme(themeId)
+    applyTheme(getActiveThemeId())
 end
 
 monitorLobbyBase()
 ensurePreviewsExist()
 ThemeValue.Changed:Connect(onThemeChanged)
+if LobbyPreviewThemeValue then
+    LobbyPreviewThemeValue.Changed:Connect(onThemeChanged)
+end
 onThemeChanged()
