@@ -2504,17 +2504,29 @@ local function renderThemeState(themeState, lobbyState)
                 optionNames[option.id] = option.name or option.id
         end
 
-        local leaderId = themeState.current
-        local leaderVotes = leaderId and votesLookup[leaderId] or -1
-        if leaderVotes == nil then leaderVotes = -1 end
+        local leaderId = themeState.leader or themeState.current
+        local leaderVotes = themeState.leaderVotes
+        if type(leaderVotes) ~= "number" then
+                leaderVotes = leaderId and (votesLookup[leaderId] or 0) or -1
+        end
         for index, option in ipairs(options) do
                 local votes = votesLookup[option.id] or 0
-                if votes > leaderVotes or leaderId == nil and index == 1 then
+                if leaderId == nil then
+                        leaderId = option.id
+                        leaderVotes = votes
+                elseif option.id == leaderId then
+                        if votes > leaderVotes then
+                                leaderVotes = votes
+                        end
+                elseif votes > leaderVotes then
+                        leaderId = option.id
+                        leaderVotes = votes
+                elseif leaderVotes < 0 and index == 1 then
                         leaderId = option.id
                         leaderVotes = votes
                 end
         end
-        local highlightId = activeThemeVote and (leaderId or themeState.current) or (themeState.current or leaderId)
+        local highlightId = activeThemeVote and (leaderId or themeState.leader or themeState.current) or (themeState.current or leaderId)
 
         local seen = {}
         for index, option in ipairs(options) do
@@ -2557,9 +2569,11 @@ local function renderThemeState(themeState, lobbyState)
         if not labelId and #options > 0 then
                 labelId = options[1].id
         end
-        local labelName = optionNames[labelId] or labelId or "?"
-        if not activeThemeVote and themeState.currentName then
-                labelName = themeState.currentName
+        local labelName
+        if activeThemeVote then
+                labelName = themeState.leaderName or optionNames[labelId] or labelId or "?"
+        else
+                labelName = themeState.currentName or optionNames[labelId] or labelId or "?"
         end
 
         local labelTheme = ThemeConfig.Get(labelId)

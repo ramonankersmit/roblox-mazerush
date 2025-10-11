@@ -1091,13 +1091,15 @@ local function updateBoardPlacement()
 
     votePanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
     local direction = buttonOffsetX >= 0 and 1 or -1
-    local boardEdgeOffset = direction * (playerStand.Size.X * 0.5 + votePanel.Size.X * 0.5 + 0.05)
-    local startMagnitude = math.abs(buttonOffsetX)
-    local boardMagnitude = math.abs(boardEdgeOffset)
-    local innerMagnitude = math.min(startMagnitude, boardMagnitude)
-    local outerMagnitude = math.max(startMagnitude, boardMagnitude)
-    local voteMagnitude = (innerMagnitude + outerMagnitude) * 0.5
-    local voteOffsetX = direction * voteMagnitude
+    local voteGap = math.max(startButtonMinGap, 0.35)
+    local desiredOffset = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
+    local minOffset = direction * (playerStand.Size.X * 0.5 + votePanel.Size.X * 0.5 + startButtonMinGap)
+    local voteOffsetX
+    if direction >= 0 then
+        voteOffsetX = math.max(desiredOffset, minOffset)
+    else
+        voteOffsetX = math.min(desiredOffset, minOffset)
+    end
     local voteDepth = -(playerStand.Size.Z * 0.5 - votePanel.Size.Z * 0.5 - 0.02)
     votePanel.CFrame = pivot * CFrame.new(voteOffsetX, buttonHeightOffset, voteDepth)
     voteButton.CFrame = votePanel.CFrame * CFrame.new(0, 0, -(votePanel.Size.Z * 0.5 + voteButton.Size.Z * 0.5 - 0.01))

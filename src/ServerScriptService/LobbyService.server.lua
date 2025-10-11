@@ -287,16 +287,32 @@ local function tallyVotes()
         return counts
 end
 
-local function determineLeader(counts)
-        local best = currentTheme
-        local bestCount = counts[best] or 0
-        for _, themeId in ipairs(getThemeOrder()) do
+local function determineLeader(counts, preferOrderFallback)
+        local order = getThemeOrder()
+        local best
+        local bestCount
+
+        if preferOrderFallback and #order > 0 then
+                best = order[1]
+                bestCount = counts[best] or 0
+        else
+                best = currentTheme
+                bestCount = counts[best] or 0
+        end
+
+        for _, themeId in ipairs(order) do
                 local count = counts[themeId] or 0
                 if count > bestCount then
                         best = themeId
                         bestCount = count
                 end
         end
+
+        if not best then
+                best = currentTheme
+                bestCount = counts[best] or 0
+        end
+
         return best, bestCount
 end
 
@@ -320,7 +336,7 @@ local function broadcast(precomputedCounts)
         end
 
         local counts = precomputedCounts or tallyVotes()
-        local leaderId, leaderVotes = determineLeader(counts)
+        local leaderId, leaderVotes = determineLeader(counts, voteActive)
         if voteActive then
                 setLobbyPreviewTheme(leaderId)
         else
@@ -356,6 +372,7 @@ local function broadcast(precomputedCounts)
         end
 
         local currentInfo = ThemeConfig.Themes[currentTheme]
+        local leaderInfo = leaderId and ThemeConfig.Themes[leaderId] or nil
 
         local countdownActive = voteActive and voteCountdownActive and voteDeadline ~= nil
         local endsInValue = 0
@@ -402,6 +419,9 @@ local function broadcast(precomputedCounts)
                         selectionFlash = flashPayload,
                         leader = voteActive and leaderId or currentTheme,
                         leaderVotes = leaderVotes or 0,
+                        leaderName = (voteActive and leaderInfo and leaderInfo.displayName)
+                                or (currentInfo and currentInfo.displayName)
+                                or leaderId,
                 }
         })
 end
@@ -424,7 +444,7 @@ local function finalizeVote(autoStart)
         voteActive = false
         clearVoteCountdown()
         voteDeadline = os.clock()
-        local winner = determineLeader(counts)
+        local winner = determineLeader(counts, true)
         if autoStart then
                 selectionFlashSequence += 1
                 local info = ThemeConfig.Themes[winner]

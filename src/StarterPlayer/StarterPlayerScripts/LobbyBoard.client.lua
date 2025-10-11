@@ -1112,19 +1112,21 @@ local function updateThemePanel(themeState, state)
     handleCountdownState(activeVote, countdownActive, endsIn)
 
     if not hasOptions then
-        if themeHeader then
-            themeHeader.Text = "Start een stemronde"
+        if themeHeaderLabel and themeHeaderLabel:IsA("TextLabel") then
+            themeHeaderLabel.Text = "Start een stemronde"
+            themeHeaderLabel.TextColor3 = Color3.fromRGB(220, 226, 255)
         end
-        if winningLabel then
-            winningLabel.Text = "Wacht op thema-keuze"
-            winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+        if themeNameLabel and themeNameLabel:IsA("TextLabel") then
+            themeNameLabel.Text = "Wacht op thema-keuze"
+            themeNameLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
         end
-        if themeCountdown then
-            themeCountdown.Text = activeVote and "Voorbereiden..." or "Nog niet gestart"
-            themeCountdown.TextColor3 = Color3.fromRGB(180, 180, 180)
+        if themeCountdownLabel and themeCountdownLabel:IsA("TextLabel") then
+            themeCountdownLabel.Text = activeVote and "Voorbereiden..." or "Nog niet gestart"
+            themeCountdownLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
         end
-        if themeHintLabel then
+        if themeHintLabel and themeHintLabel:IsA("TextLabel") then
             themeHintLabel.Text = "Host: druk op de linkse knop om vier thema's te kiezen."
+            themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
         end
         updatePreviewHighlights(nil, nil)
         for _, entry in pairs(themeButtons) do
@@ -1146,18 +1148,25 @@ local function updateThemePanel(themeState, state)
         myVote = RANDOM_THEME_ID
     end
 
-    local leaderId = themeState.current
-    local leaderVotes = -1
+    local leaderId = themeState.leader or themeState.current
+    local leaderVotes = themeState.leaderVotes
+    if type(leaderVotes) ~= "number" then
+        leaderVotes = leaderId and 0 or -1
+    end
     if themeState.options then
         for index, option in ipairs(themeState.options) do
             local votes = option.votes or 0
-            if leaderId == option.id and leaderVotes < votes then
-                leaderVotes = votes
-            end
-            if votes > leaderVotes then
+            if leaderId == nil then
                 leaderId = option.id
                 leaderVotes = votes
-            elseif leaderId == nil and index == 1 then
+            elseif option.id == leaderId then
+                if votes > leaderVotes then
+                    leaderVotes = votes
+                end
+            elseif votes > leaderVotes then
+                leaderId = option.id
+                leaderVotes = votes
+            elseif leaderVotes < 0 and index == 1 then
                 leaderId = option.id
                 leaderVotes = votes
             end
@@ -1165,7 +1174,12 @@ local function updateThemePanel(themeState, state)
     end
 
     local resolvedLeaderName, leaderColor = resolveThemeName(leaderId, themeState)
-    local leaderName = themeState.currentName or resolvedLeaderName or leaderId or "?"
+    local leaderName
+    if activeVote then
+        leaderName = resolvedLeaderName or themeState.leaderName or themeState.currentName or leaderId or "?"
+    else
+        leaderName = themeState.currentName or resolvedLeaderName or leaderId or "?"
+    end
     local highlightColor = leaderColor or resolveThemeColor(leaderId)
 
     if themeOptionsFrame then
@@ -1261,13 +1275,21 @@ local function updateThemePanel(themeState, state)
     if themeHintLabel and themeHintLabel:IsA("TextLabel") then
         if activeVote then
             themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
+            local leaderMessage
+            if leaderName and leaderName ~= "" then
+                leaderMessage = string.format("Aan kop: %s", leaderName)
+            end
             if readyCount == 0 then
-                themeHintLabel.Text = "Meld je klaar om de stemming te starten."
+                themeHintLabel.Text = leaderMessage and string.format("%s · Meld je klaar om de stemming te starten.", leaderMessage) or "Meld je klaar om de stemming te starten."
             elseif myVote then
                 local myName = resolveThemeName(myVote, themeState)
-                themeHintLabel.Text = string.format("Je stem: %s · tik om te wijzigen.", myName or myVote)
+                if leaderMessage then
+                    themeHintLabel.Text = string.format("%s · Je stem: %s · tik om te wijzigen.", leaderMessage, myName or myVote)
+                else
+                    themeHintLabel.Text = string.format("Je stem: %s · tik om te wijzigen.", myName or myVote)
+                end
             else
-                themeHintLabel.Text = "Tik op een thema om je stem uit te brengen."
+                themeHintLabel.Text = leaderMessage and string.format("%s · Tik op een thema om je stem uit te brengen.", leaderMessage) or "Tik op een thema om je stem uit te brengen."
             end
         else
             themeHintLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
