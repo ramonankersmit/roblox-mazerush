@@ -294,9 +294,13 @@ end
 local function updatePreviewTargetsFromState()
     local ids = readPreviewTargetIds()
     if #ids == 0 then
-        local fallback = getActiveThemeId()
-        if fallback and ThemeConfig.Themes[fallback] then
-            ids = {fallback}
+        if ThemeConfig.GetOrderedIds then
+            ids = ThemeConfig.GetOrderedIds()
+        else
+            for themeId in pairs(ThemeConfig.Themes) do
+                table.insert(ids, themeId)
+            end
+            table.sort(ids)
         end
     end
     previewTargetIds = ids

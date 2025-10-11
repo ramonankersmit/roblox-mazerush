@@ -554,12 +554,6 @@ local ThemeList = {
                         Contrast = 0.08,
                         Saturation = -0.1,
                     },
-                    DepthOfField = {
-                        FocusDistance = 50,
-                        InFocusRadius = 15,
-                        NearIntensity = 0.3,
-                        FarIntensity = 0.8,
-                    },
                     Bloom = {
                         Size = 32,
                         Intensity = 0.9,

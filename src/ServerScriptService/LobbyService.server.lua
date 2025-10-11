@@ -28,11 +28,46 @@ local State = Replicated:WaitForChild("State")
 local Phase = State:WaitForChild("Phase")
 local ThemeValue = State:FindFirstChild("Theme") or Instance.new("StringValue", State)
 ThemeValue.Name = "Theme"
-if ThemeValue.Value == "" then
-        ThemeValue.Value = ThemeConfig.Default
+
+local function getAllThemeIds()
+        if ThemeConfig.GetOrderedIds then
+                return ThemeConfig.GetOrderedIds()
+        end
+
+        local ids = {}
+        for themeId in pairs(ThemeConfig.Themes) do
+                table.insert(ids, themeId)
+        end
+        table.sort(ids)
+        return ids
 end
 
-local currentTheme = ThemeValue.Value ~= "" and ThemeValue.Value or ThemeConfig.Default
+local function pickRandomThemeFrom(list)
+        local pool = {}
+        if type(list) == "table" then
+                for _, themeId in ipairs(list) do
+                        if ThemeConfig.Themes[themeId] then
+                                table.insert(pool, themeId)
+                        end
+                end
+        end
+        if #pool == 0 then
+                for themeId in pairs(ThemeConfig.Themes) do
+                        table.insert(pool, themeId)
+                end
+        end
+        if #pool == 0 then
+                return ThemeConfig.Default
+        end
+        local rng = Random.new(os.clock())
+        return pool[rng:NextInteger(1, #pool)]
+end
+
+if ThemeValue.Value == "" or not ThemeConfig.Themes[ThemeValue.Value] then
+        ThemeValue.Value = pickRandomThemeFrom(getAllThemeIds())
+end
+
+local currentTheme = ThemeValue.Value ~= "" and ThemeConfig.Themes[ThemeValue.Value] and ThemeValue.Value or ThemeConfig.Default
 RoundConfig.Theme = currentTheme
 
 local LobbyPreviewThemeValue = State:FindFirstChild("LobbyPreviewTheme")
@@ -126,30 +161,10 @@ local function setThemeOptions(themeIds)
         end
 end
 
-local function pickRandomPreviewTheme()
-        local pool = {}
-        for _, themeId in ipairs(NEW_THEME_POOL) do
-                if ThemeConfig.Themes[themeId] then
-                        table.insert(pool, themeId)
-                end
-        end
-        if #pool == 0 then
-                for themeId in pairs(ThemeConfig.Themes) do
-                        table.insert(pool, themeId)
-                end
-        end
-        if #pool == 0 then
-                return ThemeConfig.Default
-        end
-        local rng = Random.new(os.clock())
-        local index = rng:NextInteger(1, #pool)
-        return pool[index]
-end
-
 local function resolvePreviewThemeValue()
         local previewTheme = LobbyPreviewThemeValue.Value
         if previewTheme == nil or previewTheme == "" or not ThemeConfig.Themes[previewTheme] then
-                previewTheme = pickRandomPreviewTheme()
+                previewTheme = pickRandomThemeFrom(getAllThemeIds())
                 LobbyPreviewThemeValue.Value = previewTheme
         end
         return previewTheme
@@ -171,24 +186,14 @@ local function applyIdlePreview(themeId)
                 previewTheme = resolvePreviewThemeValue()
         end
         setLobbyPreviewTheme(previewTheme)
-        local resolved = LobbyPreviewThemeValue.Value
-        updatePreviewTargets({resolved})
-        setThemeOptions({resolved})
-        return resolved
+        local allThemes = getAllThemeIds()
+        updatePreviewTargets(allThemes)
+        setThemeOptions({})
+        return LobbyPreviewThemeValue.Value
 end
 
 local function initializeLobbyPreview()
-        local previewTheme = resolvePreviewThemeValue()
-        if previewTheme == currentTheme then
-                local alternate = pickRandomPreviewTheme()
-                if ThemeConfig.Themes[alternate] then
-                        previewTheme = alternate
-                        LobbyPreviewThemeValue.Value = alternate
-                end
-        end
-        setLobbyPreviewTheme(previewTheme)
-        updatePreviewTargets({previewTheme})
-        setThemeOptions({previewTheme})
+        applyIdlePreview(resolvePreviewThemeValue())
 end
 
 initializeLobbyPreview()
@@ -262,12 +267,7 @@ local function getThemeOrder()
                 return currentThemeOptions
         end
 
-        local order = {}
-        for themeId in pairs(ThemeConfig.Themes) do
-                table.insert(order, themeId)
-        end
-        table.sort(order)
-        return order
+        return getAllThemeIds()
 end
 
 local function tallyVotes()
@@ -513,8 +513,11 @@ Players.PlayerRemoving:Connect(function(plr)
                         selectionFlashInfo = nil
                         selectionFlashExpireAt = nil
                         pendingAutoStartAt = nil
-                        local nextPreview = pickRandomPreviewTheme()
+                        local nextPreview = pickRandomThemeFrom(getAllThemeIds())
                         applyIdlePreview(nextPreview)
+                        currentTheme = nextPreview
+                        RoundConfig.Theme = nextPreview
+                        ThemeValue.Value = nextPreview
                         broadcast()
                 end
         end)
