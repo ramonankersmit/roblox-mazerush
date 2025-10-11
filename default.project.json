@@ -37,10 +37,16 @@
         "LobbyState": {
           "$className": "RemoteEvent"
         },
+        "LobbyActivityUpdate": {
+          "$className": "RemoteEvent"
+        },
         "ToggleReady": {
           "$className": "RemoteEvent"
         },
         "StartGameRequest": {
+          "$className": "RemoteEvent"
+        },
+        "StartThemeCountdown": {
           "$className": "RemoteEvent"
         },
         "ThemeVote": {
