@@ -60,7 +60,7 @@ local function createTrapDoor()
         door.CanTouch = true
         door.CanQuery = true
         door.Size = Vector3.new(6, 1, 6)
-        door.CFrame = CFrame.new(0, 1.01, 0)
+        door.CFrame = CFrame.new(0, 0.55, 0)
         door.Material = Enum.Material.Metal
         door.Color = Color3.fromRGB(64, 64, 64)
         door.TopSurface = Enum.SurfaceType.Smooth
@@ -93,6 +93,17 @@ local function createTrapDoor()
         label.Font = Enum.Font.GothamBold
         label.TextScaled = true
         label.Parent = decal
+
+        local trigger = Instance.new("Part")
+        trigger.Name = "DropTrigger"
+        trigger.Anchored = true
+        trigger.CanCollide = false
+        trigger.CanTouch = true
+        trigger.CanQuery = false
+        trigger.Transparency = 1
+        trigger.Size = Vector3.new(door.Size.X - 0.25, 3, door.Size.Z - 0.25)
+        trigger.CFrame = door.CFrame
+        trigger.Parent = model
 
         return model
 end

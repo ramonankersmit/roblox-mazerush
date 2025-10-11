@@ -305,6 +305,20 @@ local function activateTrapDoor(model)
 
         door.Anchored = true
 
+        local dropTrigger = model:FindFirstChild("DropTrigger")
+        if not (dropTrigger and dropTrigger:IsA("BasePart")) then
+                dropTrigger = Instance.new("Part")
+                dropTrigger.Name = "DropTrigger"
+                dropTrigger.Parent = model
+        end
+        dropTrigger.Anchored = true
+        dropTrigger.CanCollide = false
+        dropTrigger.CanTouch = true
+        dropTrigger.CanQuery = false
+        dropTrigger.Transparency = 1
+        dropTrigger.Massless = true
+        dropTrigger.Parent = model
+
         local warningGui = model:FindFirstChild("WarningSign")
         if not warningGui then
                 local frame = model:FindFirstChild("Frame")
@@ -345,6 +359,99 @@ local function activateTrapDoor(model)
         end
 
         local baseCFrame = door.CFrame
+        local dropTriggerSize = Vector3.new(
+                math.max(door.Size.X - 0.25, 1),
+                math.max(door.Size.Y + 2.5, 3),
+                math.max(door.Size.Z - 0.25, 1)
+        )
+        dropTrigger.Size = dropTriggerSize
+        dropTrigger.CFrame = baseCFrame
+
+        local dropCooldowns = setmetatable({}, { __mode = "k" })
+        local DROP_COOLDOWN = 1.5
+        local cachedSpawnPart
+
+        local function findPlayerSpawn()
+                if cachedSpawnPart and cachedSpawnPart.Parent then
+                        return cachedSpawnPart
+                end
+                local spawns = Workspace:FindFirstChild("Spawns")
+                if not spawns then
+                        return nil
+                end
+                local playerSpawn = spawns:FindFirstChild("PlayerSpawn")
+                if playerSpawn and playerSpawn:IsA("BasePart") then
+                        cachedSpawnPart = playerSpawn
+                        return playerSpawn
+                end
+                return nil
+        end
+
+        local function computeTeleportCFrame()
+                local spawnPart = findPlayerSpawn()
+                if spawnPart then
+                        local offsetY = (spawnPart.Size.Y or 1) + 4
+                        return spawnPart.CFrame * CFrame.new(0, offsetY, 0)
+                end
+                return baseCFrame * CFrame.new(0, -12, 0)
+        end
+
+        local function teleportCharacter(character)
+                if not character then
+                        return
+                end
+                local now = os.clock()
+                local last = dropCooldowns[character]
+                if last and (now - last) < DROP_COOLDOWN then
+                        return
+                end
+
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if not humanoid then
+                        return
+                end
+                local root = character:FindFirstChild("HumanoidRootPart")
+                if not (root and root:IsA("BasePart")) then
+                        return
+                end
+
+                dropCooldowns[character] = now
+
+                local targetCFrame = computeTeleportCFrame()
+                if targetCFrame then
+                        root.CFrame = targetCFrame
+                else
+                        root.CFrame = baseCFrame * CFrame.new(0, -12, 0)
+                end
+                root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+        end
+
+        local function processPart(part)
+                if not (part and part:IsA("BasePart")) then
+                        return
+                end
+                if part:IsDescendantOf(model) then
+                        return
+                end
+                if model:GetAttribute("State") ~= "Open" then
+                        return
+                end
+                teleportCharacter(part.Parent)
+        end
+
+        dropTrigger.Touched:Connect(processPart)
+
+        local function processOccupants()
+                if model:GetAttribute("State") ~= "Open" then
+                        return
+                end
+                for _, part in ipairs(dropTrigger:GetTouchingParts()) do
+                        processPart(part)
+                end
+        end
+
         local hingeOffset = Vector3.new(0, 0, door.Size.Z / 2)
 
         local function setDoorAngle(angle)
@@ -363,6 +470,8 @@ local function activateTrapDoor(model)
                                 warningLabel.TextColor3 = Color3.fromRGB(170, 255, 255)
                         end
                         model:SetAttribute("State", "Open")
+                        dropTrigger.CFrame = baseCFrame
+                        task.defer(processOccupants)
                 elseif state == "warning" then
                         door.CanCollide = true
                         door.CanTouch = true
@@ -372,6 +481,7 @@ local function activateTrapDoor(model)
                                 warningLabel.TextColor3 = Color3.fromRGB(255, 221, 85)
                         end
                         model:SetAttribute("State", "Warning")
+                        dropTrigger.CFrame = baseCFrame
                 else
                         door.CanCollide = true
                         door.CanTouch = true
@@ -381,6 +491,7 @@ local function activateTrapDoor(model)
                                 warningLabel.TextColor3 = Color3.fromRGB(255, 85, 64)
                         end
                         model:SetAttribute("State", "Closed")
+                        dropTrigger.CFrame = baseCFrame
                 end
         end
 

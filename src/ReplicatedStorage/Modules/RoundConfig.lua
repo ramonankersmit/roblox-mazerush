@@ -145,7 +145,7 @@ local Config = {
                                 AvoidStart = true,
                                 AvoidExit = true,
                                 AlignToFloor = true,
-                                HeightOffset = 0.5,
+                                HeightOffset = 0,
                                 MinimumSeparation = 2,
                                 Cells = {
                                         { X = 5, Y = 5 },
