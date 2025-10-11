@@ -12,6 +12,7 @@ local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
+local ObstacleSpawner = require(ServerScriptService:WaitForChild("ObstacleSpawner"))
 local LightPrefabs = require(ServerScriptService:WaitForChild("Modules"):WaitForChild("LightPrefabs"))
 local ProgressionService = require(ServerScriptService:WaitForChild("ProgressionService"))
 
@@ -196,6 +197,12 @@ local function layoutExitRoom()
 end
 
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
+local obstaclePrefabsFolder = prefabs:FindFirstChild("Obstacles")
+if not (obstaclePrefabsFolder and obstaclePrefabsFolder:IsA("Folder")) then
+        obstaclePrefabsFolder = Instance.new("Folder")
+        obstaclePrefabsFolder.Name = "Obstacles"
+        obstaclePrefabsFolder.Parent = prefabs
+end
 LightPrefabs.Ensure(prefabs)
 
 local function ensurePart(name, size)
@@ -1250,6 +1257,8 @@ local function runRound()
         end
 
         placeExit()
+
+        ObstacleSpawner.SpawnObstacles(Config, { MazeFolder = mazeFolder })
 
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
         enforceMinimumSentryCount()

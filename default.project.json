@@ -100,7 +100,17 @@
     "ServerStorage": {
       "$className": "ServerStorage",
       "$path": "src/ServerStorage",
-      "$ignoreUnknownInstances": true
+      "$ignoreUnknownInstances": true,
+      "Prefabs": {
+        "$className": "Folder",
+        "$path": "src/ServerStorage/Prefabs",
+        "$ignoreUnknownInstances": true,
+        "Obstacles": {
+          "$className": "Folder",
+          "$path": "src/ServerStorage/Prefabs/Obstacles",
+          "$ignoreUnknownInstances": true
+        }
+      }
     },
 
     "StarterPlayer": {

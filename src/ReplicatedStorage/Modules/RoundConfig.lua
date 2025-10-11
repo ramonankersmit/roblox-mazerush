@@ -114,6 +114,56 @@ local Config = {
                 },
         },
 
+
+        Obstacles = {
+                MovingPlatform = {
+                        Type = "MovingPlatform",
+                        Count = 2,
+                        PrefabName = "MovingPlatform",
+                        Spawn = {
+                                Mode = "RandomCells",
+                                AvoidStart = true,
+                                AvoidExit = true,
+                                AlignToFloor = true,
+                                HeightOffset = 0.5,
+                                MinimumSeparation = 4,
+                        },
+                        Attributes = {
+                                MovementAxis = "X",
+                                MovementDistance = 24,
+                                TravelTime = 6,
+                                PauseDuration = 1.5,
+                                ObstacleType = "MovingPlatform",
+                        },
+                },
+                TrapDoor = {
+                        Type = "TrapDoor",
+                        Count = 4,
+                        PrefabName = "TrapDoor",
+                        Spawn = {
+                                Mode = "RandomCells",
+                                AvoidStart = true,
+                                AvoidExit = true,
+                                AlignToFloor = true,
+                                HeightOffset = 0,
+                                MinimumSeparation = 2,
+                                Cells = {
+                                        { X = 5, Y = 5 },
+                                        { X = 15, Y = 10 },
+                                },
+                        },
+                        Attributes = {
+                                OpenDuration = 2.5,
+                                ClosedDuration = 5,
+                                WarningDuration = 1,
+                                OpenTransparency = 0.85,
+                                WarningTransparency = 0.6,
+                                ClosedTransparency = 0,
+                                ObstacleType = "TrapDoor",
+                        },
+                },
+        },
+	-- Default algoritme (server kan runtime wisselen via State.MazeAlgorithm)
 	-- Beloningsconfiguratie: ontwerpers kunnen deze waarden aanpassen zonder scripts te wijzigen.
 	-- Coins/XP zijn gehele bedragen; per-seconde/-actie waarden worden afgerond op hele nummers.
         Rewards = {
