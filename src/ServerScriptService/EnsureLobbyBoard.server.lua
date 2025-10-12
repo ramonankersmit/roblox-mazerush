@@ -1208,8 +1208,13 @@ local function updateBoardPlacement()
 
     votePanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
     local direction = buttonOffsetX >= 0 and 1 or -1
+    local countdownDepth = -(playerStand.Size.Z * 0.5 - countdownPanel.Size.Z * 0.5 - 0.02)
+    local countdownOffsetX = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + countdownPanel.Size.X * 0.5 + countdownButtonGap)
+    countdownPanel.CFrame = pivot * CFrame.new(countdownOffsetX, buttonHeightOffset, countdownDepth)
+    countdownButton.CFrame = countdownPanel.CFrame * CFrame.new(0, 0, -(countdownPanel.Size.Z * 0.5 + countdownButton.Size.Z * 0.5 - 0.01))
+
     local voteGap = math.max(startButtonMinGap, 1.2)
-    local desiredOffset = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
+    local desiredOffset = countdownOffsetX + direction * (countdownPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
     local minOffset = direction * (playerStand.Size.X * 0.5 + votePanel.Size.X * 0.5 + startButtonMinGap)
     local voteOffsetX
     if direction >= 0 then
