@@ -11,6 +11,7 @@ local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
 local StartThemeCountdown = Remotes:WaitForChild("StartThemeCountdown")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
+local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
 
 local ThemeModule = ReplicatedStorage:FindFirstChild("Modules")
 local ThemeConfig = ThemeModule and require(ThemeModule:WaitForChild("ThemeConfig"))
@@ -41,7 +42,7 @@ if not themeStand or not themeStand:IsA("BasePart") then
 end
 
 local startPanel = boardModel:FindFirstChild("StartPanel")
-local countdownPanel = boardModel:FindFirstChild("CountdownPanel")
+local votePanel = boardModel:FindFirstChild("VotePanel")
 local playerSurface = playerStand:FindFirstChild("PlayerSurface")
 if not playerSurface or not playerSurface:IsA("SurfaceGui") then
     warn("[LobbyBoard] PlayerSurface SurfaceGui missing")
@@ -108,6 +109,9 @@ local consolePrompt = playerStand:FindFirstChild("ConsolePrompt")
 local startButton = boardModel:FindFirstChild("StartButton")
 local startPrompt = startButton and startButton:FindFirstChild("StartPrompt")
 local startClickDetector = startButton and startButton:FindFirstChild("StartClick")
+local voteButton = boardModel:FindFirstChild("VoteButton")
+local votePrompt = voteButton and voteButton:FindFirstChild("VotePrompt")
+local voteClickDetector = voteButton and voteButton:FindFirstChild("VoteClick")
 
 local countdownButton = boardModel:FindFirstChild("CountdownButton")
 local countdownPrompt = countdownButton and countdownButton:FindFirstChild("CountdownPrompt")
@@ -117,8 +121,8 @@ if startClickDetector then
     startClickDetector.MaxActivationDistance = 0
 end
 
-if countdownClickDetector then
-    countdownClickDetector.MaxActivationDistance = 0
+if voteClickDetector then
+    voteClickDetector.MaxActivationDistance = 0
 end
 
 local setConsoleOpen
@@ -293,6 +297,9 @@ local function ensureConsoleGui()
     end)
 
     consoleReadyButton.MouseButton1Click:Connect(function()
+        if not isVoteInteractionEnabled() then
+            return
+        end
         ToggleReady:FireServer()
     end)
 end
@@ -395,6 +402,9 @@ local function ensureConsoleThemeEntry(themeId)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
+        if not isVoteInteractionEnabled() then
+            return
+        end
         if themeId == RANDOM_THEME_ID then
             ThemeVote:FireServer(RANDOM_THEME_ID)
         else
@@ -440,8 +450,8 @@ local function updateBoardVisibility(state)
     setPartVisible(themeStand, shouldShow)
     setPartVisible(startPanel, shouldShow)
     setPartVisible(startButton, shouldShow)
-    setPartVisible(countdownPanel, shouldShow)
-    setPartVisible(countdownButton, shouldShow)
+    setPartVisible(votePanel, shouldShow)
+    setPartVisible(voteButton, shouldShow)
 
     if playerSurface then
         playerSurface.Enabled = shouldShow
@@ -458,6 +468,13 @@ local function updateBoardVisibility(state)
         local buttonGui = startButton:FindFirstChildWhichIsA("SurfaceGui")
         if buttonGui then
             buttonGui.Enabled = shouldShow
+        end
+    end
+
+    if voteButton then
+        local voteGui = voteButton:FindFirstChildWhichIsA("SurfaceGui")
+        if voteGui then
+            voteGui.Enabled = shouldShow
         end
     end
 
@@ -747,6 +764,18 @@ local latestState = nil
 local latestThemeState = nil
 local pendingAutoReady = false
 
+local function isVoteInteractionEnabled()
+    local state = latestState
+    if not state then
+        return false
+    end
+    if state.phase ~= "IDLE" and state.phase ~= "PREP" then
+        return false
+    end
+    local themeState = latestThemeState or state.themes
+    return themeState and themeState.active == true
+end
+
 local function isLocalReady()
     local stored = readyStates[localPlayer.UserId]
     if stored ~= nil then
@@ -766,6 +795,11 @@ end
 
 ensureReadyAfterVote = function()
     if pendingAutoReady then
+        return
+    end
+
+    if not isVoteInteractionEnabled() then
+        pendingAutoReady = false
         return
     end
 
@@ -830,6 +864,7 @@ local function updateConsoleDisplay(state, themeState)
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
     local voteActive = themeState.active == true
+    local interactionsEnabled = voteActive and (state.phase == "IDLE" or state.phase == "PREP")
 
     local myInfo = nil
     for _, info in ipairs(state.players or {}) do
@@ -853,8 +888,16 @@ local function updateConsoleDisplay(state, themeState)
         consoleStatusLabel.Text = string.format("Gereed: %d/%d · %s", readyCount, totalPlayers, statusVotesText)
     end
 
-    consoleReadyButton.Text = myReady and "Ik ben niet klaar" or "Ik ben klaar"
-    consoleReadyButton.BackgroundColor3 = myReady and Color3.fromRGB(102, 64, 74) or Color3.fromRGB(32, 98, 76)
+    consoleReadyButton.AutoButtonColor = interactionsEnabled
+    consoleReadyButton.Active = interactionsEnabled
+    if interactionsEnabled then
+        consoleReadyButton.Text = myReady and "Ik ben niet klaar" or "Ik ben klaar"
+        consoleReadyButton.BackgroundColor3 = myReady and Color3.fromRGB(102, 64, 74) or Color3.fromRGB(32, 98, 76)
+    else
+        consoleReadyButton.Text = "Wacht op stemronde"
+        consoleReadyButton.BackgroundColor3 = Color3.fromRGB(54, 60, 76)
+    end
+    consoleReadyButton.TextColor3 = interactionsEnabled and Color3.fromRGB(235, 240, 255) or Color3.fromRGB(180, 188, 210)
 
     local voteName = nil
     if myVote then
@@ -895,9 +938,9 @@ local function updateConsoleDisplay(state, themeState)
         entry.stroke.Color = (myVote == option.id) and ratioColor or Color3.fromRGB(110, 120, 160)
         entry.stroke.Transparency = (myVote == option.id) and 0.15 or 0.6
         entry.button.BackgroundColor3 = (myVote == option.id) and Color3.fromRGB(42, 50, 74) or Color3.fromRGB(36, 42, 66)
-        entry.button.AutoButtonColor = voteActive
-        entry.button.Active = voteActive
-        entry.button.Selectable = voteActive
+        entry.button.AutoButtonColor = interactionsEnabled
+        entry.button.Active = interactionsEnabled
+        entry.button.Selectable = interactionsEnabled
         seen[option.id] = true
     end
 
@@ -1014,6 +1057,9 @@ local function ensureThemeOptionEntry(themeId)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
+        if not isVoteInteractionEnabled() then
+            return
+        end
         local voteId = themeId == "random" and RANDOM_THEME_ID or themeId
         ThemeVote:FireServer(voteId)
         ensureReadyAfterVote()
@@ -1037,17 +1083,14 @@ local function applyThemePanelVisibility(themeState)
     if not themePanel then
         return
     end
-    if not themeState or not themeState.options or #themeState.options == 0 then
-        themePanel.Visible = false
-    else
-        themePanel.Visible = true
-    end
+    local hasOptions = themeState and themeState.options and #themeState.options > 0
+    themePanel.Visible = true
 
     if themeOptionsFrame then
-        themeOptionsFrame.Visible = themePanel.Visible
+        themeOptionsFrame.Visible = hasOptions
     end
     if themeHintLabel then
-        themeHintLabel.Visible = themePanel.Visible
+        themeHintLabel.Visible = true
     end
 end
 
@@ -1069,10 +1112,34 @@ local function updateThemePanel(themeState, state)
     local activeVote = themeState.active == true
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
+    local hasOptions = themeState.options and #themeState.options > 0
+    local voteInteractionsEnabled = activeVote and state and (state.phase == "IDLE" or state.phase == "PREP")
 
     handleCountdownState(activeVote, countdownActive, endsIn)
 
-    if not themePanel.Visible then
+    if not hasOptions then
+        if themeHeaderLabel and themeHeaderLabel:IsA("TextLabel") then
+            themeHeaderLabel.Text = "Start een stemronde"
+            themeHeaderLabel.TextColor3 = Color3.fromRGB(220, 226, 255)
+        end
+        if themeNameLabel and themeNameLabel:IsA("TextLabel") then
+            themeNameLabel.Text = "Wacht op thema-keuze"
+            themeNameLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
+        end
+        if themeCountdownLabel and themeCountdownLabel:IsA("TextLabel") then
+            themeCountdownLabel.Text = activeVote and "Voorbereiden..." or "Nog niet gestart"
+            themeCountdownLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+        end
+        if themeHintLabel and themeHintLabel:IsA("TextLabel") then
+            themeHintLabel.Text = "Host: druk op de linkse knop om vier thema's te kiezen."
+            themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
+        end
+        updatePreviewHighlights(nil, nil)
+        for _, entry in pairs(themeButtons) do
+            if entry and entry.button then
+                entry.button.Visible = false
+            end
+        end
         return
     end
 
@@ -1087,18 +1154,25 @@ local function updateThemePanel(themeState, state)
         myVote = RANDOM_THEME_ID
     end
 
-    local leaderId = themeState.current
-    local leaderVotes = -1
+    local leaderId = themeState.leader or themeState.current
+    local leaderVotes = themeState.leaderVotes
+    if type(leaderVotes) ~= "number" then
+        leaderVotes = leaderId and 0 or -1
+    end
     if themeState.options then
         for index, option in ipairs(themeState.options) do
             local votes = option.votes or 0
-            if leaderId == option.id and leaderVotes < votes then
-                leaderVotes = votes
-            end
-            if votes > leaderVotes then
+            if leaderId == nil then
                 leaderId = option.id
                 leaderVotes = votes
-            elseif leaderId == nil and index == 1 then
+            elseif option.id == leaderId then
+                if votes > leaderVotes then
+                    leaderVotes = votes
+                end
+            elseif votes > leaderVotes then
+                leaderId = option.id
+                leaderVotes = votes
+            elseif leaderVotes < 0 and index == 1 then
                 leaderId = option.id
                 leaderVotes = votes
             end
@@ -1106,7 +1180,12 @@ local function updateThemePanel(themeState, state)
     end
 
     local resolvedLeaderName, leaderColor = resolveThemeName(leaderId, themeState)
-    local leaderName = themeState.currentName or resolvedLeaderName or leaderId or "?"
+    local leaderName
+    if activeVote then
+        leaderName = resolvedLeaderName or themeState.leaderName or themeState.currentName or leaderId or "?"
+    else
+        leaderName = themeState.currentName or resolvedLeaderName or leaderId or "?"
+    end
     local highlightColor = leaderColor or resolveThemeColor(leaderId)
 
     if themeOptionsFrame then
@@ -1128,9 +1207,9 @@ local function updateThemePanel(themeState, state)
                 entry.button.BackgroundColor3 = myVote == optionId and Color3.fromRGB(36, 46, 68) or Color3.fromRGB(28, 32, 48)
                 entry.stroke.Color = (myVote == optionId or optionId == leaderId) and color or Color3.fromRGB(110, 120, 160)
                 entry.stroke.Transparency = (myVote == optionId or optionId == leaderId) and 0.25 or 0.6
-                entry.button.AutoButtonColor = activeVote
-                entry.button.Active = activeVote
-                entry.button.Selectable = activeVote
+                entry.button.AutoButtonColor = voteInteractionsEnabled
+                entry.button.Active = voteInteractionsEnabled
+                entry.button.Selectable = voteInteractionsEnabled
                 if entry.tag then
                     if myVote == optionId then
                         entry.tag.Visible = true
@@ -1202,11 +1281,21 @@ local function updateThemePanel(themeState, state)
     if themeHintLabel and themeHintLabel:IsA("TextLabel") then
         if activeVote then
             themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
-            if myVote then
+            local leaderMessage
+            if leaderName and leaderName ~= "" then
+                leaderMessage = string.format("Aan kop: %s", leaderName)
+            end
+            if readyCount == 0 then
+                themeHintLabel.Text = leaderMessage and string.format("%s · Meld je klaar om de stemming te starten.", leaderMessage) or "Meld je klaar om de stemming te starten."
+            elseif myVote then
                 local myName = resolveThemeName(myVote, themeState)
-                themeHintLabel.Text = string.format("Je stem: %s · tik om te wijzigen.", myName or myVote)
+                if leaderMessage then
+                    themeHintLabel.Text = string.format("%s · Je stem: %s · tik om te wijzigen.", leaderMessage, myName or myVote)
+                else
+                    themeHintLabel.Text = string.format("Je stem: %s · tik om te wijzigen.", myName or myVote)
+                end
             else
-                themeHintLabel.Text = "Tik op een thema om je stem uit te brengen."
+                themeHintLabel.Text = leaderMessage and string.format("%s · Tik op een thema om je stem uit te brengen.", leaderMessage) or "Tik op een thema om je stem uit te brengen."
             end
         else
             themeHintLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
@@ -1421,14 +1510,22 @@ local function updatePrompts(state)
     local themeState = state.themes or {}
     local canStartCountdown = themeState.canStartCountdown == true and showPrompts
 
-    if consolePrompt then
-        consolePrompt.Enabled = showPrompts
-        consolePrompt.ActionText = consoleOpen and "Sluit console" or "Open console"
-        consolePrompt.ObjectText = "Lobbyconsole"
-    end
-
     local isHost = state.host == localPlayer.UserId
     local readyCount = state.readyCount or 0
+    local themeState = state.themes or {}
+    local voteActive = themeState.active == true
+    local consoleCanOpen = showPrompts and voteActive
+
+    if consolePrompt then
+        consolePrompt.Enabled = consoleCanOpen
+        if voteActive then
+            consolePrompt.ActionText = consoleOpen and "Sluit console" or "Open console"
+            consolePrompt.ObjectText = "Lobbyconsole"
+        else
+            consolePrompt.ActionText = "Wacht op stemronde"
+            consolePrompt.ObjectText = "Lobbyconsole"
+        end
+    end
 
     if startPrompt then
         startPrompt.Enabled = showPrompts and isHost
@@ -1441,6 +1538,21 @@ local function updatePrompts(state)
         end
     end
 
+    if votePrompt then
+        votePrompt.Enabled = showPrompts and isHost and not voteActive
+        if isHost then
+            if voteActive then
+                votePrompt.ActionText = "Stemronde bezig"
+            else
+                votePrompt.ActionText = "Start stemronde"
+            end
+            votePrompt.ObjectText = "Themaknop"
+        else
+            votePrompt.ActionText = "Alleen host"
+            votePrompt.ObjectText = "Themaknop"
+        end
+    end
+
     if startClickDetector then
         if showPrompts and isHost and readyCount > 0 then
             startClickDetector.MaxActivationDistance = 14
@@ -1449,23 +1561,11 @@ local function updatePrompts(state)
         end
     end
 
-    if countdownPrompt then
-        if canStartCountdown then
-            countdownPrompt.Enabled = true
-            countdownPrompt.ActionText = "Start aftellen"
-            countdownPrompt.ObjectText = "Aftelknop"
+    if voteClickDetector then
+        if showPrompts and isHost and not voteActive then
+            voteClickDetector.MaxActivationDistance = 14
         else
-            countdownPrompt.Enabled = false
-            countdownPrompt.ActionText = themeState.active and "Stemming bezig" or "Niet beschikbaar"
-            countdownPrompt.ObjectText = "Aftelknop"
-        end
-    end
-
-    if countdownClickDetector then
-        if canStartCountdown then
-            countdownClickDetector.MaxActivationDistance = 14
-        else
-            countdownClickDetector.MaxActivationDistance = 0
+            voteClickDetector.MaxActivationDistance = 0
         end
     end
 
@@ -1487,15 +1587,23 @@ local function updatePrompts(state)
                 end
             end
         else
-            if canStartCountdown then
-                actionHint.Text = "Druk op de aftelknop om een thema te kiezen."
+            if isHost then
+                if voteActive then
+                    actionHint.Text = "Stemronde actief. Gebruik de knoppen om het spel te starten."
+                else
+                    actionHint.Text = "Host: druk op de themaknop om een stemronde te starten."
+                end
             else
-                actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+                if voteActive then
+                    actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+                else
+                    actionHint.Text = "Wacht tot de host een stemronde start."
+                end
             end
         end
     end
 
-    if not showPrompts and consoleOpen and setConsoleOpen then
+    if (not consoleCanOpen or not showPrompts) and consoleOpen and setConsoleOpen then
         setConsoleOpen(false)
     end
 end
@@ -1593,23 +1701,26 @@ local function attemptStart()
     end
 end
 
-local function canLocalStartCountdown()
+local function canLocalStartVote()
     if not latestState then
         return false
     end
     if latestState.phase ~= "IDLE" then
         return false
     end
+    if latestState.host ~= localPlayer.UserId then
+        return false
+    end
     local themeState = latestState.themes or {}
-    if not themeState.canStartCountdown then
+    if themeState.active == true then
         return false
     end
     return true
 end
 
-local function attemptStartCountdown()
-    if canLocalStartCountdown() then
-        StartThemeCountdown:FireServer()
+local function attemptStartVote()
+    if canLocalStartVote() then
+        StartThemeVote:FireServer()
     end
 end
 
@@ -1667,12 +1778,15 @@ end
 
 LobbyState.OnClientEvent:Connect(renderState)
 
-if consolePrompt or startPrompt or countdownPrompt then
+if consolePrompt or startPrompt or votePrompt then
     ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
         if player ~= localPlayer then
             return
         end
         if prompt == consolePrompt then
+            if not isVoteInteractionEnabled() then
+                return
+            end
             if setConsoleOpen then
                 setConsoleOpen(not consoleOpen)
                 if latestState then
@@ -1681,8 +1795,8 @@ if consolePrompt or startPrompt or countdownPrompt then
             end
         elseif prompt == startPrompt then
             attemptStart()
-        elseif prompt == countdownPrompt then
-            attemptStartCountdown()
+        elseif prompt == votePrompt then
+            attemptStartVote()
         end
     end)
 end
@@ -1707,21 +1821,21 @@ if startClickDetector then
     end
 end
 
-if countdownClickDetector then
-    countdownClickDetector.MouseClick:Connect(function(player)
+if voteClickDetector then
+    voteClickDetector.MouseClick:Connect(function(player)
         if player == localPlayer then
-            attemptStartCountdown()
+            attemptStartVote()
         end
     end)
 
     local ok, touchTapSignal = pcall(function()
-        return countdownClickDetector.TouchTap
+        return voteClickDetector.TouchTap
     end)
 
     if ok and touchTapSignal then
         touchTapSignal:Connect(function(player)
             if player == localPlayer then
-                attemptStartCountdown()
+                attemptStartVote()
             end
         end)
     end

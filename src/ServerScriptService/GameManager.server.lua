@@ -28,6 +28,7 @@ local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
 ensureRemote("ThemeVote")
+ensureRemote("StartThemeVote")
 
 local ThemeConfig = require(Replicated.Modules.ThemeConfig)
 ensureRemote("SetLoopChance")

@@ -685,25 +685,25 @@ local function ensureLobbyBoard()
     startButton.Color = Color3.fromRGB(255, 183, 72)
     startButton.Parent = boardModel
 
-    local countdownPanel = Instance.new("Part")
-    countdownPanel.Name = "CountdownPanel"
-    countdownPanel.Anchored = true
-    countdownPanel.CanCollide = false
-    countdownPanel.CastShadow = false
-    countdownPanel.Material = Enum.Material.SmoothPlastic
-    countdownPanel.Color = Color3.fromRGB(28, 32, 50)
-    countdownPanel.Size = Vector3.new(1.4, math.max(1.6, boardHeight * 0.22), 0.35)
-    countdownPanel.Parent = boardModel
+    local votePanel = Instance.new("Part")
+    votePanel.Name = "VotePanel"
+    votePanel.Anchored = true
+    votePanel.CanCollide = false
+    votePanel.CastShadow = false
+    votePanel.Material = Enum.Material.SmoothPlastic
+    votePanel.Color = Color3.fromRGB(34, 38, 54)
+    votePanel.Size = Vector3.new(1.4, math.max(1.6, boardHeight * 0.22), 0.35)
+    votePanel.Parent = boardModel
 
-    local countdownButton = Instance.new("Part")
-    countdownButton.Name = "CountdownButton"
-    countdownButton.Anchored = true
-    countdownButton.CanCollide = false
-    countdownButton.CastShadow = false
-    countdownButton.Size = Vector3.new(0.7, 0.7, 0.24)
-    countdownButton.Material = Enum.Material.Neon
-    countdownButton.Color = Color3.fromRGB(140, 196, 255)
-    countdownButton.Parent = boardModel
+    local voteButton = Instance.new("Part")
+    voteButton.Name = "VoteButton"
+    voteButton.Anchored = true
+    voteButton.CanCollide = false
+    voteButton.CastShadow = false
+    voteButton.Size = Vector3.new(0.7, 0.7, 0.24)
+    voteButton.Material = Enum.Material.Neon
+    voteButton.Color = Color3.fromRGB(90, 190, 255)
+    voteButton.Parent = boardModel
 
     local playerSurface = createSurface(playerStand, "PlayerSurface")
     local playerBoard = createFrame(playerSurface, "PlayerBoard", UDim2.new(1, 0, 1, 0), UDim2.new(), {
@@ -943,19 +943,27 @@ local function ensureLobbyBoard()
         TextScaled = true,
     })
 
-    local countdownGui = Instance.new("SurfaceGui")
-    countdownGui.Name = "ButtonLabel"
-    countdownGui.Face = Enum.NormalId.Front
-    countdownGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    countdownGui.PixelsPerStud = 80
-    countdownGui.LightInfluence = 0
-    countdownGui.Adornee = countdownButton
-    countdownGui.ResetOnSpawn = false
-    countdownGui.Parent = countdownButton
+    local votePrompt = createPrompt(voteButton, "VotePrompt", "Start stemronde", "Themaknop", Enum.KeyCode.Q, 0, Vector2.new(0, -4))
+    votePrompt.GamepadKeyCode = Enum.KeyCode.ButtonX
 
-    local countdownLabel = createTextLabel(countdownGui, "Label", "AFTELLING", UDim2.new(1, 0, 1, 0), UDim2.new(), {
+    local voteClickDetector = Instance.new("ClickDetector")
+    voteClickDetector.Name = "VoteClick"
+    voteClickDetector.MaxActivationDistance = 14
+    voteClickDetector.Parent = voteButton
+
+    local voteGui = Instance.new("SurfaceGui")
+    voteGui.Name = "ButtonLabel"
+    voteGui.Face = Enum.NormalId.Front
+    voteGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    voteGui.PixelsPerStud = 80
+    voteGui.LightInfluence = 0
+    voteGui.Adornee = voteButton
+    voteGui.ResetOnSpawn = false
+    voteGui.Parent = voteButton
+
+    createTextLabel(voteGui, "Label", "STEM", UDim2.new(1, 0, 1, 0), UDim2.new(), {
         Font = Enum.Font.GothamBlack,
-        TextColor3 = Color3.fromRGB(18, 24, 36),
+        TextColor3 = Color3.fromRGB(24, 28, 38),
         TextScaled = true,
     })
 
@@ -975,8 +983,8 @@ local function ensureLobbyBoard()
         themeStand = themeStand,
         startPanel = startPanel,
         startButton = startButton,
-        countdownPanel = countdownPanel,
-        countdownButton = countdownButton,
+        votePanel = votePanel,
+        voteButton = voteButton,
         billboardAnchor = billboardAnchor,
     }
 end
@@ -990,11 +998,11 @@ local playerStand = components.playerStand
 local themeStand = components.themeStand
 local startPanel = components.startPanel
 local startButton = components.startButton
-local countdownPanel = components.countdownPanel
-local countdownButton = components.countdownButton
+local votePanel = components.votePanel
+local voteButton = components.voteButton
 local billboardAnchor = components.billboardAnchor
 
-if not playerStand or not themeStand or not startPanel or not startButton or not countdownPanel or not countdownButton then
+if not playerStand or not themeStand or not startPanel or not startButton or not votePanel or not voteButton then
     return
 end
 
@@ -1002,7 +1010,7 @@ local boardSpacing = 0.8
 local boardThickness = 0.8
 local playerWidth = 6.5 * boardWidthScale
 local themeWidth = 6.25 * boardWidthScale
-local startButtonBaseGap = 0.9
+local startButtonBaseGap = 1.4
 local startButtonMinGap = 0.3
 local countdownButtonGap = 0.9
 
@@ -1165,10 +1173,20 @@ local function updateBoardPlacement()
     startPanel.CFrame = pivot * CFrame.new(buttonOffsetX, buttonHeightOffset, buttonDepth)
     startButton.CFrame = startPanel.CFrame * CFrame.new(0, 0, -(startPanel.Size.Z * 0.5 + startButton.Size.Z * 0.5 - 0.01))
 
-    local countdownDepth = -(playerStand.Size.Z * 0.5 - countdownPanel.Size.Z * 0.5 - 0.02)
-    local countdownOffsetX = -(playerStand.Size.X * 0.5 + boardSpacing + themeStand.Size.X + countdownPanel.Size.X * 0.5 + countdownButtonGap)
-    countdownPanel.CFrame = pivot * CFrame.new(countdownOffsetX, 0, countdownDepth)
-    countdownButton.CFrame = countdownPanel.CFrame * CFrame.new(0, 0, -(countdownPanel.Size.Z * 0.5 + countdownButton.Size.Z * 0.5 - 0.01))
+    votePanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
+    local direction = buttonOffsetX >= 0 and 1 or -1
+    local voteGap = math.max(startButtonMinGap, 1.2)
+    local desiredOffset = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
+    local minOffset = direction * (playerStand.Size.X * 0.5 + votePanel.Size.X * 0.5 + startButtonMinGap)
+    local voteOffsetX
+    if direction >= 0 then
+        voteOffsetX = math.max(desiredOffset, minOffset)
+    else
+        voteOffsetX = math.min(desiredOffset, minOffset)
+    end
+    local voteDepth = -(playerStand.Size.Z * 0.5 - votePanel.Size.Z * 0.5 - 0.02)
+    votePanel.CFrame = pivot * CFrame.new(voteOffsetX, buttonHeightOffset, voteDepth)
+    voteButton.CFrame = votePanel.CFrame * CFrame.new(0, 0, -(votePanel.Size.Z * 0.5 + voteButton.Size.Z * 0.5 - 0.01))
 
     boardModel.PrimaryPart = playerStand
     boardModel:PivotTo(pivot)
