@@ -2802,35 +2802,25 @@ local function createLegacyLobbyUI(parentGui)
 end
 
 local legacyLobbyUI = createLegacyLobbyUI(gui)
-local lobby = legacyLobbyUI.lobby
-local listLbl = legacyLobbyUI.listLabel
-local themePanel = legacyLobbyUI.themePanel
-local themeHeader = legacyLobbyUI.themeHeader
-local winningLabel = legacyLobbyUI.winningLabel
-local themeCountdown = legacyLobbyUI.themeCountdown
-local themeHintLabel = legacyLobbyUI.themeHintLabel
-local themeStartButton = legacyLobbyUI.themeStartButton
-local themeOptions = legacyLobbyUI.themeOptions
-local themeLayout = legacyLobbyUI.themeLayout
-local btnReady = legacyLobbyUI.readyButton
-local btnStart = legacyLobbyUI.startButton
 
-themeStartButton.MouseButton1Click:Connect(function()
-        if not lastLobbyState then
-                return
-        end
-        if lastLobbyState.host ~= player.UserId then
-                return
-        end
-        if lastLobbyState.phase ~= "IDLE" then
-                return
-        end
-        local currentThemeState = lastLobbyState.themes or {}
-        if currentThemeState.active == true then
-                return
-        end
-        StartThemeVote:FireServer()
-end)
+if legacyLobbyUI.themeStartButton then
+        legacyLobbyUI.themeStartButton.MouseButton1Click:Connect(function()
+                if not lastLobbyState then
+                        return
+                end
+                if lastLobbyState.host ~= player.UserId then
+                        return
+                end
+                if lastLobbyState.phase ~= "IDLE" then
+                        return
+                end
+                local currentThemeState = lastLobbyState.themes or {}
+                if currentThemeState.active == true then
+                        return
+                end
+                StartThemeVote:FireServer()
+        end)
+end
 
 local function hasLobbyStatusBoard()
         local lobbyFolder = workspace:FindFirstChild("Lobby")
@@ -2846,19 +2836,34 @@ local lastLobbyState = nil
 
 local function applyLobbyBoardVisibility()
         local hideLegacy = lobbyBoardActive
-        lobby.Visible = not hideLegacy
-        themePanel.Visible = not hideLegacy
-        listLbl.Visible = not hideLegacy
-        btnReady.Visible = not hideLegacy
-        btnStart.Visible = not hideLegacy
-        if hideLegacy then
-                btnReady.Active = false
-                btnReady.AutoButtonColor = false
-                btnStart.Active = false
-                btnStart.AutoButtonColor = false
-        else
-                btnReady.AutoButtonColor = true
-                btnStart.AutoButtonColor = true
+        if legacyLobbyUI.lobby then
+                legacyLobbyUI.lobby.Visible = not hideLegacy
+        end
+        if legacyLobbyUI.themePanel then
+                legacyLobbyUI.themePanel.Visible = not hideLegacy
+        end
+        if legacyLobbyUI.listLabel then
+                legacyLobbyUI.listLabel.Visible = not hideLegacy
+        end
+        if legacyLobbyUI.readyButton then
+                legacyLobbyUI.readyButton.Visible = not hideLegacy
+                if hideLegacy then
+                        legacyLobbyUI.readyButton.Active = false
+                        legacyLobbyUI.readyButton.AutoButtonColor = false
+                else
+                        legacyLobbyUI.readyButton.Active = true
+                        legacyLobbyUI.readyButton.AutoButtonColor = true
+                end
+        end
+        if legacyLobbyUI.startButton then
+                legacyLobbyUI.startButton.Visible = not hideLegacy
+                if hideLegacy then
+                        legacyLobbyUI.startButton.Active = false
+                        legacyLobbyUI.startButton.AutoButtonColor = false
+                else
+                        legacyLobbyUI.startButton.Active = true
+                        legacyLobbyUI.startButton.AutoButtonColor = true
+                end
         end
 end
 
@@ -2903,6 +2908,10 @@ local themeButtons = {}
 local activeThemeVote = false
 
 local function ensureThemeButton(themeId)
+        local themeOptions = legacyLobbyUI.themeOptions
+        if not themeOptions then
+                return nil
+        end
         local entry = themeButtons[themeId]
         if entry then return entry end
 
@@ -2994,6 +3003,14 @@ local function ensureThemeButton(themeId)
 end
 
 local function renderThemeState(themeState, lobbyState)
+        local lobby = legacyLobbyUI.lobby
+        local themePanel = legacyLobbyUI.themePanel
+        local themeCountdown = legacyLobbyUI.themeCountdown
+        local winningLabel = legacyLobbyUI.winningLabel
+        local themeHeader = legacyLobbyUI.themeHeader
+        local themeHintLabel = legacyLobbyUI.themeHintLabel
+        local themeStartButton = legacyLobbyUI.themeStartButton
+
         lobbyState = lobbyState or {}
         themeState = themeState or {}
         local options = themeState.options or {}
@@ -3207,15 +3224,24 @@ local function renderThemeState(themeState, lobbyState)
         end
 end
 
-btnReady.MouseButton1Click:Connect(function()
-        ToggleReady:FireServer()
-end)
+if legacyLobbyUI.readyButton then
+        legacyLobbyUI.readyButton.MouseButton1Click:Connect(function()
+                ToggleReady:FireServer()
+        end)
+end
 
-btnStart.MouseButton1Click:Connect(function()
-	StartGameRequest:FireServer()
-end)
+if legacyLobbyUI.startButton then
+        legacyLobbyUI.startButton.MouseButton1Click:Connect(function()
+                StartGameRequest:FireServer()
+        end)
+end
 
 renderLobby = function(state)
+        local lobby = legacyLobbyUI.lobby
+        local listLbl = legacyLobbyUI.listLabel
+        local btnReady = legacyLobbyUI.readyButton
+        local btnStart = legacyLobbyUI.startButton
+
         lastLobbyState = state
         if state and state.phase then
                 currentLobbyPhase = state.phase
@@ -3235,27 +3261,34 @@ renderLobby = function(state)
 	for _, p in ipairs(state.players or {}) do
 		table.insert(lines, string.format(" - %s %s", p.name, p.ready and "[READY]" or ""))
 	end
-        if lobbyBoardActive then
-                listLbl.Text = ""
-        else
-                listLbl.Text = table.concat(lines, "\n")
+        if listLbl then
+                if lobbyBoardActive then
+                        listLbl.Text = ""
+                else
+                        listLbl.Text = table.concat(lines, "\n")
+                end
         end
 
-	-- Show/hide panel based on phase: visible in IDLE/PREP
+        -- Show/hide panel based on phase: visible in IDLE/PREP
         local showLobby = (not lobbyBoardActive) and isLobbyPhase(state.phase)
-        lobby.Visible = showLobby
+        if lobby then
+                lobby.Visible = showLobby
+        end
 
-	-- Buttons disabled during ACTIVE/END
-        if lobbyBoardActive then
-                btnReady.AutoButtonColor = false
-                btnReady.Active = false
-                btnStart.AutoButtonColor = false
-                btnStart.Active = false
-        else
-                btnReady.AutoButtonColor = showLobby
-                btnReady.Active = showLobby
-                btnStart.AutoButtonColor = (state.phase == "IDLE")
-                btnStart.Active = (state.phase == "IDLE")
+        -- Buttons disabled during ACTIVE/END
+        if btnReady and btnStart then
+                if lobbyBoardActive then
+                        btnReady.AutoButtonColor = false
+                        btnReady.Active = false
+                        btnStart.AutoButtonColor = false
+                        btnStart.Active = false
+                else
+                        btnReady.AutoButtonColor = showLobby
+                        btnReady.Active = showLobby
+                        local canStart = (state.phase == "IDLE")
+                        btnStart.AutoButtonColor = canStart
+                        btnStart.Active = canStart
+                end
         end
 
         renderThemeState(state.themes, state)

@@ -139,6 +139,7 @@ local consoleHintLabel
 local consoleThemeEntries = {}
 local consoleOpen = false
 local ensureReadyAfterVote
+local isVoteInteractionEnabled
 
 local readyColor = Color3.fromRGB(105, 255, 180)
 local notReadyColor = Color3.fromRGB(255, 110, 130)
@@ -764,7 +765,7 @@ local latestState = nil
 local latestThemeState = nil
 local pendingAutoReady = false
 
-local function isVoteInteractionEnabled()
+isVoteInteractionEnabled = function()
     local state = latestState
     if not state then
         return false
@@ -1553,6 +1554,22 @@ local function updatePrompts(state)
         end
     end
 
+    if countdownPrompt then
+        local canCountdown = showPrompts and isHost and canStartCountdown
+        countdownPrompt.Enabled = canCountdown
+        if isHost then
+            if canCountdown then
+                countdownPrompt.ActionText = "Start aftellen"
+            else
+                countdownPrompt.ActionText = voteActive and "Stemronde bezig" or "Niet beschikbaar"
+            end
+            countdownPrompt.ObjectText = "Aftelknop"
+        else
+            countdownPrompt.ActionText = "Alleen host"
+            countdownPrompt.ObjectText = "Aftelknop"
+        end
+    end
+
     if startClickDetector then
         if showPrompts and isHost and readyCount > 0 then
             startClickDetector.MaxActivationDistance = 14
@@ -1566,6 +1583,14 @@ local function updatePrompts(state)
             voteClickDetector.MaxActivationDistance = 14
         else
             voteClickDetector.MaxActivationDistance = 0
+        end
+    end
+
+    if countdownClickDetector then
+        if showPrompts and isHost and canStartCountdown then
+            countdownClickDetector.MaxActivationDistance = 14
+        else
+            countdownClickDetector.MaxActivationDistance = 0
         end
     end
 
@@ -1724,6 +1749,32 @@ local function attemptStartVote()
     end
 end
 
+local function canLocalStartCountdown()
+    if not latestState then
+        return false
+    end
+    if latestState.phase ~= "IDLE" then
+        return false
+    end
+    if latestState.host ~= localPlayer.UserId then
+        return false
+    end
+    local themeState = latestState.themes or {}
+    if themeState.active == true then
+        return false
+    end
+    if (latestState.total or 0) <= 0 then
+        return false
+    end
+    return true
+end
+
+local function attemptStartCountdown()
+    if canLocalStartCountdown() then
+        StartThemeCountdown:FireServer()
+    end
+end
+
 local function renderState(state)
     if not state then
         return
@@ -1797,6 +1848,8 @@ if consolePrompt or startPrompt or votePrompt then
             attemptStart()
         elseif prompt == votePrompt then
             attemptStartVote()
+        elseif prompt == countdownPrompt then
+            attemptStartCountdown()
         end
     end)
 end
@@ -1836,6 +1889,26 @@ if voteClickDetector then
         touchTapSignal:Connect(function(player)
             if player == localPlayer then
                 attemptStartVote()
+            end
+        end)
+    end
+end
+
+if countdownClickDetector then
+    countdownClickDetector.MouseClick:Connect(function(player)
+        if player == localPlayer then
+            attemptStartCountdown()
+        end
+    end)
+
+    local ok, touchTapSignal = pcall(function()
+        return countdownClickDetector.TouchTap
+    end)
+
+    if ok and touchTapSignal then
+        touchTapSignal:Connect(function(player)
+            if player == localPlayer then
+                attemptStartCountdown()
             end
         end)
     end
