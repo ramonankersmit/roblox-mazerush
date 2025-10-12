@@ -9,6 +9,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
+local StartThemeCountdown = Remotes:WaitForChild("StartThemeCountdown")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
 local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
 
@@ -111,6 +112,10 @@ local startClickDetector = startButton and startButton:FindFirstChild("StartClic
 local voteButton = boardModel:FindFirstChild("VoteButton")
 local votePrompt = voteButton and voteButton:FindFirstChild("VotePrompt")
 local voteClickDetector = voteButton and voteButton:FindFirstChild("VoteClick")
+
+local countdownButton = boardModel:FindFirstChild("CountdownButton")
+local countdownPrompt = countdownButton and countdownButton:FindFirstChild("CountdownPrompt")
+local countdownClickDetector = countdownButton and countdownButton:FindFirstChild("CountdownClick")
 
 if startClickDetector then
     startClickDetector.MaxActivationDistance = 0
@@ -488,9 +493,8 @@ end
 local function gatherThemeOptions(themeState)
     themeState = themeState or {}
     local options = {}
-    local seenRandom = false
     for index, option in ipairs(themeState.options or {}) do
-        local id = option.id == "random" and RANDOM_THEME_ID or option.id
+        local id = option.id
         if id then
             local normalized = {
                 id = id,
@@ -500,42 +504,8 @@ local function gatherThemeOptions(themeState)
                 color = option.color,
                 layoutOrder = index,
             }
-            if id == RANDOM_THEME_ID then
-                seenRandom = true
-            end
             table.insert(options, normalized)
         end
-    end
-
-    local randomVotes = math.max(0, themeState.randomVotes or 0)
-    if themeState.votesByPlayer then
-        local counted = 0
-        for _, voteId in pairs(themeState.votesByPlayer) do
-            if voteId == RANDOM_THEME_ID or voteId == "random" then
-                counted += 1
-            end
-        end
-        randomVotes = math.max(randomVotes, counted)
-    end
-
-    if seenRandom then
-        for _, option in ipairs(options) do
-            if option.id == RANDOM_THEME_ID then
-                option.votes = randomVotes
-                option.name = option.name or RANDOM_THEME_NAME
-                option.description = option.description or RANDOM_THEME_DESCRIPTION
-                option.color = option.color or RANDOM_THEME_COLOR
-            end
-        end
-    else
-        table.insert(options, {
-            id = RANDOM_THEME_ID,
-            name = RANDOM_THEME_NAME,
-            description = RANDOM_THEME_DESCRIPTION,
-            votes = randomVotes,
-            color = RANDOM_THEME_COLOR,
-            layoutOrder = #options + 1,
-        })
     end
 
     table.sort(options, function(a, b)
@@ -1329,7 +1299,11 @@ local function updateThemePanel(themeState, state)
             end
         else
             themeHintLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
-            themeHintLabel.Text = string.format("Thema vastgezet: %s", leaderName)
+            if themeState.canStartCountdown then
+                themeHintLabel.Text = "Gebruik de aftelknop om nieuwe thema's te kiezen."
+            else
+                themeHintLabel.Text = string.format("Thema vastgezet: %s", leaderName)
+            end
         end
     end
 end
@@ -1533,6 +1507,8 @@ local function updatePrompts(state)
     local myReady = myInfo and myInfo.ready or false
     local phase = state.phase
     local showPrompts = phase == "IDLE" or phase == "PREP"
+    local themeState = state.themes or {}
+    local canStartCountdown = themeState.canStartCountdown == true and showPrompts
 
     local isHost = state.host == localPlayer.UserId
     local readyCount = state.readyCount or 0
@@ -1598,9 +1574,17 @@ local function updatePrompts(state)
             actionHint.Text = "Maze bezig – console tijdelijk vergrendeld."
         elseif myReady then
             if isHost then
-                actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
+                if canStartCountdown then
+                    actionHint.Text = "Host klaar. Gebruik de aftelknop om de stemming te starten."
+                else
+                    actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
+                end
             else
-                actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
+                if canStartCountdown then
+                    actionHint.Text = "Klaar gemeld. Wacht op aftelknop of gebruik console voor wijzigingen."
+                else
+                    actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
+                end
             end
         else
             if isHost then

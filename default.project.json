@@ -37,10 +37,16 @@
         "LobbyState": {
           "$className": "RemoteEvent"
         },
+        "LobbyActivityUpdate": {
+          "$className": "RemoteEvent"
+        },
         "ToggleReady": {
           "$className": "RemoteEvent"
         },
         "StartGameRequest": {
+          "$className": "RemoteEvent"
+        },
+        "StartThemeCountdown": {
           "$className": "RemoteEvent"
         },
         "ThemeVote": {
@@ -94,7 +100,17 @@
     "ServerStorage": {
       "$className": "ServerStorage",
       "$path": "src/ServerStorage",
-      "$ignoreUnknownInstances": true
+      "$ignoreUnknownInstances": true,
+      "Prefabs": {
+        "$className": "Folder",
+        "$path": "src/ServerStorage/Prefabs",
+        "$ignoreUnknownInstances": true,
+        "Obstacles": {
+          "$className": "Folder",
+          "$path": "src/ServerStorage/Prefabs/Obstacles",
+          "$ignoreUnknownInstances": true
+        }
+      }
     },
 
     "StarterPlayer": {

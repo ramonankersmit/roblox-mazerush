@@ -1,0 +1,144 @@
+<roblox version="4">
+  <Item class="Model" referent="RBX0">
+    <Properties>
+      <string name="Name">MovingPlatform</string>
+    </Properties>
+    <Item class="Part" referent="RBX1">
+      <Properties>
+        <string name="Name">Platform</string>
+        <bool name="Anchored">true</bool>
+        <bool name="CanCollide">true</bool>
+        <bool name="CanTouch">true</bool>
+        <bool name="CanQuery">true</bool>
+        <SurfaceType name="TopSurface">Smooth</SurfaceType>
+        <SurfaceType name="BottomSurface">Smooth</SurfaceType>
+        <Vector3 name="Size">12, 1, 4</Vector3>
+        <CoordinateFrame name="CFrame">1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0</CoordinateFrame>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="RBX2">
+      <Properties>
+        <string name="Name">MovingPlatformController</string>
+        <bool name="Disabled">true</bool>
+        <ProtectedString name="Source"><![CDATA[local RunService = game:GetService("RunService")
+
+local model = script.Parent
+if not (model and model:IsA("Model")) then
+    return
+end
+
+local function ensurePrimaryPart()
+    local primary = model.PrimaryPart
+    if primary and primary:IsA("BasePart") then
+        return primary
+    end
+    primary = model:FindFirstChildWhichIsA("BasePart")
+    if primary then
+        model.PrimaryPart = primary
+    end
+    return primary
+end
+
+local primary = ensurePrimaryPart()
+if not primary then
+    warn("[MovingPlatform] Geen PrimaryPart gevonden voor " .. model:GetFullName())
+    return
+end
+
+primary.Anchored = true
+
+if not model:GetAttribute("ObstacleType") then
+    model:SetAttribute("ObstacleType", "MovingPlatform")
+end
+
+local travelTime = tonumber(model:GetAttribute("TravelTime")) or 4
+if travelTime <= 0 then
+    travelTime = 4
+end
+
+local pauseDuration = tonumber(model:GetAttribute("PauseDuration")) or 0
+if pauseDuration < 0 then
+    pauseDuration = 0
+end
+
+local distance = tonumber(model:GetAttribute("MovementDistance")) or 16
+if distance < 0 then
+    distance = 0
+end
+
+local axis = string.upper(tostring(model:GetAttribute("MovementAxis") or "X"))
+local unit = Vector3.new(1, 0, 0)
+if axis == "Y" then
+    unit = Vector3.new(0, 1, 0)
+elseif axis == "Z" then
+    unit = Vector3.new(0, 0, 1)
+else
+    axis = "X"
+end
+
+local halfDistance = distance / 2
+local baseCFrame = primary.CFrame
+
+local function setAlpha(alpha)
+    local offset = unit * ((alpha * 2) - 1) * halfDistance
+    local target = baseCFrame * CFrame.new(offset)
+    model:PivotTo(target)
+end
+
+setAlpha(0)
+
+local running = true
+
+script.Destroying:Connect(function()
+    running = false
+end)
+
+local ancestryConn
+ancestryConn = model.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        running = false
+        if ancestryConn then
+            ancestryConn:Disconnect()
+            ancestryConn = nil
+        end
+    end
+end)
+
+local function cycle()
+    while running and model.Parent do
+        local progress = 0
+        while running and progress < 1 do
+            local dt = RunService.Heartbeat:Wait()
+            progress += dt / travelTime
+            if progress > 1 then
+                progress = 1
+            end
+            setAlpha(progress)
+        end
+        if not running then
+            break
+        end
+        if pauseDuration > 0 then
+            task.wait(pauseDuration)
+        end
+        progress = 1
+        while running and progress > 0 do
+            local dt = RunService.Heartbeat:Wait()
+            progress -= dt / travelTime
+            if progress < 0 then
+                progress = 0
+            end
+            setAlpha(progress)
+        end
+        if pauseDuration > 0 then
+            task.wait(pauseDuration)
+        end
+    end
+    setAlpha(0.5)
+end
+
+task.spawn(cycle)]]></ProtectedString>
+      </Properties>
+    </Item>
+  </Item>
+</roblox>

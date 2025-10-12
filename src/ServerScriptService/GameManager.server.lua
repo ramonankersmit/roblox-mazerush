@@ -12,6 +12,8 @@ local MazeGen = require(Replicated.Modules.MazeGenerator)
 local MazeBuilder = require(Replicated.Modules.MazeBuilder)
 local ExitDoorBuilder = require(ServerScriptService:WaitForChild("ExitDoorBuilder"))
 local KeyPrefabManager = require(ServerScriptService:WaitForChild("KeyPrefabManager"))
+local ObstacleSpawner = require(ServerScriptService:WaitForChild("ObstacleSpawner"))
+local LightPrefabs = require(ServerScriptService:WaitForChild("Modules"):WaitForChild("LightPrefabs"))
 local ProgressionService = require(ServerScriptService:WaitForChild("ProgressionService"))
 
 -- Ensure folders/remotes exist for standalone play or Rojo runtime
@@ -195,197 +197,14 @@ local function layoutExitRoom()
         exitPad.Position = Vector3.new(centerX, 1, mazeDepth + roomDepth - (Config.CellSize / 2))
 end
 
--- Prefabs
 local prefabs = ServerStorage:FindFirstChild("Prefabs") or Instance.new("Folder", ServerStorage); prefabs.Name = "Prefabs"
-local lightsPrefabs = prefabs:FindFirstChild("Lights")
-if not lightsPrefabs then
-    lightsPrefabs = Instance.new("Folder")
-    lightsPrefabs.Name = "Lights"
-    lightsPrefabs.Parent = prefabs
+local obstaclePrefabsFolder = prefabs:FindFirstChild("Obstacles")
+if not (obstaclePrefabsFolder and obstaclePrefabsFolder:IsA("Folder")) then
+        obstaclePrefabsFolder = Instance.new("Folder")
+        obstaclePrefabsFolder.Name = "Obstacles"
+        obstaclePrefabsFolder.Parent = prefabs
 end
-
-local function configureLightPart(part)
-    part.Anchored = true
-    part.CanCollide = false
-    part.CanTouch = false
-    part.CanQuery = false
-    part.Material = Enum.Material.Metal
-    part.Color = Color3.fromRGB(50, 50, 50)
-    part.CastShadow = false
-end
-
-local function ensureLightPrefab(name, builder)
-    local existing = lightsPrefabs:FindFirstChild(name)
-    if existing then
-        return existing
-    end
-
-    local model = Instance.new("Model")
-    model.Name = name
-    model.Parent = lightsPrefabs
-
-    builder(model)
-
-    return model
-end
-
-local function buildWallLantern(model)
-    local root = Instance.new("Part")
-    root.Name = "Root"
-    root.Anchored = true
-    root.CanCollide = false
-    root.CanTouch = false
-    root.CanQuery = false
-    root.CastShadow = false
-    root.Transparency = 1
-    root.Size = Vector3.new(0.2, 0.2, 0.2)
-    root.Parent = model
-
-    local bracket = Instance.new("Part")
-    bracket.Name = "Bracket"
-    bracket.Anchored = true
-    bracket.CanCollide = false
-    bracket.CanTouch = false
-    bracket.CanQuery = false
-    bracket.CastShadow = false
-    bracket.Material = Enum.Material.Metal
-    bracket.Color = Color3.fromRGB(45, 32, 28)
-    bracket.Size = Vector3.new(0.7, 1.5, 0.25)
-    bracket.CFrame = root.CFrame * CFrame.new(0, 0, -0.12)
-    bracket.Parent = model
-
-    local candle = Instance.new("Part")
-    candle.Name = "Candle"
-    candle.Anchored = true
-    candle.CanCollide = false
-    candle.CanTouch = false
-    candle.CanQuery = false
-    candle.CastShadow = false
-    candle.Material = Enum.Material.SmoothPlastic
-    candle.Color = Color3.fromRGB(255, 244, 220)
-    candle.Shape = Enum.PartType.Cylinder
-    candle.Size = Vector3.new(0.36, 1.05, 0.36)
-    candle.CFrame = root.CFrame * CFrame.new(0, 0.65, -0.05)
-    candle.Parent = model
-
-    local flameAnchor = Instance.new("Part")
-    flameAnchor.Name = "FlameAnchor"
-    flameAnchor.Anchored = true
-    flameAnchor.CanCollide = false
-    flameAnchor.CanTouch = false
-    flameAnchor.CanQuery = false
-    flameAnchor.CastShadow = false
-    flameAnchor.Transparency = 1
-    flameAnchor.Size = Vector3.new(0.2, 0.2, 0.2)
-    flameAnchor.CFrame = root.CFrame * CFrame.new(0, 1.1, -0.05)
-    flameAnchor.Parent = model
-
-    local particle = Instance.new("ParticleEmitter")
-    particle.Texture = "rbxassetid://241594314"
-    particle.LightInfluence = 0
-    particle.Speed = NumberRange.new(1.5, 2.2)
-    particle.Lifetime = NumberRange.new(0.4, 0.8)
-    particle.Size = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.45),
-        NumberSequenceKeypoint.new(0.35, 0.35),
-        NumberSequenceKeypoint.new(1, 0.05),
-    })
-    particle.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.3),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    particle.Color = ColorSequence.new(Color3.fromRGB(255, 215, 160), Color3.fromRGB(255, 120, 50))
-    particle.Rotation = NumberRange.new(-45, 45)
-    particle.RotSpeed = NumberRange.new(-90, 90)
-    particle.Drag = 2
-    particle.EmissionDirection = Enum.NormalId.Front
-    particle.Acceleration = Vector3.new(0, 10, 0)
-    particle.Rate = 12
-    particle.LockedToPart = true
-    particle.Parent = flameAnchor
-
-    local light = Instance.new("PointLight")
-    light.Color = Color3.fromRGB(255, 210, 160)
-    light.Brightness = 2.2
-    light.Range = 18
-    light.Shadows = true
-    light.Parent = flameAnchor
-
-    model.PrimaryPart = root
-end
-
-local function buildCeilingLantern(model)
-    local fixture = Instance.new("Part")
-    fixture.Name = "Fixture"
-    fixture.Size = Vector3.new(0.8, 0.8, 0.8)
-    configureLightPart(fixture)
-    fixture.Material = Enum.Material.Glass
-    fixture.Color = Color3.fromRGB(255, 214, 170)
-    fixture.Transparency = 0.2
-    fixture.Parent = model
-
-    local attachment = Instance.new("Attachment")
-    attachment.Parent = fixture
-
-    local light = Instance.new("PointLight")
-    light.Color = Color3.fromRGB(255, 210, 160)
-    light.Brightness = 2.2
-    light.Range = 18
-    light.Shadows = true
-    light.Parent = attachment
-
-    model.PrimaryPart = fixture
-end
-
-local function buildFloorLamp(model)
-    local base = Instance.new("Part")
-    base.Name = "Base"
-    base.Size = Vector3.new(1, 0.4, 1)
-    configureLightPart(base)
-    base.Parent = model
-
-    local rod = Instance.new("Part")
-    rod.Name = "Rod"
-    rod.Size = Vector3.new(0.25, 3, 0.25)
-    configureLightPart(rod)
-    rod.Parent = model
-
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = base
-    weld.Part1 = rod
-    weld.Parent = base
-
-    rod.CFrame = base.CFrame * CFrame.new(0, 1.7, 0)
-
-    local shade = Instance.new("Part")
-    shade.Name = "Shade"
-    shade.Size = Vector3.new(1.4, 1.4, 1.4)
-    configureLightPart(shade)
-    shade.Material = Enum.Material.Glass
-    shade.Color = Color3.fromRGB(255, 214, 170)
-    shade.Transparency = 0.25
-    shade.Parent = model
-
-    local weldShade = Instance.new("WeldConstraint")
-    weldShade.Part0 = rod
-    weldShade.Part1 = shade
-    weldShade.Parent = rod
-
-    shade.CFrame = rod.CFrame * CFrame.new(0, 1.1, 0)
-
-    local light = Instance.new("PointLight")
-    light.Color = Color3.fromRGB(255, 210, 160)
-    light.Brightness = 2.2
-    light.Range = 18
-    light.Shadows = true
-    light.Parent = shade
-
-    model.PrimaryPart = base
-end
-
-ensureLightPrefab("WallLantern_Spooky", buildWallLantern)
-ensureLightPrefab("CeilingLantern_Spooky", buildCeilingLantern)
-ensureLightPrefab("FloorLamp_Spooky", buildFloorLamp)
+LightPrefabs.Ensure(prefabs)
 
 local function ensurePart(name, size)
         local p = prefabs:FindFirstChild(name)
@@ -514,6 +333,25 @@ local function applyWallHeight(newHeight)
                 _G.KeyDoor_UpdateForWallHeight()
         end
 end
+
+local temporaryWallHeightToken
+
+local function setTemporaryWallHeight(newHeight, duration)
+        local previousHeight = Config.WallHeight
+        applyWallHeight(newHeight)
+        if duration and duration > 0 then
+                local token = {}
+                temporaryWallHeightToken = token
+                task.delay(duration, function()
+                        if temporaryWallHeightToken == token then
+                                applyWallHeight(previousHeight)
+                                temporaryWallHeightToken = nil
+                        end
+                end)
+        end
+end
+
+_G.Game_SetTemporaryWallHeight = setTemporaryWallHeight
 
 ToggleWallHeight.OnServerEvent:Connect(function()
         local newHeight = Config.WallHeight > 8 and 8 or 24
@@ -1206,6 +1044,16 @@ local function eliminatePlayer(plr, position)
         if playerStates[plr] ~= "Alive" then
                 return
         end
+        if _G.PowerUps and type(_G.PowerUps.TryPreventElimination) == "function" then
+                local ok, prevented = pcall(_G.PowerUps.TryPreventElimination, plr)
+                if ok then
+                        if prevented then
+                                return
+                        end
+                else
+                        warn("[GameManager] PowerUps.TryPreventElimination failed:", prevented)
+                end
+        end
         local char = plr.Character
         local floor = getMazeFloor()
         if floor and char then
@@ -1283,6 +1131,9 @@ Players.PlayerRemoving:Connect(function(plr)
         playerStates[plr] = nil
         eliminatedPlayers[plr] = nil
         defaultMovement[plr] = nil
+        if _G.PowerUps and type(_G.PowerUps.OnPlayerRemoving) == "function" then
+                pcall(_G.PowerUps.OnPlayerRemoving, plr)
+        end
         if plr.UserId and plr.UserId ~= 0 then
                 roundParticipants[plr.UserId] = nil
                 roundStats[plr.UserId] = nil
@@ -1408,6 +1259,8 @@ local function runRound()
 
         placeExit()
 
+        ObstacleSpawner.SpawnObstacles(Config, { MazeFolder = mazeFolder })
+
         -- Vernieuw vijanden vóór de start zodat spelers ze al zien
         enforceMinimumSentryCount()
         updateEnemyStateFlags()
@@ -1464,6 +1317,9 @@ local function runRound()
                         root.CFrame = CFrame.new(startPos)
                 end
                 if _G.KeyDoor_OnRoundStart then _G.KeyDoor_OnRoundStart() end
+                if _G.PowerUps_OnRoundStart then
+                        pcall(_G.PowerUps_OnRoundStart)
+                end
                 phase = "ACTIVE"; PhaseValue.Value = phase; RoundState:FireAllClients("ACTIVE")
                 activeRoundStart = getServerTime()
                 recordAlivePlayersCurrentCells()
@@ -1483,6 +1339,9 @@ local function runRound()
                 eliminatedPlayers[plr] = nil
                 playerStates[plr] = nil
                 restoreMovement(plr)
+        end
+        if _G.PowerUps_OnRoundEnd then
+                pcall(_G.PowerUps_OnRoundEnd)
         end
         if _G.Inventory and type(_G.Inventory.ResetAll) == "function" then
                 _G.Inventory.ResetAll()

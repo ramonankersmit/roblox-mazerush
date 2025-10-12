@@ -9,6 +9,7 @@ local Remotes = Replicated:WaitForChild("Remotes")
 local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
+local StartThemeCountdown = Remotes:WaitForChild("StartThemeCountdown")
 local ThemeVote = Remotes:WaitForChild("ThemeVote")
 local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
 
@@ -90,6 +91,9 @@ local voteDeadline = nil
 local voteActive = false
 local voteCountdownActive = false
 local ThemeVotes = {}
+local voteOptions = nil
+local voteOptionsSet = nil
+local initialThemeAssigned = false
 
 local Ready = {} -- [userid] = boolean
 local HostUserId = nil
@@ -270,20 +274,73 @@ local function getThemeOrder()
         return getAllThemeIds()
 end
 
+local function copyList(list)
+        local new = {}
+        for index, value in ipairs(list) do
+                new[index] = value
+        end
+        return new
+end
+
+local function setVoteOptions(options)
+        if not options or #options == 0 then
+                voteOptions = nil
+                voteOptionsSet = nil
+                return
+        end
+
+        voteOptions = {}
+        voteOptionsSet = {}
+        for _, themeId in ipairs(options) do
+                if ThemeConfig.Themes[themeId] and not voteOptionsSet[themeId] then
+                        table.insert(voteOptions, themeId)
+                        voteOptionsSet[themeId] = true
+                end
+        end
+
+        if #voteOptions == 0 then
+                voteOptions = nil
+                voteOptionsSet = nil
+        end
+end
+
+local function chooseRandomThemes(count)
+        local order = getThemeOrder()
+        if #order <= count then
+                return copyList(order)
+        end
+
+        local pool = copyList(order)
+        local chosen = {}
+        while #chosen < count and #pool > 0 do
+                local index = randomGenerator:NextInteger(1, #pool)
+                table.insert(chosen, table.remove(pool, index))
+        end
+
+        return chosen
+end
+
+local function hasVoteOption(themeId)
+        return voteOptionsSet and voteOptionsSet[themeId] == true
+end
+
 local function tallyVotes()
         local counts = {}
         local total = 0
-        local randomCount = 0
         for _, themeId in pairs(ThemeVotes) do
-                if themeId == RANDOM_THEME_ID then
-                        randomCount += 1
-                elseif ThemeConfig.Themes[themeId] then
+                if hasVoteOption(themeId) then
                         counts[themeId] = (counts[themeId] or 0) + 1
                         total += 1
                 end
         end
+
+        if voteOptions then
+                for _, themeId in ipairs(voteOptions) do
+                        counts[themeId] = counts[themeId] or 0
+                end
+        end
+
         counts._total = total
-        counts._random = randomCount
         return counts
 end
 
@@ -329,6 +386,40 @@ local function applyThemeSelection(themeId)
         return changed
 end
 
+local function ensureInitialTheme()
+        if initialThemeAssigned then
+                return
+        end
+
+        initialThemeAssigned = true
+
+        local available = getThemeOrder()
+        if #available == 0 then
+                return
+        end
+
+        local currentValue = ThemeValue.Value ~= "" and ThemeValue.Value or ThemeConfig.Default
+        if not ThemeConfig.Themes[currentValue] then
+                currentValue = ThemeConfig.Default
+        end
+
+        local candidateIndex = randomGenerator:NextInteger(1, #available)
+        local candidate = available[candidateIndex]
+
+        if candidate == currentValue and #available > 1 then
+                candidateIndex = (candidateIndex % #available) + 1
+                candidate = available[candidateIndex]
+        end
+
+        if candidate ~= currentValue then
+                applyThemeSelection(candidate)
+        else
+                setLobbyPreviewTheme(candidate)
+        end
+end
+
+ensureInitialTheme()
+
 local function broadcast(precomputedCounts)
         local list = {}
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -354,21 +445,13 @@ local function broadcast(precomputedCounts)
                 })
         end
 
-        table.insert(options, {
-                id = RANDOM_THEME_ID,
-                name = RANDOM_THEME_NAME,
-                description = RANDOM_THEME_DESCRIPTION,
-                votes = counts._random or 0,
-                color = RANDOM_THEME_COLOR,
-        })
-
         local votesByPlayer = {}
-        for userId, themeId in pairs(ThemeVotes) do
-                local voteValue = themeId
-                if voteValue == RANDOM_THEME_ID or voteValue == "random" then
-                        voteValue = RANDOM_THEME_ID
+        if voteOptionsSet then
+                for userId, themeId in pairs(ThemeVotes) do
+                        if hasVoteOption(themeId) then
+                                votesByPlayer[tostring(userId)] = themeId
+                        end
                 end
-                votesByPlayer[tostring(userId)] = voteValue
         end
 
         local currentInfo = ThemeConfig.Themes[currentTheme]
@@ -396,22 +479,27 @@ local function broadcast(precomputedCounts)
                 end
         end
 
+        local readyCountValue = 0
+        for _, isReady in pairs(Ready) do
+                if isReady then
+                        readyCountValue += 1
+                end
+        end
+
+        local canStartCountdown = Phase.Value == "IDLE" and not voteActive and #Players:GetPlayers() > 0
+
         LobbyState:FireAllClients({
                 host = HostUserId,
                 players = list,
                 phase = Phase.Value,
-                readyCount = (function()
-                        local c = 0
-                        for _, v in pairs(Ready) do if v then c += 1 end end
-                        return c
-                end)(),
+                readyCount = readyCountValue,
                 total = #Players:GetPlayers(),
                 themes = {
                         options = options,
                         totalVotes = counts._total or 0,
-                        randomVotes = counts._random or 0,
                         active = voteActive,
                         countdownActive = countdownActive,
+                        canStartCountdown = canStartCountdown,
                         endsIn = endsInValue,
                         current = currentTheme,
                         currentName = currentInfo and currentInfo.displayName or currentTheme,
@@ -426,7 +514,7 @@ local function broadcast(precomputedCounts)
         })
 end
 
-local function startVoteCycle()
+local function startVoteCycle(options)
         ThemeVotes = {}
         local options = selectThemeOptions()
         updatePreviewTargets(options)
@@ -573,6 +661,20 @@ ToggleReady.OnServerEvent:Connect(function(plr)
                 clearVoteCountdown()
         end
         broadcast()
+end)
+
+StartThemeCountdown.OnServerEvent:Connect(function(plr)
+        if Phase.Value ~= "IDLE" then return end
+        if voteActive then return end
+        if Players:GetPlayerByUserId(plr.UserId) ~= plr then return end
+
+        local available = getThemeOrder()
+        if #available == 0 then
+                return
+        end
+
+        local options = chooseRandomThemes(math.min(THEMES_PER_VOTE, #available))
+        startVoteCycle(options)
 end)
 
 StartGameRequest.OnServerEvent:Connect(function(plr)

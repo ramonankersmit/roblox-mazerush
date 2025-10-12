@@ -36,7 +36,6 @@ local ThemeList = {
             outwardOffset = 0.35,
             fallback = {
                 ceilingPrefabName = "CeilingLantern_Spooky",
-                floorPrefabName = "FloorLamp_Spooky",
                 minWallsPerCell = 2,
                 density = 1.0,
             },
