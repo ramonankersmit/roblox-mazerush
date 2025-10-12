@@ -46,42 +46,15 @@ local function playUISound(soundId)
 end
 
 local gui = Instance.new("ScreenGui"); gui.Name = "MazeUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
-local scoreboardFrame = Instance.new("Frame")
-scoreboardFrame.Name = "SurvivorBoard"
-scoreboardFrame.Size = UDim2.new(0,260,0,0)
-scoreboardFrame.Position = UDim2.new(1,-280,0,90)
-scoreboardFrame.BackgroundTransparency = 0.25
-scoreboardFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-scoreboardFrame.BorderSizePixel = 0
-scoreboardFrame.AutomaticSize = Enum.AutomaticSize.Y
-scoreboardFrame.Visible = false
-scoreboardFrame.Parent = gui
 
-local boardLayout = Instance.new("UIListLayout")
-boardLayout.SortOrder = Enum.SortOrder.LayoutOrder
-boardLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-boardLayout.Padding = UDim.new(0,6)
-boardLayout.Parent = scoreboardFrame
-
-local header = Instance.new("TextLabel")
-header.LayoutOrder = 1
-header.Size = UDim2.new(1,-10,0,28)
-header.Position = UDim2.new(0,5,0,0)
-header.BackgroundTransparency = 1
-header.Text = "Ronde status"
-header.TextColor3 = Color3.fromRGB(255,255,255)
-header.TextScaled = true
-header.Font = Enum.Font.SourceSansBold
-header.Parent = scoreboardFrame
-
-local function createSection(titleText, color, order)
+local function createSection(parent, titleText, color, order)
         local section = Instance.new("Frame")
         section.Name = string.gsub(titleText, " ", "")
         section.BackgroundTransparency = 1
         section.Size = UDim2.new(1,-10,0,0)
         section.AutomaticSize = Enum.AutomaticSize.Y
         section.LayoutOrder = order
-        section.Parent = scoreboardFrame
+        section.Parent = parent
 
         local title = Instance.new("TextLabel")
         title.Size = UDim2.new(1,0,0,22)
@@ -106,55 +79,86 @@ local function createSection(titleText, color, order)
         return listFrame
 end
 
-local aliveListFrame = createSection("Spelers actief", Color3.fromRGB(120, 255, 180), 3)
-local eliminatedListFrame = createSection("Uitgeschakeld", Color3.fromRGB(255, 120, 120), 4)
+local scoreboard = {}
+scoreboard.frame = Instance.new("Frame")
+scoreboard.frame.Name = "SurvivorBoard"
+scoreboard.frame.Size = UDim2.new(0,260,0,0)
+scoreboard.frame.Position = UDim2.new(1,-280,0,90)
+scoreboard.frame.BackgroundTransparency = 0.25
+scoreboard.frame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+scoreboard.frame.BorderSizePixel = 0
+scoreboard.frame.AutomaticSize = Enum.AutomaticSize.Y
+scoreboard.frame.Visible = false
+scoreboard.frame.Parent = gui
 
-local eventStatusLabel = Instance.new("TextLabel")
-eventStatusLabel.Name = "EventMonsterStatus"
-eventStatusLabel.LayoutOrder = 2
-eventStatusLabel.Size = UDim2.new(1, -10, 0, 26)
-eventStatusLabel.Position = UDim2.new(0, 5, 0, 0)
-eventStatusLabel.BackgroundTransparency = 1
-eventStatusLabel.TextColor3 = Color3.fromRGB(255, 170, 170)
-eventStatusLabel.TextScaled = true
-eventStatusLabel.TextWrapped = true
-eventStatusLabel.Font = Enum.Font.GothamSemibold
-eventStatusLabel.Text = "Eventmonster: Onbekend"
-eventStatusLabel.Parent = scoreboardFrame
+scoreboard.layout = Instance.new("UIListLayout")
+scoreboard.layout.SortOrder = Enum.SortOrder.LayoutOrder
+scoreboard.layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+scoreboard.layout.Padding = UDim.new(0,6)
+scoreboard.layout.Parent = scoreboard.frame
 
-local eliminationMessage = Instance.new("TextLabel")
-eliminationMessage.Name = "EliminationNotice"
-eliminationMessage.Size = UDim2.new(0,360,0,80)
-eliminationMessage.Position = UDim2.new(0.5,-180,0.5,-40)
-eliminationMessage.BackgroundTransparency = 0.35
-eliminationMessage.BackgroundColor3 = Color3.fromRGB(70, 0, 0)
-eliminationMessage.BorderSizePixel = 0
-eliminationMessage.Text = ""
-eliminationMessage.TextScaled = true
-eliminationMessage.Font = Enum.Font.SourceSansBold
-eliminationMessage.TextColor3 = Color3.fromRGB(255, 230, 230)
-eliminationMessage.Visible = false
-eliminationMessage.Parent = gui
+scoreboard.header = Instance.new("TextLabel")
+scoreboard.header.LayoutOrder = 1
+scoreboard.header.Size = UDim2.new(1,-10,0,28)
+scoreboard.header.Position = UDim2.new(0,5,0,0)
+scoreboard.header.BackgroundTransparency = 1
+scoreboard.header.Text = "Ronde status"
+scoreboard.header.TextColor3 = Color3.fromRGB(255,255,255)
+scoreboard.header.TextScaled = true
+scoreboard.header.Font = Enum.Font.SourceSansBold
+scoreboard.header.Parent = scoreboard.frame
 
-local sentryWarningFrame = Instance.new("Frame")
-sentryWarningFrame.Name = "SentryWarning"
-sentryWarningFrame.Size = UDim2.new(0, 360, 0, 48)
-sentryWarningFrame.Position = UDim2.new(0.5, -180, 0, 24)
-sentryWarningFrame.BackgroundTransparency = 0.2
-sentryWarningFrame.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
-sentryWarningFrame.BorderSizePixel = 0
-sentryWarningFrame.Visible = false
-sentryWarningFrame.Parent = gui
+scoreboard.aliveListFrame = createSection(scoreboard.frame, "Spelers actief", Color3.fromRGB(120, 255, 180), 3)
+scoreboard.eliminatedListFrame = createSection(scoreboard.frame, "Uitgeschakeld", Color3.fromRGB(255, 120, 120), 4)
+
+scoreboard.eventStatusLabel = Instance.new("TextLabel")
+scoreboard.eventStatusLabel.Name = "EventMonsterStatus"
+scoreboard.eventStatusLabel.LayoutOrder = 2
+scoreboard.eventStatusLabel.Size = UDim2.new(1, -10, 0, 26)
+scoreboard.eventStatusLabel.Position = UDim2.new(0, 5, 0, 0)
+scoreboard.eventStatusLabel.BackgroundTransparency = 1
+scoreboard.eventStatusLabel.TextColor3 = Color3.fromRGB(255, 170, 170)
+scoreboard.eventStatusLabel.TextScaled = true
+scoreboard.eventStatusLabel.TextWrapped = true
+scoreboard.eventStatusLabel.Font = Enum.Font.GothamSemibold
+scoreboard.eventStatusLabel.Text = "Eventmonster: Onbekend"
+scoreboard.eventStatusLabel.Parent = scoreboard.frame
+
+local eliminationUI = {}
+eliminationUI.message = Instance.new("TextLabel")
+eliminationUI.message.Name = "EliminationNotice"
+eliminationUI.message.Size = UDim2.new(0,360,0,80)
+eliminationUI.message.Position = UDim2.new(0.5,-180,0.5,-40)
+eliminationUI.message.BackgroundTransparency = 0.35
+eliminationUI.message.BackgroundColor3 = Color3.fromRGB(70, 0, 0)
+eliminationUI.message.BorderSizePixel = 0
+eliminationUI.message.Text = ""
+eliminationUI.message.TextScaled = true
+eliminationUI.message.Font = Enum.Font.SourceSansBold
+eliminationUI.message.TextColor3 = Color3.fromRGB(255, 230, 230)
+eliminationUI.message.Visible = false
+eliminationUI.message.Parent = gui
+
+local sentryWarning = {}
+sentryWarning.frame = Instance.new("Frame")
+sentryWarning.frame.Name = "SentryWarning"
+sentryWarning.frame.Size = UDim2.new(0, 360, 0, 48)
+sentryWarning.frame.Position = UDim2.new(0.5, -180, 0, 24)
+sentryWarning.frame.BackgroundTransparency = 0.2
+sentryWarning.frame.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+sentryWarning.frame.BorderSizePixel = 0
+sentryWarning.frame.Visible = false
+sentryWarning.frame.Parent = gui
 
 local sentryWarningCorner = Instance.new("UICorner")
 sentryWarningCorner.CornerRadius = UDim.new(0, 12)
-sentryWarningCorner.Parent = sentryWarningFrame
+sentryWarningCorner.Parent = sentryWarning.frame
 
 local sentryWarningStroke = Instance.new("UIStroke")
 sentryWarningStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 sentryWarningStroke.Thickness = 2
 sentryWarningStroke.Color = Color3.fromRGB(255, 200, 200)
-sentryWarningStroke.Parent = sentryWarningFrame
+sentryWarningStroke.Parent = sentryWarning.frame
 
 local sentryWarningLabel = Instance.new("TextLabel")
 sentryWarningLabel.Name = "Label"
@@ -166,194 +170,198 @@ sentryWarningLabel.Font = Enum.Font.GothamBold
 sentryWarningLabel.TextScaled = true
 sentryWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
 sentryWarningLabel.Text = "Let op: Sentry's kunnen tijdelijk onzichtbaar worden!"
-sentryWarningLabel.Parent = sentryWarningFrame
+sentryWarningLabel.Parent = sentryWarning.frame
 
-local eventWarningFrame = Instance.new("Frame")
-eventWarningFrame.Name = "EventMonsterWarning"
-eventWarningFrame.Size = UDim2.new(0, 360, 0, 58)
-eventWarningFrame.Position = UDim2.new(0.5, -180, 0, 84)
-eventWarningFrame.BackgroundTransparency = 0.15
-eventWarningFrame.BackgroundColor3 = Color3.fromRGB(160, 30, 30)
-eventWarningFrame.BorderSizePixel = 0
-eventWarningFrame.Visible = false
-eventWarningFrame.Parent = gui
+local eventWarning = {}
+eventWarning.frame = Instance.new("Frame")
+eventWarning.frame.Name = "EventMonsterWarning"
+eventWarning.frame.Size = UDim2.new(0, 360, 0, 58)
+eventWarning.frame.Position = UDim2.new(0.5, -180, 0, 84)
+eventWarning.frame.BackgroundTransparency = 0.15
+eventWarning.frame.BackgroundColor3 = Color3.fromRGB(160, 30, 30)
+eventWarning.frame.BorderSizePixel = 0
+eventWarning.frame.Visible = false
+eventWarning.frame.Parent = gui
 
 local eventWarningCorner = Instance.new("UICorner")
 eventWarningCorner.CornerRadius = UDim.new(0, 14)
-eventWarningCorner.Parent = eventWarningFrame
+eventWarningCorner.Parent = eventWarning.frame
 
 local eventWarningStroke = Instance.new("UIStroke")
 eventWarningStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 eventWarningStroke.Thickness = 2
 eventWarningStroke.Color = Color3.fromRGB(255, 120, 120)
-eventWarningStroke.Parent = eventWarningFrame
+eventWarningStroke.Parent = eventWarning.frame
 
-local eventWarningLabel = Instance.new("TextLabel")
-eventWarningLabel.Name = "Label"
-eventWarningLabel.Size = UDim2.new(1, -24, 1, -16)
-eventWarningLabel.Position = UDim2.new(0, 12, 0, 8)
-eventWarningLabel.BackgroundTransparency = 1
-eventWarningLabel.TextWrapped = true
-eventWarningLabel.Font = Enum.Font.GothamBlack
-eventWarningLabel.TextScaled = true
-eventWarningLabel.TextColor3 = Color3.fromRGB(255, 240, 240)
-eventWarningLabel.Text = ""
-eventWarningLabel.Parent = eventWarningFrame
+eventWarning.label = Instance.new("TextLabel")
+eventWarning.label.Name = "Label"
+eventWarning.label.Size = UDim2.new(1, -24, 1, -16)
+eventWarning.label.Position = UDim2.new(0, 12, 0, 8)
+eventWarning.label.BackgroundTransparency = 1
+eventWarning.label.TextWrapped = true
+eventWarning.label.Font = Enum.Font.GothamBlack
+eventWarning.label.TextScaled = true
+eventWarning.label.TextColor3 = Color3.fromRGB(255, 240, 240)
+eventWarning.label.Text = ""
+eventWarning.label.Parent = eventWarning.frame
 
-local activityFrame = Instance.new("Frame")
-activityFrame.Name = "LobbyActivity"
-activityFrame.Size = UDim2.new(0, 400, 0, 110)
-activityFrame.Position = UDim2.new(0.5, -200, 0, 12)
-activityFrame.BackgroundTransparency = 0.18
-activityFrame.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
-activityFrame.BorderSizePixel = 0
-activityFrame.Visible = false
-activityFrame.Parent = gui
+local activityUI = {}
+activityUI.frame = Instance.new("Frame")
+activityUI.frame.Name = "LobbyActivity"
+activityUI.frame.Size = UDim2.new(0, 400, 0, 110)
+activityUI.frame.Position = UDim2.new(0.5, -200, 0, 12)
+activityUI.frame.BackgroundTransparency = 0.18
+activityUI.frame.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
+activityUI.frame.BorderSizePixel = 0
+activityUI.frame.Visible = false
+activityUI.frame.Parent = gui
 
 local activityCorner = Instance.new("UICorner")
 activityCorner.CornerRadius = UDim.new(0, 14)
-activityCorner.Parent = activityFrame
+activityCorner.Parent = activityUI.frame
 
-local activityStroke = Instance.new("UIStroke")
-activityStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-activityStroke.Thickness = 2
-activityStroke.Color = Color3.fromRGB(140, 180, 255)
-activityStroke.Parent = activityFrame
+activityUI.stroke = Instance.new("UIStroke")
+activityUI.stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+activityUI.stroke.Thickness = 2
+activityUI.stroke.Color = Color3.fromRGB(140, 180, 255)
+activityUI.stroke.Parent = activityUI.frame
 
-local activityTitle = Instance.new("TextLabel")
-activityTitle.Name = "Title"
-activityTitle.BackgroundTransparency = 1
-activityTitle.Size = UDim2.new(1, -24, 0, 30)
-activityTitle.Position = UDim2.new(0, 12, 0, 8)
-activityTitle.Font = Enum.Font.GothamBlack
-activityTitle.TextScaled = true
-activityTitle.TextWrapped = true
-activityTitle.TextXAlignment = Enum.TextXAlignment.Left
-activityTitle.TextColor3 = Color3.fromRGB(245, 248, 255)
-activityTitle.Text = "Lobby-activiteit"
-activityTitle.Parent = activityFrame
+activityUI.title = Instance.new("TextLabel")
+activityUI.title.Name = "Title"
+activityUI.title.BackgroundTransparency = 1
+activityUI.title.Size = UDim2.new(1, -24, 0, 30)
+activityUI.title.Position = UDim2.new(0, 12, 0, 8)
+activityUI.title.Font = Enum.Font.GothamBlack
+activityUI.title.TextScaled = true
+activityUI.title.TextWrapped = true
+activityUI.title.TextXAlignment = Enum.TextXAlignment.Left
+activityUI.title.TextColor3 = Color3.fromRGB(245, 248, 255)
+activityUI.title.Text = "Lobby-activiteit"
+activityUI.title.Parent = activityUI.frame
 
-local activityThemeLabel = Instance.new("TextLabel")
-activityThemeLabel.Name = "ThemeLabel"
-activityThemeLabel.BackgroundTransparency = 1
-activityThemeLabel.Size = UDim2.new(1, -24, 0, 22)
-activityThemeLabel.Position = UDim2.new(0, 12, 0, 42)
-activityThemeLabel.Font = Enum.Font.GothamSemibold
-activityThemeLabel.TextScaled = true
-activityThemeLabel.TextWrapped = true
-activityThemeLabel.TextXAlignment = Enum.TextXAlignment.Left
-activityThemeLabel.TextColor3 = Color3.fromRGB(200, 220, 255)
-activityThemeLabel.Text = "Thema: Onbekend"
-activityThemeLabel.Parent = activityFrame
+activityUI.themeLabel = Instance.new("TextLabel")
+activityUI.themeLabel.Name = "ThemeLabel"
+activityUI.themeLabel.BackgroundTransparency = 1
+activityUI.themeLabel.Size = UDim2.new(1, -24, 0, 22)
+activityUI.themeLabel.Position = UDim2.new(0, 12, 0, 42)
+activityUI.themeLabel.Font = Enum.Font.GothamSemibold
+activityUI.themeLabel.TextScaled = true
+activityUI.themeLabel.TextWrapped = true
+activityUI.themeLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityUI.themeLabel.TextColor3 = Color3.fromRGB(200, 220, 255)
+activityUI.themeLabel.Text = "Thema: Onbekend"
+activityUI.themeLabel.Parent = activityUI.frame
 
-local activityDescriptionLabel = Instance.new("TextLabel")
-activityDescriptionLabel.Name = "Description"
-activityDescriptionLabel.BackgroundTransparency = 1
-activityDescriptionLabel.Size = UDim2.new(1, -24, 0, 32)
-activityDescriptionLabel.Position = UDim2.new(0, 12, 0, 64)
-activityDescriptionLabel.Font = Enum.Font.GothamMedium
-activityDescriptionLabel.TextScaled = true
-activityDescriptionLabel.TextWrapped = true
-activityDescriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
-activityDescriptionLabel.TextColor3 = Color3.fromRGB(220, 228, 255)
-activityDescriptionLabel.Text = "Zoek de gemarkeerde zone en voltooi de uitdaging."
-activityDescriptionLabel.Parent = activityFrame
+activityUI.descriptionLabel = Instance.new("TextLabel")
+activityUI.descriptionLabel.Name = "Description"
+activityUI.descriptionLabel.BackgroundTransparency = 1
+activityUI.descriptionLabel.Size = UDim2.new(1, -24, 0, 32)
+activityUI.descriptionLabel.Position = UDim2.new(0, 12, 0, 64)
+activityUI.descriptionLabel.Font = Enum.Font.GothamMedium
+activityUI.descriptionLabel.TextScaled = true
+activityUI.descriptionLabel.TextWrapped = true
+activityUI.descriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityUI.descriptionLabel.TextColor3 = Color3.fromRGB(220, 228, 255)
+activityUI.descriptionLabel.Text = "Zoek de gemarkeerde zone en voltooi de uitdaging."
+activityUI.descriptionLabel.Parent = activityUI.frame
 
-local activityRewardLabel = Instance.new("TextLabel")
-activityRewardLabel.Name = "RewardLabel"
-activityRewardLabel.BackgroundTransparency = 1
-activityRewardLabel.Size = UDim2.new(1, -24, 0, 20)
-activityRewardLabel.Position = UDim2.new(0, 12, 0, 92)
-activityRewardLabel.Font = Enum.Font.GothamBold
-activityRewardLabel.TextScaled = true
-activityRewardLabel.TextWrapped = true
-activityRewardLabel.TextXAlignment = Enum.TextXAlignment.Left
-activityRewardLabel.TextColor3 = Color3.fromRGB(165, 235, 140)
-activityRewardLabel.Text = "Beloning: +0 coins  |  +0 XP"
-activityRewardLabel.Parent = activityFrame
+activityUI.rewardLabel = Instance.new("TextLabel")
+activityUI.rewardLabel.Name = "RewardLabel"
+activityUI.rewardLabel.BackgroundTransparency = 1
+activityUI.rewardLabel.Size = UDim2.new(1, -24, 0, 20)
+activityUI.rewardLabel.Position = UDim2.new(0, 12, 0, 92)
+activityUI.rewardLabel.Font = Enum.Font.GothamBold
+activityUI.rewardLabel.TextScaled = true
+activityUI.rewardLabel.TextWrapped = true
+activityUI.rewardLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityUI.rewardLabel.TextColor3 = Color3.fromRGB(165, 235, 140)
+activityUI.rewardLabel.Text = "Beloning: +0 coins  |  +0 XP"
+activityUI.rewardLabel.Parent = activityUI.frame
 
-local waypointBillboard = Instance.new("BillboardGui")
-waypointBillboard.Name = "LobbyActivityWaypoint"
-waypointBillboard.Size = UDim2.new(0, 180, 0, 60)
-waypointBillboard.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
-waypointBillboard.Enabled = false
-waypointBillboard.AlwaysOnTop = true
+local waypointUI = {}
+waypointUI.billboard = Instance.new("BillboardGui")
+waypointUI.billboard.Name = "LobbyActivityWaypoint"
+waypointUI.billboard.Size = UDim2.new(0, 180, 0, 60)
+waypointUI.billboard.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
+waypointUI.billboard.Enabled = false
+waypointUI.billboard.AlwaysOnTop = true
 
-local waypointFrame = Instance.new("Frame")
-waypointFrame.Name = "Container"
-waypointFrame.Size = UDim2.new(1, 0, 1, 0)
-waypointFrame.BackgroundTransparency = 0.2
-waypointFrame.BackgroundColor3 = Color3.fromRGB(70, 120, 255)
-waypointFrame.BorderSizePixel = 0
-waypointFrame.Parent = waypointBillboard
+waypointUI.frame = Instance.new("Frame")
+waypointUI.frame.Name = "Container"
+waypointUI.frame.Size = UDim2.new(1, 0, 1, 0)
+waypointUI.frame.BackgroundTransparency = 0.2
+waypointUI.frame.BackgroundColor3 = Color3.fromRGB(70, 120, 255)
+waypointUI.frame.BorderSizePixel = 0
+waypointUI.frame.Parent = waypointUI.billboard
 
 local waypointCorner = Instance.new("UICorner")
 waypointCorner.CornerRadius = UDim.new(0, 12)
-waypointCorner.Parent = waypointFrame
+waypointCorner.Parent = waypointUI.frame
 
-local waypointTitle = Instance.new("TextLabel")
-waypointTitle.Name = "Title"
-waypointTitle.BackgroundTransparency = 1
-waypointTitle.Size = UDim2.new(1, -16, 0, 30)
-waypointTitle.Position = UDim2.new(0, 8, 0, 6)
-waypointTitle.Font = Enum.Font.GothamBold
-waypointTitle.TextScaled = true
-waypointTitle.TextWrapped = true
-waypointTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-waypointTitle.Text = "Activiteit"
-waypointTitle.Parent = waypointFrame
+waypointUI.title = Instance.new("TextLabel")
+waypointUI.title.Name = "Title"
+waypointUI.title.BackgroundTransparency = 1
+waypointUI.title.Size = UDim2.new(1, -16, 0, 30)
+waypointUI.title.Position = UDim2.new(0, 8, 0, 6)
+waypointUI.title.Font = Enum.Font.GothamBold
+waypointUI.title.TextScaled = true
+waypointUI.title.TextWrapped = true
+waypointUI.title.TextColor3 = Color3.fromRGB(255, 255, 255)
+waypointUI.title.Text = "Activiteit"
+waypointUI.title.Parent = waypointUI.frame
 
-local waypointAction = Instance.new("TextLabel")
-waypointAction.Name = "Action"
-waypointAction.BackgroundTransparency = 1
-waypointAction.Size = UDim2.new(1, -16, 0, 22)
-waypointAction.Position = UDim2.new(0, 8, 0, 34)
-waypointAction.Font = Enum.Font.GothamSemibold
-waypointAction.TextScaled = true
-waypointAction.TextWrapped = true
-waypointAction.TextColor3 = Color3.fromRGB(230, 240, 255)
-waypointAction.Text = "Voltooi uitdaging"
-waypointAction.Parent = waypointFrame
+waypointUI.actionLabel = Instance.new("TextLabel")
+waypointUI.actionLabel.Name = "Action"
+waypointUI.actionLabel.BackgroundTransparency = 1
+waypointUI.actionLabel.Size = UDim2.new(1, -16, 0, 22)
+waypointUI.actionLabel.Position = UDim2.new(0, 8, 0, 34)
+waypointUI.actionLabel.Font = Enum.Font.GothamSemibold
+waypointUI.actionLabel.TextScaled = true
+waypointUI.actionLabel.TextWrapped = true
+waypointUI.actionLabel.TextColor3 = Color3.fromRGB(230, 240, 255)
+waypointUI.actionLabel.Text = "Voltooi uitdaging"
+waypointUI.actionLabel.Parent = waypointUI.frame
 
-local rewardToastFrame = Instance.new("Frame")
-rewardToastFrame.Name = "LobbyActivityReward"
-rewardToastFrame.Size = UDim2.new(0, 340, 0, 90)
-rewardToastFrame.Position = UDim2.new(0.5, -170, 0.65, 0)
-rewardToastFrame.BackgroundTransparency = 1
-rewardToastFrame.Visible = false
-rewardToastFrame.Parent = gui
+local rewardToast = {}
+rewardToast.frame = Instance.new("Frame")
+rewardToast.frame.Name = "LobbyActivityReward"
+rewardToast.frame.Size = UDim2.new(0, 340, 0, 90)
+rewardToast.frame.Position = UDim2.new(0.5, -170, 0.65, 0)
+rewardToast.frame.BackgroundTransparency = 1
+rewardToast.frame.Visible = false
+rewardToast.frame.Parent = gui
 
-local rewardToastInner = Instance.new("Frame")
-rewardToastInner.Name = "Inner"
-rewardToastInner.Size = UDim2.new(1, 0, 1, 0)
-rewardToastInner.BackgroundTransparency = 1
-rewardToastInner.BackgroundColor3 = Color3.fromRGB(22, 70, 32)
-rewardToastInner.BorderSizePixel = 0
-rewardToastInner.Parent = rewardToastFrame
+rewardToast.inner = Instance.new("Frame")
+rewardToast.inner.Name = "Inner"
+rewardToast.inner.Size = UDim2.new(1, 0, 1, 0)
+rewardToast.inner.BackgroundTransparency = 1
+rewardToast.inner.BackgroundColor3 = Color3.fromRGB(22, 70, 32)
+rewardToast.inner.BorderSizePixel = 0
+rewardToast.inner.Parent = rewardToast.frame
 
 local rewardToastCorner = Instance.new("UICorner")
 rewardToastCorner.CornerRadius = UDim.new(0, 14)
-rewardToastCorner.Parent = rewardToastInner
+rewardToastCorner.Parent = rewardToast.inner
 
-local rewardToastStroke = Instance.new("UIStroke")
-rewardToastStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-rewardToastStroke.Thickness = 2
-rewardToastStroke.Color = Color3.fromRGB(120, 220, 120)
-rewardToastStroke.Transparency = 1
-rewardToastStroke.Parent = rewardToastInner
+rewardToast.stroke = Instance.new("UIStroke")
+rewardToast.stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+rewardToast.stroke.Thickness = 2
+rewardToast.stroke.Color = Color3.fromRGB(120, 220, 120)
+rewardToast.stroke.Transparency = 1
+rewardToast.stroke.Parent = rewardToast.inner
 
-local rewardToastLabel = Instance.new("TextLabel")
-rewardToastLabel.Name = "Label"
-rewardToastLabel.BackgroundTransparency = 1
-rewardToastLabel.Size = UDim2.new(1, -20, 1, -20)
-rewardToastLabel.Position = UDim2.new(0, 10, 0, 10)
-rewardToastLabel.Font = Enum.Font.GothamBold
-rewardToastLabel.TextScaled = true
-rewardToastLabel.TextWrapped = true
-rewardToastLabel.TextColor3 = Color3.fromRGB(240, 255, 240)
-rewardToastLabel.TextTransparency = 1
-rewardToastLabel.Text = ""
-rewardToastLabel.Parent = rewardToastInner
+rewardToast.label = Instance.new("TextLabel")
+rewardToast.label.Name = "Label"
+rewardToast.label.BackgroundTransparency = 1
+rewardToast.label.Size = UDim2.new(1, -20, 1, -20)
+rewardToast.label.Position = UDim2.new(0, 10, 0, 10)
+rewardToast.label.Font = Enum.Font.GothamBold
+rewardToast.label.TextScaled = true
+rewardToast.label.TextWrapped = true
+rewardToast.label.TextColor3 = Color3.fromRGB(240, 255, 240)
+rewardToast.label.TextTransparency = 1
+rewardToast.label.Text = ""
+rewardToast.label.Parent = rewardToast.inner
 
 local lobbyActivityState = {
 zone = nil,
@@ -397,103 +405,103 @@ end
 end
 end
 if waypointPart and waypointPart:IsA("BasePart") then
-waypointBillboard.Enabled = true
-waypointBillboard.Adornee = waypointPart
-waypointBillboard.Parent = waypointPart
-waypointTitle.Text = displayName or zoneName or "Activiteit"
-waypointAction.Text = promptText or "Voltooi uitdaging"
+        waypointUI.billboard.Enabled = true
+        waypointUI.billboard.Adornee = waypointPart
+        waypointUI.billboard.Parent = waypointPart
+        waypointUI.title.Text = displayName or zoneName or "Activiteit"
+        waypointUI.actionLabel.Text = promptText or "Voltooi uitdaging"
 else
-waypointBillboard.Enabled = false
-waypointBillboard.Adornee = nil
-waypointBillboard.Parent = nil
+        waypointUI.billboard.Enabled = false
+        waypointUI.billboard.Adornee = nil
+        waypointUI.billboard.Parent = nil
 end
 end
 
 local function updateActivityPanel(payload)
-if type(payload) ~= "table" then
-return
-end
-lobbyActivityState.zone = payload.zone
-lobbyActivityState.theme = payload.theme
-lobbyActivityState.themeName = payload.themeDisplayName
-lobbyActivityState.displayName = payload.displayName or payload.zone or "Activiteit"
-local rewardCoins = 0
-local rewardXp = 0
-if type(payload.reward) == "table" then
-rewardCoins = math.floor(tonumber(payload.reward.coins or payload.reward.Coins) or 0)
-rewardXp = math.floor(tonumber(payload.reward.xp or payload.reward.XP) or 0)
-end
-local themeLabelText = payload.themeDisplayName or payload.theme or "Onbekend"
-local descriptionText = payload.description or "Zoek de gemarkeerde zone en voltooi de uitdaging."
-activityTitle.Text = string.format("Lobby-activiteit: %s", lobbyActivityState.displayName)
-activityThemeLabel.Text = string.format("Thema: %s", themeLabelText)
-activityDescriptionLabel.Text = descriptionText
-activityRewardLabel.Text = string.format("Beloning: +%d coins  |  +%d XP", rewardCoins, rewardXp)
-activityFrame.Visible = true
-local theme = ThemeConfig.Get(payload.theme)
-local accent = theme and theme.primaryColor or Color3.fromRGB(140, 180, 255)
-activityStroke.Color = accent
-waypointFrame.BackgroundColor3 = accent
-rewardToastStroke.Color = accent
-rewardToastInner.BackgroundColor3 = Color3.new(
-math.clamp(accent.R * 0.35, 0, 1),
-math.clamp(accent.G * 0.55, 0, 1),
-math.clamp(accent.B * 0.35, 0, 1)
-)
-updateWaypoint(payload.zone, lobbyActivityState.displayName)
-if not waypointBillboard.Enabled then
-task.delay(1, function()
-if lobbyActivityState.zone == payload.zone then
-updateWaypoint(payload.zone, lobbyActivityState.displayName)
-end
-end)
-end
+        if type(payload) ~= "table" then
+                return
+        end
+        lobbyActivityState.zone = payload.zone
+        lobbyActivityState.theme = payload.theme
+        lobbyActivityState.themeName = payload.themeDisplayName
+        lobbyActivityState.displayName = payload.displayName or payload.zone or "Activiteit"
+        local rewardCoins = 0
+        local rewardXp = 0
+        if type(payload.reward) == "table" then
+                rewardCoins = math.floor(tonumber(payload.reward.coins or payload.reward.Coins) or 0)
+                rewardXp = math.floor(tonumber(payload.reward.xp or payload.reward.XP) or 0)
+        end
+        local themeLabelText = payload.themeDisplayName or payload.theme or "Onbekend"
+        local descriptionText = payload.description or "Zoek de gemarkeerde zone en voltooi de uitdaging."
+        activityUI.title.Text = string.format("Lobby-activiteit: %s", lobbyActivityState.displayName)
+        activityUI.themeLabel.Text = string.format("Thema: %s", themeLabelText)
+        activityUI.descriptionLabel.Text = descriptionText
+        activityUI.rewardLabel.Text = string.format("Beloning: +%d coins  |  +%d XP", rewardCoins, rewardXp)
+        activityUI.frame.Visible = true
+        local theme = ThemeConfig.Get(payload.theme)
+        local accent = theme and theme.primaryColor or Color3.fromRGB(140, 180, 255)
+        activityUI.stroke.Color = accent
+        waypointUI.frame.BackgroundColor3 = accent
+        rewardToast.stroke.Color = accent
+        rewardToast.inner.BackgroundColor3 = Color3.new(
+                math.clamp(accent.R * 0.35, 0, 1),
+                math.clamp(accent.G * 0.55, 0, 1),
+                math.clamp(accent.B * 0.35, 0, 1)
+        )
+        updateWaypoint(payload.zone, lobbyActivityState.displayName)
+        if not waypointUI.billboard.Enabled then
+                task.delay(1, function()
+                        if lobbyActivityState.zone == payload.zone then
+                                updateWaypoint(payload.zone, lobbyActivityState.displayName)
+                        end
+                end)
+        end
 end
 
 local function showRewardToast(message)
-rewardToastCounter += 1
-local toastId = rewardToastCounter
-rewardToastLabel.Text = message
-rewardToastFrame.Visible = true
-rewardToastInner.BackgroundTransparency = 1
-rewardToastLabel.TextTransparency = 1
-rewardToastStroke.Transparency = 1
-if rewardShowTween then
-rewardShowTween:Cancel()
-end
-if rewardTextTween then
-rewardTextTween:Cancel()
-end
-if rewardHideTween then
-rewardHideTween:Cancel()
-end
-if rewardStrokeTween then
-rewardStrokeTween:Cancel()
-end
-local showInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-rewardShowTween = TweenService:Create(rewardToastInner, showInfo, { BackgroundTransparency = 0.08 })
-rewardTextTween = TweenService:Create(rewardToastLabel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 })
-rewardStrokeTween = TweenService:Create(rewardToastStroke, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0 })
-rewardShowTween:Play()
-rewardTextTween:Play()
-rewardStrokeTween:Play()
-task.delay(4, function()
-if rewardToastCounter ~= toastId then
-return
-end
-local hideInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-rewardHideTween = TweenService:Create(rewardToastInner, hideInfo, { BackgroundTransparency = 1 })
-local hideTextTween = TweenService:Create(rewardToastLabel, hideInfo, { TextTransparency = 1 })
-local hideStroke = TweenService:Create(rewardToastStroke, hideInfo, { Transparency = 1 })
-rewardHideTween:Play()
-hideTextTween:Play()
-hideStroke:Play()
-hideTextTween.Completed:Connect(function()
-if rewardToastCounter == toastId then
-rewardToastFrame.Visible = false
-end
-end)
-end)
+        rewardToastCounter += 1
+        local toastId = rewardToastCounter
+        rewardToast.label.Text = message
+        rewardToast.frame.Visible = true
+        rewardToast.inner.BackgroundTransparency = 1
+        rewardToast.label.TextTransparency = 1
+        rewardToast.stroke.Transparency = 1
+        if rewardShowTween then
+                rewardShowTween:Cancel()
+        end
+        if rewardTextTween then
+                rewardTextTween:Cancel()
+        end
+        if rewardHideTween then
+                rewardHideTween:Cancel()
+        end
+        if rewardStrokeTween then
+                rewardStrokeTween:Cancel()
+        end
+        local showInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        rewardShowTween = TweenService:Create(rewardToast.inner, showInfo, { BackgroundTransparency = 0.08 })
+        rewardTextTween = TweenService:Create(rewardToast.label, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 })
+        rewardStrokeTween = TweenService:Create(rewardToast.stroke, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0 })
+        rewardShowTween:Play()
+        rewardTextTween:Play()
+        rewardStrokeTween:Play()
+        task.delay(4, function()
+                if rewardToastCounter ~= toastId then
+                        return
+                end
+                local hideInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+                rewardHideTween = TweenService:Create(rewardToast.inner, hideInfo, { BackgroundTransparency = 1 })
+                local hideTextTween = TweenService:Create(rewardToast.label, hideInfo, { TextTransparency = 1 })
+                local hideStroke = TweenService:Create(rewardToast.stroke, hideInfo, { Transparency = 1 })
+                rewardHideTween:Play()
+                hideTextTween:Play()
+                hideStroke:Play()
+                hideTextTween.Completed:Connect(function()
+                        if rewardToastCounter == toastId then
+                                rewardToast.frame.Visible = false
+                        end
+                end)
+        end)
 end
 
 local function handleActivityReward(payload)
@@ -529,7 +537,7 @@ end
 showRewardToast(table.concat(lines, "\n"))
 end
 
-local defaultEventWarningColor = eventWarningFrame.BackgroundColor3
+local defaultEventWarningColor = eventWarning.frame.BackgroundColor3
 local eventWarningToken
 
 local rewardFeedFrame = Instance.new("Frame")
@@ -709,12 +717,12 @@ local function updateEventStatusText(force)
                         labelText = string.format("Eventmonster: %s (volgende kans ~%ds)", status, seconds)
                         lastEventCountdownDisplay = seconds
                 else
-                        labelText = eventStatusLabel.Text
+                        labelText = scoreboard.eventStatusLabel.Text
                 end
         else
                         lastEventCountdownDisplay = nil
         end
-        eventStatusLabel.Text = labelText
+        scoreboard.eventStatusLabel.Text = labelText
 end
 
 local function onEventStatusValueChanged()
@@ -783,23 +791,23 @@ end
 
 local function stopEventMonsterWarning()
         eventWarningToken = nil
-        eventWarningFrame.Visible = false
-        eventWarningFrame.BackgroundColor3 = defaultEventWarningColor
+        eventWarning.frame.Visible = false
+        eventWarning.frame.BackgroundColor3 = defaultEventWarningColor
         eventWarningStroke.Color = Color3.fromRGB(255, 120, 120)
 end
 
 local function applyEventWarning(payload)
         payload = payload or {}
         local message = payload.message or "Gevaar! Een eventmonster is actief."
-        eventWarningLabel.Text = message
-        eventWarningFrame.Visible = true
+        eventWarning.label.Text = message
+        eventWarning.frame.Visible = true
 
         local color = payload.color
         if typeof(color) == "Color3" then
-                eventWarningFrame.BackgroundColor3 = color
+                eventWarning.frame.BackgroundColor3 = color
                 eventWarningStroke.Color = color:Lerp(Color3.new(1, 1, 1), 0.35)
         else
-                eventWarningFrame.BackgroundColor3 = defaultEventWarningColor
+                eventWarning.frame.BackgroundColor3 = defaultEventWarningColor
                 eventWarningStroke.Color = Color3.fromRGB(255, 120, 120)
         end
 
@@ -812,13 +820,13 @@ local function applyEventWarning(payload)
         eventWarningToken = token
 
         if interval and interval > 0 then
-                local baseColor = eventWarningFrame.BackgroundColor3
+                local baseColor = eventWarning.frame.BackgroundColor3
                 task.spawn(function()
                         local bright = true
                         while eventWarningToken == token do
                                 bright = not bright
                                 local lerpFactor = bright and 0.15 or 0.45
-                                eventWarningFrame.BackgroundColor3 = baseColor:Lerp(Color3.new(0, 0, 0), lerpFactor)
+                                eventWarning.frame.BackgroundColor3 = baseColor:Lerp(Color3.new(0, 0, 0), lerpFactor)
                                 task.wait(interval)
                         end
                 end)
@@ -969,22 +977,22 @@ local function isRoundActiveForWarning(state)
 end
 
 local function updateSentryWarningVisibility()
-        if not sentryWarningFrame then
+        if not sentryWarning.frame then
                 return
         end
         if not sentryWarningValue or not sentryWarningValue.Value then
-                sentryWarningFrame.Visible = false
+                sentryWarning.frame.Visible = false
                 return
         end
         if not isRoundActiveForWarning() then
-                sentryWarningFrame.Visible = false
+                sentryWarning.frame.Visible = false
                 return
         end
         if not isSentryWarningCountdownWindowActive() then
-                sentryWarningFrame.Visible = false
+                sentryWarning.frame.Visible = false
                 return
         end
-        sentryWarningFrame.Visible = true
+        sentryWarning.frame.Visible = true
 end
 
 local function attachSentryWarningValue(value)
@@ -1256,26 +1264,26 @@ end
 
 local function refreshScoreboardVisibility()
         if not scoreboardData then
-                scoreboardFrame.Visible = false
+                scoreboard.frame.Visible = false
                 return
         end
         if isGameplayState() then
-                scoreboardFrame.Visible = true
+                scoreboard.frame.Visible = true
         else
-                scoreboardFrame.Visible = false
+                scoreboard.frame.Visible = false
         end
 end
 
 local function updateScoreboard(data)
         scoreboardData = data
         if not data then
-                clearTextChildren(aliveListFrame)
-                clearTextChildren(eliminatedListFrame)
+                clearTextChildren(scoreboard.aliveListFrame)
+                clearTextChildren(scoreboard.eliminatedListFrame)
                 refreshScoreboardVisibility()
                 return
         end
-        populateList(aliveListFrame, data.alive or {}, "Geen spelers")
-        populateList(eliminatedListFrame, data.eliminated or {}, "Niemand")
+        populateList(scoreboard.aliveListFrame, data.alive or {}, "Geen spelers")
+        populateList(scoreboard.eliminatedListFrame, data.eliminated or {}, "Niemand")
         refreshScoreboardVisibility()
 end
 
@@ -1284,7 +1292,7 @@ local function resetEliminationCamera(token)
                 return
         end
         eliminationCameraToken = nil
-        eliminationMessage.Visible = false
+        eliminationUI.message.Visible = false
         local camera = workspace.CurrentCamera
         if camera then
                 camera.CameraType = token.originalType or Enum.CameraType.Custom
@@ -1303,11 +1311,11 @@ local function playEliminationSequence(position)
         if not focus then
                 focus = Vector3.new(0, 0, 0)
         end
-        eliminationMessage.Text = "Je bent uitgeschakeld!"
-        eliminationMessage.Visible = true
+        eliminationUI.message.Text = "Je bent uitgeschakeld!"
+        eliminationUI.message.Visible = true
         if not camera then
                 task.delay(4, function()
-                        eliminationMessage.Visible = false
+                        eliminationUI.message.Visible = false
                 end)
                 return
         end
@@ -2644,52 +2652,168 @@ local function updatePreviewHighlights(targetThemeId, accentColor)
         end
 end
 
-local lobby = Instance.new("Frame"); lobby.Name = "Lobby"; lobby.Size = UDim2.new(0, 380, 0, 320)
-lobby.Position = UDim2.new(0, 20, 0, 20); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
-local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.Text = "Lobby"; title.BackgroundTransparency = 1; title.Parent = lobby
-local listLbl = Instance.new("TextLabel"); listLbl.Size = UDim2.new(1, -12, 0, 76); listLbl.Position = UDim2.new(0,6,0,32)
-listLbl.TextXAlignment = Enum.TextXAlignment.Left; listLbl.BackgroundTransparency = 0.6; listLbl.Text = ""; listLbl.Parent = lobby
+local function createLegacyLobbyUI(parentGui)
+        local elements = {}
 
-local themePanel = Instance.new("Frame"); themePanel.Name = "ThemePanel"; themePanel.BackgroundTransparency = 0.35
-themePanel.BackgroundColor3 = Color3.fromRGB(20, 20, 24); themePanel.BorderSizePixel = 0
-themePanel.Position = UDim2.new(0,6,0,116); themePanel.Size = UDim2.new(1,-12,1,-152); themePanel.Parent = lobby
-themePanel.Visible = false; themePanel.ClipsDescendants = true
+        local lobby = Instance.new("Frame")
+        lobby.Name = "Lobby"
+        lobby.Size = UDim2.new(0, 380, 0, 320)
+        lobby.Position = UDim2.new(0, 20, 0, 20)
+        lobby.BackgroundTransparency = 0.2
+        lobby.Parent = parentGui
+        elements.lobby = lobby
 
-local themeHeader = Instance.new("TextLabel"); themeHeader.BackgroundTransparency = 1; themeHeader.Text = "Kies een thema"
-themeHeader.Font = Enum.Font.GothamBold; themeHeader.TextSize = 20
-themeHeader.TextXAlignment = Enum.TextXAlignment.Left; themeHeader.Position = UDim2.new(0,8,0,6)
-themeHeader.Size = UDim2.new(1,-16,0,26); themeHeader.TextColor3 = Color3.fromRGB(255,255,255); themeHeader.Parent = themePanel
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 24)
+        title.Text = "Lobby"
+        title.BackgroundTransparency = 1
+        title.Parent = lobby
+        elements.titleLabel = title
 
-local winningLabel = Instance.new("TextLabel"); winningLabel.BackgroundTransparency = 1
-winningLabel.TextXAlignment = Enum.TextXAlignment.Left; winningLabel.Font = Enum.Font.Gotham
-winningLabel.TextSize = 16; winningLabel.Position = UDim2.new(0,8,0,34)
-winningLabel.Size = UDim2.new(1,-16,0,20); winningLabel.TextColor3 = Color3.fromRGB(220,220,220)
-winningLabel.Text = "Volgende ronde: ?"; winningLabel.Parent = themePanel
+        local listLabel = Instance.new("TextLabel")
+        listLabel.Size = UDim2.new(1, -12, 0, 76)
+        listLabel.Position = UDim2.new(0, 6, 0, 32)
+        listLabel.TextXAlignment = Enum.TextXAlignment.Left
+        listLabel.BackgroundTransparency = 0.6
+        listLabel.Text = ""
+        listLabel.Parent = lobby
+        elements.listLabel = listLabel
 
-local themeCountdown = Instance.new("TextLabel"); themeCountdown.BackgroundTransparency = 1
-themeCountdown.TextXAlignment = Enum.TextXAlignment.Right; themeCountdown.Font = Enum.Font.Gotham
-themeCountdown.TextSize = 16; themeCountdown.Position = UDim2.new(0,8,0,34)
-themeCountdown.Size = UDim2.new(1,-16,0,20); themeCountdown.TextColor3 = Color3.fromRGB(220,220,220)
-themeCountdown.Text = "Stemmen..."; themeCountdown.Parent = themePanel
+        local themePanel = Instance.new("Frame")
+        themePanel.Name = "ThemePanel"
+        themePanel.BackgroundTransparency = 0.35
+        themePanel.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+        themePanel.BorderSizePixel = 0
+        themePanel.Position = UDim2.new(0, 6, 0, 116)
+        themePanel.Size = UDim2.new(1, -12, 1, -152)
+        themePanel.Visible = false
+        themePanel.ClipsDescendants = true
+        themePanel.Parent = lobby
+        elements.themePanel = themePanel
 
-local themeStartButton = Instance.new("TextButton")
-themeStartButton.Name = "StartVoteButton"
-themeStartButton.BackgroundColor3 = Color3.fromRGB(40, 60, 110)
-themeStartButton.BackgroundTransparency = 0.1
-themeStartButton.AutoButtonColor = true
-themeStartButton.Font = Enum.Font.GothamSemibold
-themeStartButton.TextSize = 15
-themeStartButton.TextColor3 = Color3.fromRGB(235, 240, 255)
-themeStartButton.Text = "Start stemronde"
-themeStartButton.Size = UDim2.new(0, 160, 0, 30)
-themeStartButton.Position = UDim2.new(1, -170, 0, 32)
-themeStartButton.AnchorPoint = Vector2.new(1, 0)
-themeStartButton.Visible = false
-themeStartButton.Parent = themePanel
+        local themeHeader = Instance.new("TextLabel")
+        themeHeader.BackgroundTransparency = 1
+        themeHeader.Text = "Kies een thema"
+        themeHeader.Font = Enum.Font.GothamBold
+        themeHeader.TextSize = 20
+        themeHeader.TextXAlignment = Enum.TextXAlignment.Left
+        themeHeader.Position = UDim2.new(0, 8, 0, 6)
+        themeHeader.Size = UDim2.new(1, -16, 0, 26)
+        themeHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+        themeHeader.Parent = themePanel
+        elements.themeHeader = themeHeader
 
-local themeStartCorner = Instance.new("UICorner")
-themeStartCorner.CornerRadius = UDim.new(0, 12)
-themeStartCorner.Parent = themeStartButton
+        local winningLabel = Instance.new("TextLabel")
+        winningLabel.BackgroundTransparency = 1
+        winningLabel.TextXAlignment = Enum.TextXAlignment.Left
+        winningLabel.Font = Enum.Font.Gotham
+        winningLabel.TextSize = 16
+        winningLabel.Position = UDim2.new(0, 8, 0, 34)
+        winningLabel.Size = UDim2.new(1, -16, 0, 20)
+        winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+        winningLabel.Text = "Volgende ronde: ?"
+        winningLabel.Parent = themePanel
+        elements.winningLabel = winningLabel
+
+        local themeCountdown = Instance.new("TextLabel")
+        themeCountdown.BackgroundTransparency = 1
+        themeCountdown.TextXAlignment = Enum.TextXAlignment.Right
+        themeCountdown.Font = Enum.Font.Gotham
+        themeCountdown.TextSize = 16
+        themeCountdown.Position = UDim2.new(0, 8, 0, 34)
+        themeCountdown.Size = UDim2.new(1, -16, 0, 20)
+        themeCountdown.TextColor3 = Color3.fromRGB(220, 220, 220)
+        themeCountdown.Text = "Stemmen..."
+        themeCountdown.Parent = themePanel
+        elements.themeCountdown = themeCountdown
+
+        local themeHintLabel = Instance.new("TextLabel")
+        themeHintLabel.Name = "ThemeHint"
+        themeHintLabel.BackgroundTransparency = 1
+        themeHintLabel.TextWrapped = true
+        themeHintLabel.TextXAlignment = Enum.TextXAlignment.Left
+        themeHintLabel.TextYAlignment = Enum.TextYAlignment.Top
+        themeHintLabel.Font = Enum.Font.Gotham
+        themeHintLabel.TextSize = 14
+        themeHintLabel.TextColor3 = Color3.fromRGB(210, 210, 230)
+        themeHintLabel.Text = ""
+        themeHintLabel.Size = UDim2.new(1, -16, 0, 36)
+        themeHintLabel.Position = UDim2.new(0, 8, 1, -44)
+        themeHintLabel.Parent = themePanel
+        elements.themeHintLabel = themeHintLabel
+
+        local themeStartButton = Instance.new("TextButton")
+        themeStartButton.Name = "StartVoteButton"
+        themeStartButton.BackgroundColor3 = Color3.fromRGB(40, 60, 110)
+        themeStartButton.BackgroundTransparency = 0.1
+        themeStartButton.AutoButtonColor = true
+        themeStartButton.Font = Enum.Font.GothamSemibold
+        themeStartButton.TextSize = 15
+        themeStartButton.TextColor3 = Color3.fromRGB(235, 240, 255)
+        themeStartButton.Text = "Start stemronde"
+        themeStartButton.Size = UDim2.new(0, 160, 0, 30)
+        themeStartButton.Position = UDim2.new(1, -170, 0, 32)
+        themeStartButton.AnchorPoint = Vector2.new(1, 0)
+        themeStartButton.Visible = false
+        themeStartButton.Parent = themePanel
+        elements.themeStartButton = themeStartButton
+
+        local themeStartCorner = Instance.new("UICorner")
+        themeStartCorner.CornerRadius = UDim.new(0, 12)
+        themeStartCorner.Parent = themeStartButton
+
+        local themeOptions = Instance.new("ScrollingFrame")
+        themeOptions.BackgroundTransparency = 1
+        themeOptions.ScrollBarThickness = 4
+        themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        themeOptions.Position = UDim2.new(0, 6, 0, 60)
+        themeOptions.Size = UDim2.new(1, -12, 1, -70)
+        themeOptions.CanvasSize = UDim2.new()
+        themeOptions.Parent = themePanel
+        elements.themeOptions = themeOptions
+
+        local themeLayout = Instance.new("UIListLayout")
+        themeLayout.Parent = themeOptions
+        themeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        themeLayout.Padding = UDim.new(0, 4)
+        elements.themeLayout = themeLayout
+
+        themeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                themeOptions.CanvasSize = UDim2.new(0, 0, 0, themeLayout.AbsoluteContentSize.Y)
+        end)
+
+        local btnReady = Instance.new("TextButton")
+        btnReady.Size = UDim2.new(0.5, -12, 0, 36)
+        btnReady.AnchorPoint = Vector2.new(0, 1)
+        btnReady.Position = UDim2.new(0, 6, 1, -8)
+        btnReady.Text = "Ready"
+        btnReady.Parent = lobby
+        elements.readyButton = btnReady
+
+        local btnStart = Instance.new("TextButton")
+        btnStart.Size = UDim2.new(0.5, -12, 0, 36)
+        btnStart.AnchorPoint = Vector2.new(1, 1)
+        btnStart.Position = UDim2.new(1, -6, 1, -8)
+        btnStart.Text = "Start Game"
+        btnStart.Parent = lobby
+        elements.startButton = btnStart
+
+        return elements
+end
+
+local legacyLobbyUI = createLegacyLobbyUI(gui)
+local lobby = legacyLobbyUI.lobby
+local listLbl = legacyLobbyUI.listLabel
+local themePanel = legacyLobbyUI.themePanel
+local themeHeader = legacyLobbyUI.themeHeader
+local winningLabel = legacyLobbyUI.winningLabel
+local themeCountdown = legacyLobbyUI.themeCountdown
+local themeHintLabel = legacyLobbyUI.themeHintLabel
+local themeStartButton = legacyLobbyUI.themeStartButton
+local themeOptions = legacyLobbyUI.themeOptions
+local themeLayout = legacyLobbyUI.themeLayout
+local btnReady = legacyLobbyUI.readyButton
+local btnStart = legacyLobbyUI.startButton
 
 themeStartButton.MouseButton1Click:Connect(function()
         if not lastLobbyState then
@@ -2707,24 +2831,6 @@ themeStartButton.MouseButton1Click:Connect(function()
         end
         StartThemeVote:FireServer()
 end)
-
-local themeOptions = Instance.new("ScrollingFrame"); themeOptions.BackgroundTransparency = 1
-themeOptions.ScrollBarThickness = 4; themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
-themeOptions.Position = UDim2.new(0,6,0,60); themeOptions.Size = UDim2.new(1,-12,1,-70)
-themeOptions.CanvasSize = UDim2.new()
-themeOptions.Parent = themePanel
-
-local themeLayout = Instance.new("UIListLayout"); themeLayout.Parent = themeOptions
-themeLayout.SortOrder = Enum.SortOrder.LayoutOrder; themeLayout.Padding = UDim.new(0,4)
-
-themeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        themeOptions.CanvasSize = UDim2.new(0, 0, 0, themeLayout.AbsoluteContentSize.Y)
-end)
-
-local btnReady = Instance.new("TextButton"); btnReady.Size = UDim2.new(0.5, -12, 0, 36); btnReady.AnchorPoint = Vector2.new(0,1)
-btnReady.Position = UDim2.new(0, 6, 1, -8); btnReady.Text = "Ready"; btnReady.Parent = lobby
-local btnStart = Instance.new("TextButton"); btnStart.Size = UDim2.new(0.5, -12, 0, 36); btnStart.AnchorPoint = Vector2.new(1,1)
-btnStart.Position = UDim2.new(1, -6, 1, -8); btnStart.Text = "Start Game"; btnStart.Parent = lobby
 
 local function hasLobbyStatusBoard()
         local lobbyFolder = workspace:FindFirstChild("Lobby")

@@ -107,6 +107,8 @@ local selectionFlashSequence = 0
 local currentThemeOptions = {}
 local currentThemeOptionSet = {}
 
+local randomGenerator = Random.new()
+
 local function tableClear(t)
         if table.clear then
                 table.clear(t)
