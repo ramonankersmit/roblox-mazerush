@@ -844,6 +844,10 @@ local pendingThemeVoteId = nil
 local pendingThemeVoteTime = 0
 local PENDING_VOTE_WINDOW_SECONDS = 8
 local VOTE_OVERRIDE_TTL = 6
+local voteCountOverrides = {}
+local voteTotalOverride = nil
+local voteRandomOverride = nil
+local voteOverrideTimestamp = 0
 
 local function clearVoteOverrides()
     voteTotalOverride = nil
@@ -950,10 +954,6 @@ local function applyVoteOverridePayload(payload)
 
     applyLocalVoteFeedback()
 end
-local voteCountOverrides = {}
-local voteTotalOverride = nil
-local voteRandomOverride = nil
-local voteOverrideTimestamp = 0
 
 local function rememberLocalVote(voteId)
     if voteId == nil then
