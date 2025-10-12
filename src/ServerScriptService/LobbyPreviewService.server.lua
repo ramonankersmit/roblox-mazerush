@@ -1,9 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
 
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local ThemeConfig = require(Modules.ThemeConfig)
+local LightingManager = require(Modules.LightingManager)
 
 local State = ReplicatedStorage:WaitForChild("State")
 local ThemeValue = State:WaitForChild("Theme")
@@ -27,98 +27,6 @@ if not previewContainer then
     previewContainer = Instance.new("Folder")
     previewContainer.Name = "PreviewStands"
     previewContainer.Parent = lobbyFolder
-end
-
-local LIGHTING_PROPERTIES = {
-        "Ambient",
-        "OutdoorAmbient",
-        "FogColor",
-        "FogStart",
-        "FogEnd",
-        "Brightness",
-        "ColorShift_Top",
-        "ColorShift_Bottom",
-        "ClockTime",
-        "EnvironmentDiffuseScale",
-        "EnvironmentSpecularScale",
-        "GlobalShadows",
-}
-
-local defaultLighting = {}
-for _, prop in ipairs(LIGHTING_PROPERTIES) do
-        defaultLighting[prop] = Lighting[prop]
-end
-
-local EFFECT_CLASSES = {
-        ColorCorrection = "ColorCorrectionEffect",
-        Atmosphere = "Atmosphere",
-        SunRays = "SunRaysEffect",
-        Bloom = "BloomEffect",
-        DepthOfField = "DepthOfFieldEffect",
-}
-
-local effectInstances = {}
-
-local function ensureEffectInstance(effectName)
-        local className = EFFECT_CLASSES[effectName]
-        if not className then
-                return nil
-        end
-        local instance = effectInstances[effectName]
-        if not instance or not instance.Parent then
-                instance = Instance.new(className)
-                instance.Name = string.format("LobbyPreview_%s", tostring(effectName))
-                instance.Parent = Lighting
-                effectInstances[effectName] = instance
-        end
-        return instance
-end
-
-local function applyEffectOverrides(overrides)
-        local active = {}
-        if overrides then
-                for effectName, props in pairs(overrides) do
-                        local instance = ensureEffectInstance(effectName)
-                        if instance then
-                                active[effectName] = true
-                                if instance:IsA("PostEffect") then
-                                        local ok, err = pcall(function()
-                                                instance.Enabled = true
-                                        end)
-                                        if not ok then
-                                                warn(string.format("[LobbyPreviewService] Unable to enable %s: %s", tostring(instance.Name), tostring(err)))
-                                        end
-                                elseif instance:IsA("Atmosphere") then
-                                        instance.Parent = Lighting
-                                end
-                                if props then
-                                        for prop, value in pairs(props) do
-                                                local ok, err = pcall(function()
-                                                        instance[prop] = value
-                                                end)
-                                                if not ok then
-                                                        warn(string.format("[LobbyPreviewService] Unable to set %s.%s: %s", tostring(instance.Name), tostring(prop), tostring(err)))
-                                                end
-                                        end
-                                end
-                        end
-                end
-        end
-
-        for effectName, instance in pairs(effectInstances) do
-                if not active[effectName] then
-                        if instance:IsA("PostEffect") then
-                                local ok, err = pcall(function()
-                                        instance.Enabled = false
-                                end)
-                                if not ok then
-                                        warn(string.format("[LobbyPreviewService] Unable to disable %s: %s", tostring(instance.Name), tostring(err)))
-                                end
-                        elseif instance:IsA("Atmosphere") then
-                                instance.Parent = nil
-                        end
-                end
-        end
 end
 
 local function getLobbyBase()
@@ -714,23 +622,6 @@ local function clearInactiveAmbient()
     activeAmbientSound = nil
 end
 
-local function applyLightingOverrides(overrides)
-    local effects = overrides and overrides.effects or nil
-    applyEffectOverrides(effects)
-    for _, prop in ipairs(LIGHTING_PROPERTIES) do
-        local value = overrides and overrides[prop]
-        if value == nil then
-            value = defaultLighting[prop]
-        end
-        local ok, err = pcall(function()
-            Lighting[prop] = value
-        end)
-        if not ok then
-            warn(string.format("[LobbyPreviewService] Unable to set Lighting.%s: %s", tostring(prop), tostring(err)))
-        end
-    end
-end
-
 local function applyTheme(themeId)
     ensurePreviewsExist()
     local resolved = themeId
@@ -745,9 +636,18 @@ local function applyTheme(themeId)
     local overrides = activeRecord and activeRecord.lighting
     if not overrides then
         local assets = ThemeConfig.GetLobbyAssets(resolved)
-        overrides = assets and assets.lighting or nil
+        overrides = assets and (assets.lighting or assets.Lighting) or nil
     end
-    applyLightingOverrides(overrides)
+    if overrides then
+        local applied = LightingManager.ApplyConfig(overrides)
+        if not applied then
+            LightingManager.Apply(resolved)
+        end
+    else
+        if not LightingManager.Apply(resolved) then
+            LightingManager.Reset()
+        end
+    end
 end
 
 local function onThemeChanged()

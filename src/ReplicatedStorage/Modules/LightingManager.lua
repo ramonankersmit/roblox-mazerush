@@ -1,4 +1,23 @@
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local ModulesFolder = ReplicatedStorage:FindFirstChild("Modules") or ReplicatedStorage:WaitForChild("Modules")
+
+local ThemeConfig
+do
+    if ModulesFolder then
+        local ok, result = pcall(function()
+            return require(ModulesFolder:WaitForChild("ThemeConfig"))
+        end)
+        if ok then
+            ThemeConfig = result
+        else
+            warn(string.format("[LightingManager] Failed to load ThemeConfig: %s", tostring(result)))
+        end
+    else
+        warn("[LightingManager] Modules folder missing; falling back to internal lighting presets")
+    end
+end
 
 local LightingManager = {}
 
@@ -333,6 +352,51 @@ LightingManager.Configs = {
     },
 }
 
+if ThemeConfig and ThemeConfig.Themes then
+    for themeId, theme in pairs(ThemeConfig.Themes) do
+        local lobbyAssets = theme.lobby
+        local lightingSpec = lobbyAssets and (lobbyAssets.lighting or lobbyAssets.Lighting)
+        if lightingSpec and not LightingManager.Configs[themeId] then
+            LightingManager.Configs[themeId] = lightingSpec
+        end
+    end
+end
+
+local function resolveEffects(config)
+    if not config then
+        return nil
+    end
+    return config.Effects or config.effects
+end
+
+local function applyConfig(config)
+    if not config then
+        LightingManager.Reset()
+        return false
+    end
+
+    clearManagedEffects()
+
+    for _, property in ipairs(MANAGED_PROPERTIES) do
+        local value = config[property]
+        if value == nil then
+            value = defaultProperties[property]
+        end
+
+        local ok, err = pcall(function()
+            Lighting[property] = value
+        end)
+
+        if not ok then
+            warn(string.format("[LightingManager] Unable to set Lighting.%s: %s", tostring(property), tostring(err)))
+        end
+    end
+
+    applyEffects(resolveEffects(config))
+
+    return true
+end
+
 local function clearManagedEffects()
     for _, child in ipairs(Lighting:GetChildren()) do
         if child:IsA("PostEffect") or child:IsA("Atmosphere") then
@@ -373,27 +437,20 @@ function LightingManager.Apply(themeId)
     local config = LightingManager.Configs[themeId]
     if not config then
         warn(string.format("[LightingManager] Unknown theme '%s'", tostring(themeId)))
-        return
+        LightingManager.Reset()
+        return false
     end
 
-    clearManagedEffects()
+    return applyConfig(config)
+end
 
-    for _, property in ipairs(MANAGED_PROPERTIES) do
-        local value = config[property]
-        if value == nil then
-            value = defaultProperties[property]
-        end
-
-        local ok, err = pcall(function()
-            Lighting[property] = value
-        end)
-
-        if not ok then
-            warn(string.format("[LightingManager] Unable to set Lighting.%s: %s", tostring(property), tostring(err)))
-        end
+function LightingManager.ApplyConfig(config)
+    if not config then
+        LightingManager.Reset()
+        return false
     end
 
-    applyEffects(config.Effects)
+    return applyConfig(config)
 end
 
 function LightingManager.Reset()
@@ -409,6 +466,8 @@ function LightingManager.Reset()
             warn(string.format("[LightingManager] Unable to reset Lighting.%s: %s", tostring(property), tostring(err)))
         end
     end
+
+    return true
 end
 
 return LightingManager
