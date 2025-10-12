@@ -2561,8 +2561,16 @@ initializeMinimap()
 local LobbyState = Replicated.Remotes:WaitForChild("LobbyState")
 local ToggleReady = Replicated.Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Replicated.Remotes:WaitForChild("StartGameRequest")
-local ThemeVote = Replicated.Remotes:WaitForChild("ThemeVote")
+local VoteThemeRemote = Replicated:FindFirstChild("VoteTheme")
+local ThemeVote = VoteThemeRemote and VoteThemeRemote:IsA("RemoteEvent") and VoteThemeRemote
+        or Replicated.Remotes:WaitForChild("ThemeVote")
 local StartThemeVote = Replicated.Remotes:WaitForChild("StartThemeVote")
+
+local function fireThemeVoteRemote(themeId)
+        if ThemeVote then
+                ThemeVote:FireServer(themeId)
+        end
+end
 
 local function getPreviewStands()
         local lobbyFolder = workspace:FindFirstChild("Lobby")
@@ -2987,7 +2995,7 @@ local function ensureThemeButton(themeId)
 
         btn.MouseButton1Click:Connect(function()
                 if not activeThemeVote then return end
-                ThemeVote:FireServer(themeId)
+                fireThemeVoteRemote(themeId)
         end)
 
         entry = {

@@ -10,8 +10,15 @@ local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
 local StartThemeCountdown = Remotes:WaitForChild("StartThemeCountdown")
-local ThemeVote = Remotes:WaitForChild("ThemeVote")
+local LegacyThemeVote = Remotes:WaitForChild("ThemeVote")
 local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
+
+local VoteThemeRemote = Replicated:FindFirstChild("VoteTheme")
+if not VoteThemeRemote or not VoteThemeRemote:IsA("RemoteEvent") then
+        VoteThemeRemote = Instance.new("RemoteEvent")
+        VoteThemeRemote.Name = "VoteTheme"
+        VoteThemeRemote.Parent = Replicated
+end
 
 local RANDOM_THEME_ID = "__random__"
 local RANDOM_THEME_NAME = "Kies willekeurig"
@@ -346,6 +353,35 @@ local function tallyVotes()
         return counts
 end
 
+local function copyVoteCounts(counts)
+        local payload = {}
+        for key, value in pairs(counts) do
+                payload[key] = value
+        end
+        return payload
+end
+
+local function emitVoteReset()
+        if VoteThemeRemote then
+                VoteThemeRemote:FireAllClients({type = "reset"})
+        end
+end
+
+local function emitVoteUpdate(userId, counts)
+        if not VoteThemeRemote then
+                return
+        end
+
+        counts = counts or tallyVotes()
+        local payloadCounts = copyVoteCounts(counts)
+        VoteThemeRemote:FireAllClients({
+                type = "vote",
+                userId = userId,
+                themeId = ThemeVotes[userId],
+                counts = payloadCounts,
+        })
+end
+
 local function determineLeader(counts, preferOrderFallback)
         local order = getThemeOrder()
         local best
@@ -518,6 +554,7 @@ end
 
 local function startVoteCycle(options)
         ThemeVotes = {}
+        emitVoteReset()
         local options = selectThemeOptions()
         updatePreviewTargets(options)
         voteActive = true
@@ -558,6 +595,7 @@ local function finalizeVote(autoStart)
                 broadcast(counts)
         end
         applyIdlePreview(currentTheme)
+        emitVoteReset()
         return winner
 end
 
@@ -614,7 +652,9 @@ Players.PlayerRemoving:Connect(function(plr)
                 local others = Players:GetPlayers()
                 HostUserId = (#others>0) and others[1].UserId or nil
         end
-        broadcast()
+        local counts = tallyVotes()
+        emitVoteUpdate(plr.UserId, counts)
+        broadcast(counts)
         task.defer(function()
                 if #Players:GetPlayers() == 0 then
                         voteActive = false
@@ -628,31 +668,55 @@ Players.PlayerRemoving:Connect(function(plr)
                         currentTheme = nextPreview
                         RoundConfig.Theme = nextPreview
                         ThemeValue.Value = nextPreview
+                        emitVoteReset()
                         broadcast()
                 end
         end)
 end)
 
-ThemeVote.OnServerEvent:Connect(function(plr, themeId)
-        if not voteActive then return end
+local function processThemeVote(plr, themeId)
+        if not voteActive then
+                return
+        end
+
         if themeId == nil or themeId == "" then
                 ThemeVotes[plr.UserId] = nil
-                broadcast()
+                local counts = tallyVotes()
+                emitVoteUpdate(plr.UserId, counts)
+                broadcast(counts)
                 return
         end
-        if typeof(themeId) ~= "string" then return end
+
+        if typeof(themeId) ~= "string" then
+                return
+        end
+
         if themeId == RANDOM_THEME_ID or themeId:lower() == "random" then
                 ThemeVotes[plr.UserId] = RANDOM_THEME_ID
-                broadcast()
+                local counts = tallyVotes()
+                emitVoteUpdate(plr.UserId, counts)
+                broadcast(counts)
                 return
         end
-        if not ThemeConfig.Themes[themeId] then return end
+
+        if not ThemeConfig.Themes[themeId] then
+                return
+        end
+
         if #currentThemeOptions > 0 and not currentThemeOptionSet[themeId] then
                 return
         end
+
         ThemeVotes[plr.UserId] = themeId
-        broadcast()
-end)
+        local counts = tallyVotes()
+        emitVoteUpdate(plr.UserId, counts)
+        broadcast(counts)
+end
+
+LegacyThemeVote.OnServerEvent:Connect(processThemeVote)
+if VoteThemeRemote ~= LegacyThemeVote then
+        VoteThemeRemote.OnServerEvent:Connect(processThemeVote)
+end
 
 ToggleReady.OnServerEvent:Connect(function(plr)
         if Phase.Value ~= "IDLE" and Phase.Value ~= "PREP" then return end
@@ -725,6 +789,7 @@ Phase:GetPropertyChangedSignal("Value"):Connect(function()
                 selectionFlashInfo = nil
                 selectionFlashExpireAt = nil
                 applyIdlePreview(currentTheme)
+                emitVoteReset()
                 broadcast()
         else
                 if voteActive then
