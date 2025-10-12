@@ -13,7 +13,7 @@
         <token name="TopSurface">Smooth</token>
         <token name="BottomSurface">Smooth</token>
         <Vector3 name="Size">12 1 4</Vector3>
-        <CoordinateFrame name="CFrame">1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0</CoordinateFrame>
+        <CoordinateFrame name="CFrame">1 0 0 0 1 0 0 0 1 0 0.5 0</CoordinateFrame>
       </Properties>
     </Item>
     <Item class="Script" referent="RBX2">
