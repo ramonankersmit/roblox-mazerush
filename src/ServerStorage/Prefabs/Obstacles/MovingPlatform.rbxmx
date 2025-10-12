@@ -10,9 +10,9 @@
         <bool name="CanCollide">true</bool>
         <bool name="CanTouch">true</bool>
         <bool name="CanQuery">true</bool>
-        <SurfaceType name="TopSurface">Smooth</SurfaceType>
-        <SurfaceType name="BottomSurface">Smooth</SurfaceType>
-        <Vector3 name="Size">12, 1, 4</Vector3>
+        <token name="TopSurface">Smooth</token>
+        <token name="BottomSurface">Smooth</token>
+        <Vector3 name="Size">12 1 4</Vector3>
         <CoordinateFrame name="CFrame">1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0</CoordinateFrame>
       </Properties>
     </Item>
