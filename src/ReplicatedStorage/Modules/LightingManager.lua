@@ -369,34 +369,6 @@ local function resolveEffects(config)
     return config.Effects or config.effects
 end
 
-local function applyConfig(config)
-    if not config then
-        LightingManager.Reset()
-        return false
-    end
-
-    clearManagedEffects()
-
-    for _, property in ipairs(MANAGED_PROPERTIES) do
-        local value = config[property]
-        if value == nil then
-            value = defaultProperties[property]
-        end
-
-        local ok, err = pcall(function()
-            Lighting[property] = value
-        end)
-
-        if not ok then
-            warn(string.format("[LightingManager] Unable to set Lighting.%s: %s", tostring(property), tostring(err)))
-        end
-    end
-
-    applyEffects(resolveEffects(config))
-
-    return true
-end
-
 local function clearManagedEffects()
     for _, child in ipairs(Lighting:GetChildren()) do
         if child:IsA("PostEffect") or child:IsA("Atmosphere") then
@@ -431,6 +403,34 @@ local function applyEffects(effects)
             warn(string.format("[LightingManager] Unsupported effect '%s'", tostring(effectName)))
         end
     end
+end
+
+local function applyConfig(config)
+    if not config then
+        LightingManager.Reset()
+        return false
+    end
+
+    clearManagedEffects()
+
+    for _, property in ipairs(MANAGED_PROPERTIES) do
+        local value = config[property]
+        if value == nil then
+            value = defaultProperties[property]
+        end
+
+        local ok, err = pcall(function()
+            Lighting[property] = value
+        end)
+
+        if not ok then
+            warn(string.format("[LightingManager] Unable to set Lighting.%s: %s", tostring(property), tostring(err)))
+        end
+    end
+
+    applyEffects(resolveEffects(config))
+
+    return true
 end
 
 function LightingManager.Apply(themeId)

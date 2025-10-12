@@ -928,7 +928,7 @@ local boardSpacing = 0.8
 local boardThickness = 0.8
 local playerWidth = 6.5 * boardWidthScale
 local themeWidth = 6.25 * boardWidthScale
-local startButtonBaseGap = 0.9
+local startButtonBaseGap = 1.4
 local startButtonMinGap = 0.3
 
 local function clamp(value, minValue, maxValue)
@@ -1091,7 +1091,7 @@ local function updateBoardPlacement()
 
     votePanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
     local direction = buttonOffsetX >= 0 and 1 or -1
-    local voteGap = math.max(startButtonMinGap, 0.35)
+    local voteGap = math.max(startButtonMinGap, 1.2)
     local desiredOffset = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
     local minOffset = direction * (playerStand.Size.X * 0.5 + votePanel.Size.X * 0.5 + startButtonMinGap)
     local voteOffsetX

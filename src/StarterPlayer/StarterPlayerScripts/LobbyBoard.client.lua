@@ -292,6 +292,9 @@ local function ensureConsoleGui()
     end)
 
     consoleReadyButton.MouseButton1Click:Connect(function()
+        if not isVoteInteractionEnabled() then
+            return
+        end
         ToggleReady:FireServer()
     end)
 end
@@ -394,6 +397,9 @@ local function ensureConsoleThemeEntry(themeId)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
+        if not isVoteInteractionEnabled() then
+            return
+        end
         if themeId == RANDOM_THEME_ID then
             ThemeVote:FireServer(RANDOM_THEME_ID)
         else
@@ -788,6 +794,18 @@ local latestState = nil
 local latestThemeState = nil
 local pendingAutoReady = false
 
+local function isVoteInteractionEnabled()
+    local state = latestState
+    if not state then
+        return false
+    end
+    if state.phase ~= "IDLE" and state.phase ~= "PREP" then
+        return false
+    end
+    local themeState = latestThemeState or state.themes
+    return themeState and themeState.active == true
+end
+
 local function isLocalReady()
     local stored = readyStates[localPlayer.UserId]
     if stored ~= nil then
@@ -807,6 +825,11 @@ end
 
 ensureReadyAfterVote = function()
     if pendingAutoReady then
+        return
+    end
+
+    if not isVoteInteractionEnabled() then
+        pendingAutoReady = false
         return
     end
 
@@ -871,6 +894,7 @@ local function updateConsoleDisplay(state, themeState)
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
     local voteActive = themeState.active == true
+    local interactionsEnabled = voteActive and (state.phase == "IDLE" or state.phase == "PREP")
 
     local myInfo = nil
     for _, info in ipairs(state.players or {}) do
@@ -894,8 +918,16 @@ local function updateConsoleDisplay(state, themeState)
         consoleStatusLabel.Text = string.format("Gereed: %d/%d · %s", readyCount, totalPlayers, statusVotesText)
     end
 
-    consoleReadyButton.Text = myReady and "Ik ben niet klaar" or "Ik ben klaar"
-    consoleReadyButton.BackgroundColor3 = myReady and Color3.fromRGB(102, 64, 74) or Color3.fromRGB(32, 98, 76)
+    consoleReadyButton.AutoButtonColor = interactionsEnabled
+    consoleReadyButton.Active = interactionsEnabled
+    if interactionsEnabled then
+        consoleReadyButton.Text = myReady and "Ik ben niet klaar" or "Ik ben klaar"
+        consoleReadyButton.BackgroundColor3 = myReady and Color3.fromRGB(102, 64, 74) or Color3.fromRGB(32, 98, 76)
+    else
+        consoleReadyButton.Text = "Wacht op stemronde"
+        consoleReadyButton.BackgroundColor3 = Color3.fromRGB(54, 60, 76)
+    end
+    consoleReadyButton.TextColor3 = interactionsEnabled and Color3.fromRGB(235, 240, 255) or Color3.fromRGB(180, 188, 210)
 
     local voteName = nil
     if myVote then
@@ -936,9 +968,9 @@ local function updateConsoleDisplay(state, themeState)
         entry.stroke.Color = (myVote == option.id) and ratioColor or Color3.fromRGB(110, 120, 160)
         entry.stroke.Transparency = (myVote == option.id) and 0.15 or 0.6
         entry.button.BackgroundColor3 = (myVote == option.id) and Color3.fromRGB(42, 50, 74) or Color3.fromRGB(36, 42, 66)
-        entry.button.AutoButtonColor = voteActive
-        entry.button.Active = voteActive
-        entry.button.Selectable = voteActive
+        entry.button.AutoButtonColor = interactionsEnabled
+        entry.button.Active = interactionsEnabled
+        entry.button.Selectable = interactionsEnabled
         seen[option.id] = true
     end
 
@@ -1055,6 +1087,9 @@ local function ensureThemeOptionEntry(themeId)
     votesLabel.Parent = button
 
     button.MouseButton1Click:Connect(function()
+        if not isVoteInteractionEnabled() then
+            return
+        end
         local voteId = themeId == "random" and RANDOM_THEME_ID or themeId
         ThemeVote:FireServer(voteId)
         ensureReadyAfterVote()
@@ -1108,6 +1143,7 @@ local function updateThemePanel(themeState, state)
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
     local hasOptions = themeState.options and #themeState.options > 0
+    local voteInteractionsEnabled = activeVote and state and (state.phase == "IDLE" or state.phase == "PREP")
 
     handleCountdownState(activeVote, countdownActive, endsIn)
 
@@ -1201,9 +1237,9 @@ local function updateThemePanel(themeState, state)
                 entry.button.BackgroundColor3 = myVote == optionId and Color3.fromRGB(36, 46, 68) or Color3.fromRGB(28, 32, 48)
                 entry.stroke.Color = (myVote == optionId or optionId == leaderId) and color or Color3.fromRGB(110, 120, 160)
                 entry.stroke.Transparency = (myVote == optionId or optionId == leaderId) and 0.25 or 0.6
-                entry.button.AutoButtonColor = activeVote
-                entry.button.Active = activeVote
-                entry.button.Selectable = activeVote
+                entry.button.AutoButtonColor = voteInteractionsEnabled
+                entry.button.Active = voteInteractionsEnabled
+                entry.button.Selectable = voteInteractionsEnabled
                 if entry.tag then
                     if myVote == optionId then
                         entry.tag.Visible = true
@@ -1498,16 +1534,22 @@ local function updatePrompts(state)
     local phase = state.phase
     local showPrompts = phase == "IDLE" or phase == "PREP"
 
-    if consolePrompt then
-        consolePrompt.Enabled = showPrompts
-        consolePrompt.ActionText = consoleOpen and "Sluit console" or "Open console"
-        consolePrompt.ObjectText = "Lobbyconsole"
-    end
-
     local isHost = state.host == localPlayer.UserId
     local readyCount = state.readyCount or 0
     local themeState = state.themes or {}
     local voteActive = themeState.active == true
+    local consoleCanOpen = showPrompts and voteActive
+
+    if consolePrompt then
+        consolePrompt.Enabled = consoleCanOpen
+        if voteActive then
+            consolePrompt.ActionText = consoleOpen and "Sluit console" or "Open console"
+            consolePrompt.ObjectText = "Lobbyconsole"
+        else
+            consolePrompt.ActionText = "Wacht op stemronde"
+            consolePrompt.ObjectText = "Lobbyconsole"
+        end
+    end
 
     if startPrompt then
         startPrompt.Enabled = showPrompts and isHost
@@ -1568,12 +1610,16 @@ local function updatePrompts(state)
                     actionHint.Text = "Host: druk op de themaknop om een stemronde te starten."
                 end
             else
-                actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+                if voteActive then
+                    actionHint.Text = "Gebruik de console voor klaarstatus en stemming."
+                else
+                    actionHint.Text = "Wacht tot de host een stemronde start."
+                end
             end
         end
     end
 
-    if not showPrompts and consoleOpen and setConsoleOpen then
+    if (not consoleCanOpen or not showPrompts) and consoleOpen and setConsoleOpen then
         setConsoleOpen(false)
     end
 end
@@ -1754,6 +1800,9 @@ if consolePrompt or startPrompt or votePrompt then
             return
         end
         if prompt == consolePrompt then
+            if not isVoteInteractionEnabled() then
+                return
+            end
             if setConsoleOpen then
                 setConsoleOpen(not consoleOpen)
                 if latestState then
