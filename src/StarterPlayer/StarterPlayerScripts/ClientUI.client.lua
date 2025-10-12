@@ -2644,52 +2644,168 @@ local function updatePreviewHighlights(targetThemeId, accentColor)
         end
 end
 
-local lobby = Instance.new("Frame"); lobby.Name = "Lobby"; lobby.Size = UDim2.new(0, 380, 0, 320)
-lobby.Position = UDim2.new(0, 20, 0, 20); lobby.BackgroundTransparency = 0.2; lobby.Parent = gui
-local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,24); title.Text = "Lobby"; title.BackgroundTransparency = 1; title.Parent = lobby
-local listLbl = Instance.new("TextLabel"); listLbl.Size = UDim2.new(1, -12, 0, 76); listLbl.Position = UDim2.new(0,6,0,32)
-listLbl.TextXAlignment = Enum.TextXAlignment.Left; listLbl.BackgroundTransparency = 0.6; listLbl.Text = ""; listLbl.Parent = lobby
+local function createLegacyLobbyUI(parentGui)
+        local elements = {}
 
-local themePanel = Instance.new("Frame"); themePanel.Name = "ThemePanel"; themePanel.BackgroundTransparency = 0.35
-themePanel.BackgroundColor3 = Color3.fromRGB(20, 20, 24); themePanel.BorderSizePixel = 0
-themePanel.Position = UDim2.new(0,6,0,116); themePanel.Size = UDim2.new(1,-12,1,-152); themePanel.Parent = lobby
-themePanel.Visible = false; themePanel.ClipsDescendants = true
+        local lobby = Instance.new("Frame")
+        lobby.Name = "Lobby"
+        lobby.Size = UDim2.new(0, 380, 0, 320)
+        lobby.Position = UDim2.new(0, 20, 0, 20)
+        lobby.BackgroundTransparency = 0.2
+        lobby.Parent = parentGui
+        elements.lobby = lobby
 
-local themeHeader = Instance.new("TextLabel"); themeHeader.BackgroundTransparency = 1; themeHeader.Text = "Kies een thema"
-themeHeader.Font = Enum.Font.GothamBold; themeHeader.TextSize = 20
-themeHeader.TextXAlignment = Enum.TextXAlignment.Left; themeHeader.Position = UDim2.new(0,8,0,6)
-themeHeader.Size = UDim2.new(1,-16,0,26); themeHeader.TextColor3 = Color3.fromRGB(255,255,255); themeHeader.Parent = themePanel
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 24)
+        title.Text = "Lobby"
+        title.BackgroundTransparency = 1
+        title.Parent = lobby
+        elements.titleLabel = title
 
-local winningLabel = Instance.new("TextLabel"); winningLabel.BackgroundTransparency = 1
-winningLabel.TextXAlignment = Enum.TextXAlignment.Left; winningLabel.Font = Enum.Font.Gotham
-winningLabel.TextSize = 16; winningLabel.Position = UDim2.new(0,8,0,34)
-winningLabel.Size = UDim2.new(1,-16,0,20); winningLabel.TextColor3 = Color3.fromRGB(220,220,220)
-winningLabel.Text = "Volgende ronde: ?"; winningLabel.Parent = themePanel
+        local listLabel = Instance.new("TextLabel")
+        listLabel.Size = UDim2.new(1, -12, 0, 76)
+        listLabel.Position = UDim2.new(0, 6, 0, 32)
+        listLabel.TextXAlignment = Enum.TextXAlignment.Left
+        listLabel.BackgroundTransparency = 0.6
+        listLabel.Text = ""
+        listLabel.Parent = lobby
+        elements.listLabel = listLabel
 
-local themeCountdown = Instance.new("TextLabel"); themeCountdown.BackgroundTransparency = 1
-themeCountdown.TextXAlignment = Enum.TextXAlignment.Right; themeCountdown.Font = Enum.Font.Gotham
-themeCountdown.TextSize = 16; themeCountdown.Position = UDim2.new(0,8,0,34)
-themeCountdown.Size = UDim2.new(1,-16,0,20); themeCountdown.TextColor3 = Color3.fromRGB(220,220,220)
-themeCountdown.Text = "Stemmen..."; themeCountdown.Parent = themePanel
+        local themePanel = Instance.new("Frame")
+        themePanel.Name = "ThemePanel"
+        themePanel.BackgroundTransparency = 0.35
+        themePanel.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+        themePanel.BorderSizePixel = 0
+        themePanel.Position = UDim2.new(0, 6, 0, 116)
+        themePanel.Size = UDim2.new(1, -12, 1, -152)
+        themePanel.Visible = false
+        themePanel.ClipsDescendants = true
+        themePanel.Parent = lobby
+        elements.themePanel = themePanel
 
-local themeStartButton = Instance.new("TextButton")
-themeStartButton.Name = "StartVoteButton"
-themeStartButton.BackgroundColor3 = Color3.fromRGB(40, 60, 110)
-themeStartButton.BackgroundTransparency = 0.1
-themeStartButton.AutoButtonColor = true
-themeStartButton.Font = Enum.Font.GothamSemibold
-themeStartButton.TextSize = 15
-themeStartButton.TextColor3 = Color3.fromRGB(235, 240, 255)
-themeStartButton.Text = "Start stemronde"
-themeStartButton.Size = UDim2.new(0, 160, 0, 30)
-themeStartButton.Position = UDim2.new(1, -170, 0, 32)
-themeStartButton.AnchorPoint = Vector2.new(1, 0)
-themeStartButton.Visible = false
-themeStartButton.Parent = themePanel
+        local themeHeader = Instance.new("TextLabel")
+        themeHeader.BackgroundTransparency = 1
+        themeHeader.Text = "Kies een thema"
+        themeHeader.Font = Enum.Font.GothamBold
+        themeHeader.TextSize = 20
+        themeHeader.TextXAlignment = Enum.TextXAlignment.Left
+        themeHeader.Position = UDim2.new(0, 8, 0, 6)
+        themeHeader.Size = UDim2.new(1, -16, 0, 26)
+        themeHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+        themeHeader.Parent = themePanel
+        elements.themeHeader = themeHeader
 
-local themeStartCorner = Instance.new("UICorner")
-themeStartCorner.CornerRadius = UDim.new(0, 12)
-themeStartCorner.Parent = themeStartButton
+        local winningLabel = Instance.new("TextLabel")
+        winningLabel.BackgroundTransparency = 1
+        winningLabel.TextXAlignment = Enum.TextXAlignment.Left
+        winningLabel.Font = Enum.Font.Gotham
+        winningLabel.TextSize = 16
+        winningLabel.Position = UDim2.new(0, 8, 0, 34)
+        winningLabel.Size = UDim2.new(1, -16, 0, 20)
+        winningLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+        winningLabel.Text = "Volgende ronde: ?"
+        winningLabel.Parent = themePanel
+        elements.winningLabel = winningLabel
+
+        local themeCountdown = Instance.new("TextLabel")
+        themeCountdown.BackgroundTransparency = 1
+        themeCountdown.TextXAlignment = Enum.TextXAlignment.Right
+        themeCountdown.Font = Enum.Font.Gotham
+        themeCountdown.TextSize = 16
+        themeCountdown.Position = UDim2.new(0, 8, 0, 34)
+        themeCountdown.Size = UDim2.new(1, -16, 0, 20)
+        themeCountdown.TextColor3 = Color3.fromRGB(220, 220, 220)
+        themeCountdown.Text = "Stemmen..."
+        themeCountdown.Parent = themePanel
+        elements.themeCountdown = themeCountdown
+
+        local themeHintLabel = Instance.new("TextLabel")
+        themeHintLabel.Name = "ThemeHint"
+        themeHintLabel.BackgroundTransparency = 1
+        themeHintLabel.TextWrapped = true
+        themeHintLabel.TextXAlignment = Enum.TextXAlignment.Left
+        themeHintLabel.TextYAlignment = Enum.TextYAlignment.Top
+        themeHintLabel.Font = Enum.Font.Gotham
+        themeHintLabel.TextSize = 14
+        themeHintLabel.TextColor3 = Color3.fromRGB(210, 210, 230)
+        themeHintLabel.Text = ""
+        themeHintLabel.Size = UDim2.new(1, -16, 0, 36)
+        themeHintLabel.Position = UDim2.new(0, 8, 1, -44)
+        themeHintLabel.Parent = themePanel
+        elements.themeHintLabel = themeHintLabel
+
+        local themeStartButton = Instance.new("TextButton")
+        themeStartButton.Name = "StartVoteButton"
+        themeStartButton.BackgroundColor3 = Color3.fromRGB(40, 60, 110)
+        themeStartButton.BackgroundTransparency = 0.1
+        themeStartButton.AutoButtonColor = true
+        themeStartButton.Font = Enum.Font.GothamSemibold
+        themeStartButton.TextSize = 15
+        themeStartButton.TextColor3 = Color3.fromRGB(235, 240, 255)
+        themeStartButton.Text = "Start stemronde"
+        themeStartButton.Size = UDim2.new(0, 160, 0, 30)
+        themeStartButton.Position = UDim2.new(1, -170, 0, 32)
+        themeStartButton.AnchorPoint = Vector2.new(1, 0)
+        themeStartButton.Visible = false
+        themeStartButton.Parent = themePanel
+        elements.themeStartButton = themeStartButton
+
+        local themeStartCorner = Instance.new("UICorner")
+        themeStartCorner.CornerRadius = UDim.new(0, 12)
+        themeStartCorner.Parent = themeStartButton
+
+        local themeOptions = Instance.new("ScrollingFrame")
+        themeOptions.BackgroundTransparency = 1
+        themeOptions.ScrollBarThickness = 4
+        themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        themeOptions.Position = UDim2.new(0, 6, 0, 60)
+        themeOptions.Size = UDim2.new(1, -12, 1, -70)
+        themeOptions.CanvasSize = UDim2.new()
+        themeOptions.Parent = themePanel
+        elements.themeOptions = themeOptions
+
+        local themeLayout = Instance.new("UIListLayout")
+        themeLayout.Parent = themeOptions
+        themeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        themeLayout.Padding = UDim.new(0, 4)
+        elements.themeLayout = themeLayout
+
+        themeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                themeOptions.CanvasSize = UDim2.new(0, 0, 0, themeLayout.AbsoluteContentSize.Y)
+        end)
+
+        local btnReady = Instance.new("TextButton")
+        btnReady.Size = UDim2.new(0.5, -12, 0, 36)
+        btnReady.AnchorPoint = Vector2.new(0, 1)
+        btnReady.Position = UDim2.new(0, 6, 1, -8)
+        btnReady.Text = "Ready"
+        btnReady.Parent = lobby
+        elements.readyButton = btnReady
+
+        local btnStart = Instance.new("TextButton")
+        btnStart.Size = UDim2.new(0.5, -12, 0, 36)
+        btnStart.AnchorPoint = Vector2.new(1, 1)
+        btnStart.Position = UDim2.new(1, -6, 1, -8)
+        btnStart.Text = "Start Game"
+        btnStart.Parent = lobby
+        elements.startButton = btnStart
+
+        return elements
+end
+
+local legacyLobbyUI = createLegacyLobbyUI(gui)
+local lobby = legacyLobbyUI.lobby
+local listLbl = legacyLobbyUI.listLabel
+local themePanel = legacyLobbyUI.themePanel
+local themeHeader = legacyLobbyUI.themeHeader
+local winningLabel = legacyLobbyUI.winningLabel
+local themeCountdown = legacyLobbyUI.themeCountdown
+local themeHintLabel = legacyLobbyUI.themeHintLabel
+local themeStartButton = legacyLobbyUI.themeStartButton
+local themeOptions = legacyLobbyUI.themeOptions
+local themeLayout = legacyLobbyUI.themeLayout
+local btnReady = legacyLobbyUI.readyButton
+local btnStart = legacyLobbyUI.startButton
 
 themeStartButton.MouseButton1Click:Connect(function()
         if not lastLobbyState then
@@ -2707,24 +2823,6 @@ themeStartButton.MouseButton1Click:Connect(function()
         end
         StartThemeVote:FireServer()
 end)
-
-local themeOptions = Instance.new("ScrollingFrame"); themeOptions.BackgroundTransparency = 1
-themeOptions.ScrollBarThickness = 4; themeOptions.AutomaticCanvasSize = Enum.AutomaticSize.Y
-themeOptions.Position = UDim2.new(0,6,0,60); themeOptions.Size = UDim2.new(1,-12,1,-70)
-themeOptions.CanvasSize = UDim2.new()
-themeOptions.Parent = themePanel
-
-local themeLayout = Instance.new("UIListLayout"); themeLayout.Parent = themeOptions
-themeLayout.SortOrder = Enum.SortOrder.LayoutOrder; themeLayout.Padding = UDim.new(0,4)
-
-themeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        themeOptions.CanvasSize = UDim2.new(0, 0, 0, themeLayout.AbsoluteContentSize.Y)
-end)
-
-local btnReady = Instance.new("TextButton"); btnReady.Size = UDim2.new(0.5, -12, 0, 36); btnReady.AnchorPoint = Vector2.new(0,1)
-btnReady.Position = UDim2.new(0, 6, 1, -8); btnReady.Text = "Ready"; btnReady.Parent = lobby
-local btnStart = Instance.new("TextButton"); btnStart.Size = UDim2.new(0.5, -12, 0, 36); btnStart.AnchorPoint = Vector2.new(1,1)
-btnStart.Position = UDim2.new(1, -6, 1, -8); btnStart.Text = "Start Game"; btnStart.Parent = lobby
 
 local function hasLobbyStatusBoard()
         local lobbyFolder = workspace:FindFirstChild("Lobby")
