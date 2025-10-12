@@ -555,75 +555,13 @@ local function ensureLobbyBoard()
         end
 
         local countdownPanelExisting = existing:FindFirstChild("CountdownPanel")
-        if not countdownPanelExisting then
-            countdownPanelExisting = Instance.new("Part")
-            countdownPanelExisting.Name = "CountdownPanel"
-            countdownPanelExisting.Anchored = true
-            countdownPanelExisting.CanCollide = false
-            countdownPanelExisting.CastShadow = false
-            countdownPanelExisting.Material = Enum.Material.SmoothPlastic
-            countdownPanelExisting.Color = Color3.fromRGB(28, 32, 50)
-            countdownPanelExisting.Size = Vector3.new(1.4, math.max(1.6, boardHeight * 0.22), 0.35)
-            countdownPanelExisting.Parent = existing
+        if countdownPanelExisting then
+            countdownPanelExisting:Destroy()
         end
 
         local countdownButtonExisting = existing:FindFirstChild("CountdownButton")
-        if not countdownButtonExisting then
-            countdownButtonExisting = Instance.new("Part")
-            countdownButtonExisting.Name = "CountdownButton"
-            countdownButtonExisting.Anchored = true
-            countdownButtonExisting.CanCollide = false
-            countdownButtonExisting.CastShadow = false
-            countdownButtonExisting.Size = Vector3.new(0.7, 0.7, 0.24)
-            countdownButtonExisting.Material = Enum.Material.Neon
-            countdownButtonExisting.Color = Color3.fromRGB(140, 196, 255)
-            countdownButtonExisting.Parent = existing
-        end
-
         if countdownButtonExisting then
-            if not countdownButtonExisting:FindFirstChild("CountdownPrompt") then
-                local countdownPrompt = createPrompt(countdownButtonExisting, "CountdownPrompt", "Start aftellen", "Aftelknop", Enum.KeyCode.G, 0, Vector2.new(0, -4))
-                countdownPrompt.GamepadKeyCode = Enum.KeyCode.ButtonB
-            end
-
-            if not countdownButtonExisting:FindFirstChild("CountdownClick") then
-                local countdownClickDetector = Instance.new("ClickDetector")
-                countdownClickDetector.Name = "CountdownClick"
-                countdownClickDetector.MaxActivationDistance = 14
-                countdownClickDetector.Parent = countdownButtonExisting
-            end
-
-            local countdownGui = countdownButtonExisting:FindFirstChild("ButtonLabel")
-            if not countdownGui or not countdownGui:IsA("SurfaceGui") then
-                if countdownGui then
-                    countdownGui:Destroy()
-                end
-                countdownGui = Instance.new("SurfaceGui")
-                countdownGui.Name = "ButtonLabel"
-                countdownGui.Face = Enum.NormalId.Front
-                countdownGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-                countdownGui.PixelsPerStud = 80
-                countdownGui.LightInfluence = 0
-                countdownGui.Adornee = countdownButtonExisting
-                countdownGui.ResetOnSpawn = false
-                countdownGui.Parent = countdownButtonExisting
-            end
-
-            local label = countdownGui:FindFirstChild("Label")
-            if not label or not label:IsA("TextLabel") then
-                if label then
-                    label:Destroy()
-                end
-                label = createTextLabel(countdownGui, "Label", "AFTELLING", UDim2.new(1, 0, 1, 0), UDim2.new(), {
-                    Font = Enum.Font.GothamBlack,
-                    TextColor3 = Color3.fromRGB(18, 24, 36),
-                    TextScaled = true,
-                })
-            else
-                label.Text = "AFTELLING"
-                label.TextColor3 = Color3.fromRGB(18, 24, 36)
-                label.Font = Enum.Font.GothamBlack
-            end
+            countdownButtonExisting:Destroy()
         end
 
         return lobby, existing, {
@@ -631,8 +569,6 @@ local function ensureLobbyBoard()
             themeStand = themeStandExisting,
             startPanel = startPanelExisting,
             startButton = startButtonExisting,
-            countdownPanel = countdownPanelExisting,
-            countdownButton = countdownButtonExisting,
             billboardAnchor = existing:FindFirstChild("BillboardAnchor"),
         }
     end
@@ -704,26 +640,6 @@ local function ensureLobbyBoard()
     voteButton.Material = Enum.Material.Neon
     voteButton.Color = Color3.fromRGB(90, 190, 255)
     voteButton.Parent = boardModel
-
-    local countdownPanel = Instance.new("Part")
-    countdownPanel.Name = "CountdownPanel"
-    countdownPanel.Anchored = true
-    countdownPanel.CanCollide = false
-    countdownPanel.CastShadow = false
-    countdownPanel.Material = Enum.Material.SmoothPlastic
-    countdownPanel.Color = Color3.fromRGB(28, 32, 50)
-    countdownPanel.Size = Vector3.new(1.4, math.max(1.6, boardHeight * 0.22), 0.35)
-    countdownPanel.Parent = boardModel
-
-    local countdownButton = Instance.new("Part")
-    countdownButton.Name = "CountdownButton"
-    countdownButton.Anchored = true
-    countdownButton.CanCollide = false
-    countdownButton.CastShadow = false
-    countdownButton.Size = Vector3.new(0.7, 0.7, 0.24)
-    countdownButton.Material = Enum.Material.Neon
-    countdownButton.Color = Color3.fromRGB(140, 196, 255)
-    countdownButton.Parent = boardModel
 
     local playerSurface = createSurface(playerStand, "PlayerSurface")
     local playerBoard = createFrame(playerSurface, "PlayerBoard", UDim2.new(1, 0, 1, 0), UDim2.new(), {
@@ -939,14 +855,6 @@ local function ensureLobbyBoard()
     startClickDetector.MaxActivationDistance = 14
     startClickDetector.Parent = startButton
 
-    local countdownPrompt = createPrompt(countdownButton, "CountdownPrompt", "Start aftellen", "Aftelknop", Enum.KeyCode.G, 0, Vector2.new(0, -4))
-    countdownPrompt.GamepadKeyCode = Enum.KeyCode.ButtonB
-
-    local countdownClickDetector = Instance.new("ClickDetector")
-    countdownClickDetector.Name = "CountdownClick"
-    countdownClickDetector.MaxActivationDistance = 14
-    countdownClickDetector.Parent = countdownButton
-
     local buttonGui = Instance.new("SurfaceGui")
     buttonGui.Name = "ButtonLabel"
     buttonGui.Face = Enum.NormalId.Front
@@ -1005,8 +913,6 @@ local function ensureLobbyBoard()
         startButton = startButton,
         votePanel = votePanel,
         voteButton = voteButton,
-        countdownPanel = countdownPanel,
-        countdownButton = countdownButton,
         billboardAnchor = billboardAnchor,
     }
 end
@@ -1022,8 +928,6 @@ local startPanel = components.startPanel
 local startButton = components.startButton
 local votePanel = components.votePanel
 local voteButton = components.voteButton
-local countdownPanel = components.countdownPanel
-local countdownButton = components.countdownButton
 local billboardAnchor = components.billboardAnchor
 
 if
@@ -1033,8 +937,6 @@ if
     or not startButton
     or not votePanel
     or not voteButton
-    or not countdownPanel
-    or not countdownButton
 then
     return
 end
@@ -1045,7 +947,6 @@ local playerWidth = 6.5 * boardWidthScale
 local themeWidth = 6.25 * boardWidthScale
 local startButtonBaseGap = 1.4
 local startButtonMinGap = 0.3
-local countdownButtonGap = 0.9
 
 local function clamp(value, minValue, maxValue)
     if minValue > maxValue then
@@ -1171,8 +1072,6 @@ local function updateBoardPlacement()
     playerStand.Size = Vector3.new(playerWidth, boardHeight, boardThickness)
     themeStand.Size = Vector3.new(themeWidth, boardHeight, boardThickness)
     startPanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
-    countdownPanel.Size = Vector3.new(countdownPanel.Size.X, math.max(1.6, boardHeight * 0.22), countdownPanel.Size.Z)
-
     local lobbyBase = trackedLobbyBase
     if not lobbyBase or not lobbyBase.Parent then
         lobbyBase = getLobbyBase()
@@ -1208,13 +1107,8 @@ local function updateBoardPlacement()
 
     votePanel.Size = Vector3.new(startPanel.Size.X, math.max(1.6, boardHeight * 0.22), startPanel.Size.Z)
     local direction = buttonOffsetX >= 0 and 1 or -1
-    local countdownDepth = -(playerStand.Size.Z * 0.5 - countdownPanel.Size.Z * 0.5 - 0.02)
-    local countdownOffsetX = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + countdownPanel.Size.X * 0.5 + countdownButtonGap)
-    countdownPanel.CFrame = pivot * CFrame.new(countdownOffsetX, buttonHeightOffset, countdownDepth)
-    countdownButton.CFrame = countdownPanel.CFrame * CFrame.new(0, 0, -(countdownPanel.Size.Z * 0.5 + countdownButton.Size.Z * 0.5 - 0.01))
-
     local voteGap = math.max(startButtonMinGap, 1.2)
-    local desiredOffset = countdownOffsetX + direction * (countdownPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
+    local desiredOffset = buttonOffsetX + direction * (startPanel.Size.X * 0.5 + votePanel.Size.X * 0.5 + voteGap)
     local minOffset = direction * (playerStand.Size.X * 0.5 + votePanel.Size.X * 0.5 + startButtonMinGap)
     local voteOffsetX
     if direction >= 0 then

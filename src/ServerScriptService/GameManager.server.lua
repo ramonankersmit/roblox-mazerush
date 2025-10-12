@@ -28,6 +28,14 @@ local Countdown = ensureRemote("Countdown")
 ensureRemote("Pickup"); ensureRemote("DoorOpened")
 ensureRemote("SetMazeAlgorithm")
 ensureRemote("ThemeVote")
+do
+        local voteTheme = Replicated:FindFirstChild("VoteTheme")
+        if not voteTheme or not voteTheme:IsA("RemoteEvent") then
+                voteTheme = Instance.new("RemoteEvent")
+                voteTheme.Name = "VoteTheme"
+                voteTheme.Parent = Replicated
+        end
+end
 ensureRemote("StartThemeVote")
 
 local ThemeConfig = require(Replicated.Modules.ThemeConfig)

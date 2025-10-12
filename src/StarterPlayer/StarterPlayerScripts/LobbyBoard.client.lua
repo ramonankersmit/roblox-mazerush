@@ -4,14 +4,33 @@ local TweenService = game:GetService("TweenService")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local Debris = game:GetService("Debris")
 local UserInputService = game:GetService("UserInputService")
+local CollectionService = game:GetService("CollectionService")
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local LobbyState = Remotes:WaitForChild("LobbyState")
 local ToggleReady = Remotes:WaitForChild("ToggleReady")
 local StartGameRequest = Remotes:WaitForChild("StartGameRequest")
-local StartThemeCountdown = Remotes:WaitForChild("StartThemeCountdown")
-local ThemeVote = Remotes:WaitForChild("ThemeVote")
+local voteThemeRemote = ReplicatedStorage:FindFirstChild("VoteTheme")
+local ThemeVote = voteThemeRemote and voteThemeRemote:IsA("RemoteEvent") and voteThemeRemote
+    or Remotes:WaitForChild("ThemeVote")
 local StartThemeVote = Remotes:WaitForChild("StartThemeVote")
+
+local voteEventSources = {}
+local function registerVoteEvent(remote)
+    if remote and remote:IsA("RemoteEvent") then
+        voteEventSources[remote] = true
+    end
+end
+
+registerVoteEvent(ThemeVote)
+registerVoteEvent(voteThemeRemote)
+registerVoteEvent(Remotes:FindFirstChild("ThemeVote"))
+
+local function fireThemeVoteRemote(voteId)
+    if ThemeVote then
+        ThemeVote:FireServer(voteId)
+    end
+end
 
 local ThemeModule = ReplicatedStorage:FindFirstChild("Modules")
 local ThemeConfig = ThemeModule and require(ThemeModule:WaitForChild("ThemeConfig"))
@@ -113,10 +132,6 @@ local voteButton = boardModel:FindFirstChild("VoteButton")
 local votePrompt = voteButton and voteButton:FindFirstChild("VotePrompt")
 local voteClickDetector = voteButton and voteButton:FindFirstChild("VoteClick")
 
-local countdownButton = boardModel:FindFirstChild("CountdownButton")
-local countdownPrompt = countdownButton and countdownButton:FindFirstChild("CountdownPrompt")
-local countdownClickDetector = countdownButton and countdownButton:FindFirstChild("CountdownClick")
-
 if startClickDetector then
     startClickDetector.MaxActivationDistance = 0
 end
@@ -139,6 +154,7 @@ local consoleHintLabel
 local consoleThemeEntries = {}
 local consoleOpen = false
 local ensureReadyAfterVote
+local isVoteInteractionEnabled
 
 local readyColor = Color3.fromRGB(105, 255, 180)
 local notReadyColor = Color3.fromRGB(255, 110, 130)
@@ -149,6 +165,28 @@ local RANDOM_THEME_ID = "__random__"
 local RANDOM_THEME_COLOR = Color3.fromRGB(200, 215, 255)
 local RANDOM_THEME_NAME = "Kies willekeurig"
 local RANDOM_THEME_DESCRIPTION = "Laat Maze Rush een willekeurig thema kiezen."
+
+local function normalizeVoteId(voteId)
+    if voteId == nil then
+        return nil
+    end
+    if voteId == RANDOM_THEME_ID or voteId == "random" then
+        return RANDOM_THEME_ID
+    end
+    return voteId
+end
+
+local function votesMatch(a, b)
+    local normalizedA = normalizeVoteId(a)
+    local normalizedB = normalizeVoteId(b)
+    if normalizedA == normalizedB then
+        return true
+    end
+    if normalizedA == nil or normalizedB == nil then
+        return false
+    end
+    return tostring(normalizedA) == tostring(normalizedB)
+end
 
 local function formatCountdown(seconds)
     seconds = math.max(0, math.floor(seconds or 0))
@@ -337,6 +375,21 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
+local updateConsoleDisplay
+local updateThemePanel
+
+local function applyLocalVoteFeedback()
+    if not latestState then
+        return
+    end
+
+    local themeState = latestThemeState or latestState.themes or {}
+    if updateThemePanel then
+        updateThemePanel(themeState, latestState)
+    end
+    updateConsoleDisplay(latestState, themeState)
+end
+
 local function ensureConsoleThemeEntry(themeId)
     ensureConsoleGui()
     local existing = consoleThemeEntries[themeId]
@@ -376,6 +429,18 @@ local function ensureConsoleThemeEntry(themeId)
     nameLabel.Size = UDim2.new(1, -32, 0, 24)
     nameLabel.Parent = button
 
+    local tagLabel = Instance.new("TextLabel")
+    tagLabel.Name = "Tag"
+    tagLabel.BackgroundTransparency = 1
+    tagLabel.Font = Enum.Font.GothamSemibold
+    tagLabel.TextSize = 15
+    tagLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
+    tagLabel.TextXAlignment = Enum.TextXAlignment.Left
+    tagLabel.Position = UDim2.new(0, 16, 0, -14)
+    tagLabel.Size = UDim2.new(1, -32, 0, 22)
+    tagLabel.Visible = false
+    tagLabel.Parent = button
+
     local descLabel = Instance.new("TextLabel")
     descLabel.Name = "Description"
     descLabel.BackgroundTransparency = 1
@@ -401,17 +466,19 @@ local function ensureConsoleThemeEntry(themeId)
     votesLabel.Size = UDim2.new(0.35, -16, 0, 28)
     votesLabel.Parent = button
 
-    button.MouseButton1Click:Connect(function()
-        if not isVoteInteractionEnabled() then
+    local lastSubmitTime = 0
+
+    local function submitVote()
+        local now = os.clock()
+        if now - lastSubmitTime < 0.1 then
             return
         end
-        if themeId == RANDOM_THEME_ID then
-            ThemeVote:FireServer(RANDOM_THEME_ID)
-        else
-            ThemeVote:FireServer(themeId)
-        end
-        ensureReadyAfterVote()
-    end)
+        lastSubmitTime = now
+        submitThemeVote(themeId)
+    end
+
+    button.Activated:Connect(submitVote)
+    button.MouseButton1Click:Connect(submitVote)
 
     local entry = {
         button = button,
@@ -419,6 +486,7 @@ local function ensureConsoleThemeEntry(themeId)
         name = nameLabel,
         desc = descLabel,
         votes = votesLabel,
+        tag = tagLabel,
     }
 
     consoleThemeEntries[themeId] = entry
@@ -496,11 +564,16 @@ local function gatherThemeOptions(themeState)
     for index, option in ipairs(themeState.options or {}) do
         local id = option.id
         if id then
+            local overrideVotes = getVoteOverrideCount(id)
+            local voteAmount = option.votes or 0
+            if overrideVotes ~= nil then
+                voteAmount = overrideVotes
+            end
             local normalized = {
                 id = id,
                 name = option.name,
                 description = option.description,
-                votes = option.votes or 0,
+                votes = voteAmount,
                 color = option.color,
                 layoutOrder = index,
             }
@@ -757,14 +830,213 @@ local surfaceTemplate = createSurfaceTemplate()
 local billboardTemplate = billboardList and createBillboardTemplate() or nil
 
 local themeOptionEntries = {}
+local themeButtons = {}
+local themeTilesByInstance = {}
+local themeTilesById = {}
 local entries = {}
 local readyStates = {}
 local lastPhase = nil
 local latestState = nil
 local latestThemeState = nil
+local lastVoteOptionsSignature = nil
 local pendingAutoReady = false
+local pendingThemeVoteId = nil
+local pendingThemeVoteTime = 0
+local PENDING_VOTE_WINDOW_SECONDS = 8
+local VOTE_OVERRIDE_TTL = 6
+local voteCountOverrides = {}
+local voteTotalOverride = nil
+local voteRandomOverride = nil
+local voteOverrideTimestamp = 0
 
-local function isVoteInteractionEnabled()
+local function clearVoteOverrides()
+    voteTotalOverride = nil
+    voteRandomOverride = nil
+    voteOverrideTimestamp = 0
+    for key in pairs(voteCountOverrides) do
+        voteCountOverrides[key] = nil
+    end
+end
+
+local function hasVoteOverrides()
+    if next(voteCountOverrides) == nil then
+        return false
+    end
+    if voteOverrideTimestamp > 0 and os.clock() - voteOverrideTimestamp > VOTE_OVERRIDE_TTL then
+        clearVoteOverrides()
+        return false
+    end
+    return true
+end
+
+local function getVoteOverrideCount(themeId)
+    if not hasVoteOverrides() then
+        return nil
+    end
+    return voteCountOverrides[normalizeVoteId(themeId)]
+end
+
+local function getVoteOverrideTotals(themeState)
+    if not hasVoteOverrides() then
+        return nil, nil
+    end
+    if themeState and themeState.active ~= true then
+        return nil, nil
+    end
+    return voteTotalOverride, voteRandomOverride
+end
+
+local function computeOptionsSignature(themeState)
+    if not themeState or themeState.active ~= true then
+        return nil
+    end
+
+    local options = themeState.options
+    if not options or #options == 0 then
+        return nil
+    end
+
+    local buffer = {}
+    for _, option in ipairs(options) do
+        table.insert(buffer, tostring(option.id))
+    end
+    table.sort(buffer)
+    return table.concat(buffer, "|")
+end
+
+local function applyVoteOverridePayload(payload)
+    if type(payload) ~= "table" then
+        return
+    end
+
+    local messageType = payload.type or payload.Type
+    if messageType == "reset" then
+        clearVoteOverrides()
+        applyLocalVoteFeedback()
+        return
+    end
+
+    if messageType ~= "vote" then
+        return
+    end
+
+    local counts = payload.counts
+    if type(counts) ~= "table" then
+        return
+    end
+
+    for key in pairs(voteCountOverrides) do
+        voteCountOverrides[key] = nil
+    end
+
+    local total = 0
+    local random = 0
+    for rawId, value in pairs(counts) do
+        local normalizedId = normalizeVoteId(rawId)
+        if normalizedId and normalizedId ~= "_total" then
+            local numeric = tonumber(value) or 0
+            voteCountOverrides[normalizedId] = numeric
+            if normalizedId == RANDOM_THEME_ID then
+                random += numeric
+            else
+                total += numeric
+            end
+        end
+    end
+
+    voteTotalOverride = total
+    voteRandomOverride = random
+    voteOverrideTimestamp = os.clock()
+
+    if payload.userId == localPlayer.UserId and payload.themeId then
+        rememberLocalVote(payload.themeId)
+    end
+
+    applyLocalVoteFeedback()
+end
+
+local function rememberLocalVote(voteId)
+    if voteId == nil then
+        pendingThemeVoteId = nil
+        pendingThemeVoteTime = 0
+        return
+    end
+
+    pendingThemeVoteId = normalizeVoteId(voteId)
+    pendingThemeVoteTime = os.clock()
+end
+
+local lastVoteSubmissionTime = 0
+
+local function submitThemeVote(themeId)
+    if themeId == nil then
+        return
+    end
+
+    local now = os.clock()
+    if now - lastVoteSubmissionTime < 0.05 then
+        return
+    end
+    lastVoteSubmissionTime = now
+
+    local normalized = normalizeVoteId(themeId)
+    rememberLocalVote(normalized)
+    applyLocalVoteFeedback()
+    fireThemeVoteRemote(normalized)
+    ensureReadyAfterVote()
+end
+
+local function resolvePlayerVote(userId, themeState)
+    themeState = themeState or {}
+    local votesByPlayer = themeState.votesByPlayer or {}
+    local stored = votesByPlayer[tostring(userId)] or votesByPlayer[userId]
+    stored = normalizeVoteId(stored)
+
+    if userId ~= localPlayer.UserId then
+        return stored
+    end
+
+    if stored then
+        if pendingThemeVoteId and pendingThemeVoteId == stored then
+            rememberLocalVote(nil)
+        else
+            pendingThemeVoteId = nil
+            pendingThemeVoteTime = 0
+        end
+        return stored
+    end
+
+    if themeState.active ~= true then
+        rememberLocalVote(nil)
+        return nil
+    end
+
+    if pendingThemeVoteId then
+        if themeState.options then
+            local found = false
+            for _, option in ipairs(themeState.options) do
+                if votesMatch(option.id, pendingThemeVoteId) then
+                    found = true
+                    break
+                end
+            end
+            if not found and pendingThemeVoteId ~= RANDOM_THEME_ID then
+                rememberLocalVote(nil)
+                return nil
+            end
+        end
+
+        if os.clock() - pendingThemeVoteTime <= PENDING_VOTE_WINDOW_SECONDS then
+            return pendingThemeVoteId
+        end
+
+        rememberLocalVote(nil)
+    end
+
+    return nil
+end
+
+isVoteInteractionEnabled = function()
     local state = latestState
     if not state then
         return false
@@ -849,7 +1121,7 @@ local function handleCountdownState(activeVote, countdownActive, endsIn)
     lastVoteActive = activeVote
 end
 
-local function updateConsoleDisplay(state, themeState)
+updateConsoleDisplay = function(state, themeState)
     ensureConsoleGui()
     if not state then
         return
@@ -861,6 +1133,11 @@ local function updateConsoleDisplay(state, themeState)
     local totalPlayers = state.total or 0
     local totalVotes = themeState.totalVotes or 0
     local randomVotes = themeState.randomVotes or 0
+    local overrideTotal, overrideRandom = getVoteOverrideTotals(themeState)
+    if overrideTotal then
+        totalVotes = overrideTotal
+        randomVotes = overrideRandom or 0
+    end
     local countdownActive = themeState.countdownActive == true
     local endsIn = math.max(0, math.floor(themeState.endsIn or 0))
     local voteActive = themeState.active == true
@@ -875,11 +1152,7 @@ local function updateConsoleDisplay(state, themeState)
     end
 
     local myReady = myInfo and myInfo.ready or false
-    local votesByPlayer = themeState.votesByPlayer or {}
-    local myVote = votesByPlayer[tostring(localPlayer.UserId)]
-    if myVote == "random" then
-        myVote = RANDOM_THEME_ID
-    end
+    local myVote = resolvePlayerVote(localPlayer.UserId, themeState)
 
     local statusVotesText = randomVotes > 0 and string.format("Stemmen: %d (willekeurig: %d)", totalVotes, randomVotes) or string.format("Stemmen: %d", totalVotes)
     if countdownActive and endsIn > 0 then
@@ -935,12 +1208,26 @@ local function updateConsoleDisplay(state, themeState)
         local votes = option.votes or 0
         entry.votes.Text = string.format("%d stem%s", votes, votes == 1 and "" or "men")
         local ratioColor = option.color or resolveThemeColor(option.id)
-        entry.stroke.Color = (myVote == option.id) and ratioColor or Color3.fromRGB(110, 120, 160)
-        entry.stroke.Transparency = (myVote == option.id) and 0.15 or 0.6
-        entry.button.BackgroundColor3 = (myVote == option.id) and Color3.fromRGB(42, 50, 74) or Color3.fromRGB(36, 42, 66)
+        local isMine = votesMatch(option.id, myVote)
+        entry.stroke.Color = isMine and ratioColor or Color3.fromRGB(110, 120, 160)
+        entry.stroke.Transparency = isMine and 0.15 or 0.6
+        entry.button.BackgroundColor3 = isMine and Color3.fromRGB(42, 50, 74) or Color3.fromRGB(36, 42, 66)
         entry.button.AutoButtonColor = interactionsEnabled
         entry.button.Active = interactionsEnabled
         entry.button.Selectable = interactionsEnabled
+        if entry.tag then
+            if isMine then
+                entry.tag.Visible = true
+                entry.tag.Text = "Jouw stem"
+                entry.tag.TextColor3 = ratioColor
+            elseif votes > 0 and votesMatch(option.id, RANDOM_THEME_ID) then
+                entry.tag.Visible = true
+                entry.tag.Text = votes == 1 and "1 speler kiest willekeurig" or string.format("%d spelers kiezen willekeurig", votes)
+                entry.tag.TextColor3 = ratioColor
+            else
+                entry.tag.Visible = false
+            end
+        end
         seen[option.id] = true
     end
 
@@ -1056,14 +1343,19 @@ local function ensureThemeOptionEntry(themeId)
     votesLabel.Size = UDim2.new(0.48, 0, 0, 26)
     votesLabel.Parent = button
 
-    button.MouseButton1Click:Connect(function()
-        if not isVoteInteractionEnabled() then
+    local lastSubmitTime = 0
+
+    local function submitVote()
+        local now = os.clock()
+        if now - lastSubmitTime < 0.1 then
             return
         end
-        local voteId = themeId == "random" and RANDOM_THEME_ID or themeId
-        ThemeVote:FireServer(voteId)
-        ensureReadyAfterVote()
-    end)
+        lastSubmitTime = now
+        submitThemeVote(themeId)
+    end
+
+    button.Activated:Connect(submitVote)
+    button.MouseButton1Click:Connect(submitVote)
 
     local entry = {
         button = button,
@@ -1077,6 +1369,221 @@ local function ensureThemeOptionEntry(themeId)
 
     themeOptionEntries[themeId] = entry
     return entry
+end
+
+local function applyThemeTileVisual(tileInfo, accentColor, isMine, voteCount)
+    if not tileInfo then
+        return
+    end
+
+    local part = tileInfo.part
+    if part then
+        tileInfo.baseColor = tileInfo.baseColor or part.Color
+        tileInfo.baseMaterial = tileInfo.baseMaterial or part.Material
+        if isMine then
+            part.Material = Enum.Material.Neon
+            part.Color = accentColor or resolveThemeColor(tileInfo.id)
+        else
+            if tileInfo.baseMaterial then
+                part.Material = tileInfo.baseMaterial
+            end
+            if tileInfo.baseColor then
+                part.Color = tileInfo.baseColor
+            end
+        end
+    end
+
+    local titleLabel = tileInfo.titleLabel
+    if titleLabel then
+        tileInfo.baseTitleColor = tileInfo.baseTitleColor or titleLabel.TextColor3
+        if isMine then
+            titleLabel.TextColor3 = accentColor or tileInfo.baseTitleColor
+        else
+            titleLabel.TextColor3 = tileInfo.baseTitleColor
+        end
+    end
+
+    local countLabel = tileInfo.countLabel
+    if countLabel then
+        countLabel.Text = tostring(voteCount or 0)
+    end
+
+    if tileInfo.selectionFrame then
+        tileInfo.selectionFrame.Visible = isMine
+    end
+end
+
+local function getOrCreateTileInfo(tile)
+    if not tile or themeTilesByInstance[tile] then
+        return themeTilesByInstance[tile]
+    end
+
+    local themeId = tile:GetAttribute("ThemeId") or tile.Name
+    if not themeId or themeId == "" then
+        return nil
+    end
+
+    local normalizedId = normalizeVoteId(themeId)
+    local info = {
+        id = normalizedId,
+        part = tile,
+        connections = {},
+    }
+    themeTilesByInstance[tile] = info
+    themeTilesById[normalizedId] = info
+
+    local function cleanup()
+        if themeTilesByInstance[tile] ~= info then
+            return
+        end
+        themeTilesByInstance[tile] = nil
+        if themeTilesById[normalizedId] == info then
+            themeTilesById[normalizedId] = nil
+        end
+        for _, connection in ipairs(info.connections) do
+            if connection.Disconnect then
+                connection:Disconnect()
+            end
+        end
+    end
+
+    info.cleanup = cleanup
+
+    table.insert(info.connections, tile.Destroying:Connect(cleanup))
+    table.insert(info.connections, tile.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            cleanup()
+        end
+    end))
+
+    local surfaceGui = tile:FindFirstChildOfClass("SurfaceGui")
+    if surfaceGui then
+        info.gui = surfaceGui
+        local frame = surfaceGui:FindFirstChildWhichIsA("Frame")
+        if frame then
+            info.titleLabel = frame:FindFirstChild("Title") or frame:FindFirstChild("Name")
+            info.countLabel = frame:FindFirstChild("Count") or frame:FindFirstChild("Votes")
+            info.selectionFrame = frame:FindFirstChild("Selection")
+            if info.countLabel then
+                info.countLabel.Text = "0"
+            end
+        end
+    end
+
+    return info
+end
+
+local function connectTileInteractions(info)
+    if not info or not info.part then
+        return
+    end
+
+    local themeId = info.id
+    local part = info.part
+
+    local clickDetector = part:FindFirstChildOfClass("ClickDetector")
+    if not clickDetector then
+        clickDetector = Instance.new("ClickDetector")
+        clickDetector.Name = "VoteClick"
+        clickDetector.MaxActivationDistance = 16
+        clickDetector.Parent = part
+    else
+        clickDetector.MaxActivationDistance = math.max(clickDetector.MaxActivationDistance or 0, 12)
+    end
+
+    table.insert(info.connections, clickDetector.MouseClick:Connect(function(player)
+        if player == localPlayer then
+            submitThemeVote(themeId)
+        end
+    end))
+
+    local ok, touchSignal = pcall(function()
+        return clickDetector.TouchTap
+    end)
+    if ok and touchSignal then
+        table.insert(info.connections, touchSignal:Connect(function(player)
+            if player == localPlayer then
+                submitThemeVote(themeId)
+            end
+        end))
+    end
+
+    local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+    if not prompt then
+        prompt = Instance.new("ProximityPrompt")
+        prompt.Name = "VotePrompt"
+        prompt.ActionText = "Stem"
+        prompt.ObjectText = "Thema"
+        prompt.KeyboardKeyCode = Enum.KeyCode.E
+        prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+        prompt.RequiresLineOfSight = false
+        prompt.HoldDuration = 0
+        prompt.MaxActivationDistance = 12
+        prompt.Parent = part
+    end
+    prompt.Enabled = true
+
+    table.insert(info.connections, prompt.Triggered:Connect(function(player)
+        if player == localPlayer then
+            submitThemeVote(themeId)
+        end
+    end))
+end
+
+local function bindThemeTile(tile)
+    if not tile then
+        return
+    end
+
+    local info = getOrCreateTileInfo(tile)
+    if not info then
+        return
+    end
+
+    if not info.bound then
+        info.bound = true
+        connectTileInteractions(info)
+        applyThemeTileVisual(info, nil, false, 0)
+    end
+end
+
+local function unbindThemeTile(tile)
+    if not tile then
+        return
+    end
+
+    local info = themeTilesByInstance[tile]
+    if info and info.cleanup then
+        info.cleanup()
+    end
+end
+
+local function updateThemeTiles(themeState, myVote)
+    if next(themeTilesById) == nil then
+        return
+    end
+
+    local optionsById = {}
+    if themeState then
+        for _, option in ipairs(gatherThemeOptions(themeState)) do
+            local normalizedId = normalizeVoteId(option.id)
+            optionsById[normalizedId] = option
+        end
+    end
+
+    for themeId, info in pairs(themeTilesById) do
+        local option = optionsById[themeId]
+        local accentColor
+        local votes = 0
+        if option then
+            votes = option.votes or 0
+            accentColor = option.color or resolveThemeColor(option.id or themeId)
+        else
+            accentColor = resolveThemeColor(themeId)
+        end
+        local mine = myVote and votesMatch(themeId, myVote)
+        applyThemeTileVisual(info, accentColor, mine, votes)
+    end
 end
 
 local function applyThemePanelVisibility(themeState)
@@ -1094,7 +1601,7 @@ local function applyThemePanelVisibility(themeState)
     end
 end
 
-local function updateThemePanel(themeState, state)
+updateThemePanel = function(themeState, state)
     if not themePanel then
         return
     end
@@ -1108,6 +1615,11 @@ local function updateThemePanel(themeState, state)
     local totalPlayers = state.total or 0
     local totalVotes = themeState.totalVotes or 0
     local randomVotes = themeState.randomVotes or 0
+    local overrideTotal, overrideRandom = getVoteOverrideTotals(themeState)
+    if overrideTotal then
+        totalVotes = overrideTotal
+        randomVotes = overrideRandom or 0
+    end
     local votePool = totalVotes + randomVotes
     local activeVote = themeState.active == true
     local countdownActive = themeState.countdownActive == true
@@ -1118,6 +1630,7 @@ local function updateThemePanel(themeState, state)
     handleCountdownState(activeVote, countdownActive, endsIn)
 
     if not hasOptions then
+        rememberLocalVote(nil)
         if themeHeaderLabel and themeHeaderLabel:IsA("TextLabel") then
             themeHeaderLabel.Text = "Start een stemronde"
             themeHeaderLabel.TextColor3 = Color3.fromRGB(220, 226, 255)
@@ -1135,6 +1648,7 @@ local function updateThemePanel(themeState, state)
             themeHintLabel.TextColor3 = Color3.fromRGB(170, 180, 210)
         end
         updatePreviewHighlights(nil, nil)
+        updateThemeTiles(nil, nil)
         for _, entry in pairs(themeButtons) do
             if entry and entry.button then
                 entry.button.Visible = false
@@ -1143,16 +1657,9 @@ local function updateThemePanel(themeState, state)
         return
     end
 
-    local votesByPlayer = {}
-    if themeState.votesByPlayer then
-        for userId, themeId in pairs(themeState.votesByPlayer) do
-            votesByPlayer[tostring(userId)] = themeId
-        end
-    end
-    local myVote = votesByPlayer[tostring(localPlayer.UserId)]
-    if myVote == "random" then
-        myVote = RANDOM_THEME_ID
-    end
+    local myVote = resolvePlayerVote(localPlayer.UserId, themeState)
+
+    updateThemeTiles(themeState, myVote)
 
     local leaderId = themeState.leader or themeState.current
     local leaderVotes = themeState.leaderVotes
@@ -1204,22 +1711,24 @@ local function updateThemePanel(themeState, state)
                 local color = option.color or resolveThemeColor(optionId)
                 entry.fill.BackgroundColor3 = color
                 entry.fill.BackgroundTransparency = ratio > 0 and 0.4 or 0.75
-                entry.button.BackgroundColor3 = myVote == optionId and Color3.fromRGB(36, 46, 68) or Color3.fromRGB(28, 32, 48)
-                entry.stroke.Color = (myVote == optionId or optionId == leaderId) and color or Color3.fromRGB(110, 120, 160)
-                entry.stroke.Transparency = (myVote == optionId or optionId == leaderId) and 0.25 or 0.6
+                local mine = votesMatch(optionId, myVote)
+                local leaderMatch = votesMatch(optionId, leaderId)
+                entry.button.BackgroundColor3 = mine and Color3.fromRGB(36, 46, 68) or Color3.fromRGB(28, 32, 48)
+                entry.stroke.Color = (mine or leaderMatch) and color or Color3.fromRGB(110, 120, 160)
+                entry.stroke.Transparency = (mine or leaderMatch) and 0.25 or 0.6
                 entry.button.AutoButtonColor = voteInteractionsEnabled
                 entry.button.Active = voteInteractionsEnabled
                 entry.button.Selectable = voteInteractionsEnabled
                 if entry.tag then
-                    if myVote == optionId then
+                    if mine then
                         entry.tag.Visible = true
                         entry.tag.Text = "Jouw stem"
                         entry.tag.TextColor3 = color
-                    elseif optionId == leaderId then
+                    elseif leaderMatch then
                         entry.tag.Visible = votes > 0 or not activeVote
                         entry.tag.Text = activeVote and "Aan kop" or "Gekozen"
                         entry.tag.TextColor3 = color
-                    elseif optionId == RANDOM_THEME_ID then
+                    elseif votesMatch(optionId, RANDOM_THEME_ID) then
                         entry.tag.Visible = votes > 0
                         entry.tag.Text = votes == 1 and "1 speler" or string.format("%d spelers", votes)
                         entry.tag.TextColor3 = color
@@ -1299,10 +1808,11 @@ local function updateThemePanel(themeState, state)
             end
         else
             themeHintLabel.TextColor3 = Color3.fromRGB(160, 200, 220)
-            if themeState.canStartCountdown then
-                themeHintLabel.Text = "Gebruik de aftelknop om nieuwe thema's te kiezen."
+            local isHost = state and state.host == localPlayer.UserId
+            if isHost then
+                themeHintLabel.Text = string.format("Huidig thema: %s · Gebruik de themaknop voor een nieuwe stemming.", leaderName)
             else
-                themeHintLabel.Text = string.format("Thema vastgezet: %s", leaderName)
+                themeHintLabel.Text = string.format("Thema vastgezet: %s · Wacht tot de host een nieuwe stemming start.", leaderName)
             end
         end
     end
@@ -1508,11 +2018,8 @@ local function updatePrompts(state)
     local phase = state.phase
     local showPrompts = phase == "IDLE" or phase == "PREP"
     local themeState = state.themes or {}
-    local canStartCountdown = themeState.canStartCountdown == true and showPrompts
-
     local isHost = state.host == localPlayer.UserId
     local readyCount = state.readyCount or 0
-    local themeState = state.themes or {}
     local voteActive = themeState.active == true
     local consoleCanOpen = showPrompts and voteActive
 
@@ -1574,17 +2081,9 @@ local function updatePrompts(state)
             actionHint.Text = "Maze bezig – console tijdelijk vergrendeld."
         elseif myReady then
             if isHost then
-                if canStartCountdown then
-                    actionHint.Text = "Host klaar. Gebruik de aftelknop om de stemming te starten."
-                else
-                    actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
-                end
+                actionHint.Text = "Host klaar. Start zodra iedereen gereed is."
             else
-                if canStartCountdown then
-                    actionHint.Text = "Klaar gemeld. Wacht op aftelknop of gebruik console voor wijzigingen."
-                else
-                    actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
-                end
+                actionHint.Text = "Klaar gemeld. Gebruik de console voor wijzigingen."
             end
         else
             if isHost then
@@ -1610,11 +2109,7 @@ end
 
 local function updateEntry(entry, info, order, state)
     local themeState = state.themes or {}
-    local votesByPlayer = themeState.votesByPlayer or {}
-    local voteId = votesByPlayer[tostring(info.userId)]
-    if voteId == "random" then
-        voteId = RANDOM_THEME_ID
-    end
+    local voteId = resolvePlayerVote(info.userId, themeState)
     local voteName, voteColor = resolveThemeName(voteId, themeState)
 
     if entry.surface then
@@ -1732,6 +2227,20 @@ local function renderState(state)
     latestState = state
     latestThemeState = state.themes
 
+    local themeState = latestThemeState
+    local signature = computeOptionsSignature(themeState)
+    if signature ~= lastVoteOptionsSignature then
+        if lastVoteOptionsSignature ~= nil then
+            clearVoteOverrides()
+        end
+        lastVoteOptionsSignature = signature
+    elseif not themeState or themeState.active ~= true then
+        if lastVoteOptionsSignature ~= nil then
+            lastVoteOptionsSignature = nil
+        end
+        clearVoteOverrides()
+    end
+
     updateBoardVisibility(state)
 
     local seen = {}
@@ -1774,6 +2283,12 @@ local function renderState(state)
         playStartAnimation()
     end
     lastPhase = state.phase
+end
+
+for remote in pairs(voteEventSources) do
+    if remote and remote:IsA("RemoteEvent") then
+        remote.OnClientEvent:Connect(applyVoteOverridePayload)
+    end
 end
 
 LobbyState.OnClientEvent:Connect(renderState)
@@ -1840,3 +2355,11 @@ if voteClickDetector then
         end)
     end
 end
+
+for _, tile in ipairs(CollectionService:GetTagged("ThemeTile")) do
+    bindThemeTile(tile)
+end
+
+CollectionService:GetInstanceAddedSignal("ThemeTile"):Connect(bindThemeTile)
+CollectionService:GetInstanceRemovedSignal("ThemeTile"):Connect(unbindThemeTile)
+
