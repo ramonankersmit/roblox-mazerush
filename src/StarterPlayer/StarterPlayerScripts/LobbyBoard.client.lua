@@ -157,7 +157,15 @@ local function normalizeVoteId(voteId)
 end
 
 local function votesMatch(a, b)
-    return normalizeVoteId(a) == normalizeVoteId(b)
+    local normalizedA = normalizeVoteId(a)
+    local normalizedB = normalizeVoteId(b)
+    if normalizedA == normalizedB then
+        return true
+    end
+    if normalizedA == nil or normalizedB == nil then
+        return false
+    end
+    return tostring(normalizedA) == tostring(normalizedB)
 end
 
 local function formatCountdown(seconds)
@@ -347,6 +355,21 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
+local updateConsoleDisplay
+local updateThemePanel
+
+local function applyLocalVoteFeedback()
+    if not latestState then
+        return
+    end
+
+    local themeState = latestThemeState or latestState.themes or {}
+    if updateThemePanel then
+        updateThemePanel(themeState, latestState)
+    end
+    updateConsoleDisplay(latestState, themeState)
+end
+
 local function ensureConsoleThemeEntry(themeId)
     ensureConsoleGui()
     local existing = consoleThemeEntries[themeId]
@@ -425,6 +448,7 @@ local function ensureConsoleThemeEntry(themeId)
             voteId = RANDOM_THEME_ID
         end
         rememberLocalVote(voteId)
+        applyLocalVoteFeedback()
         ThemeVote:FireServer(voteId)
         ensureReadyAfterVote()
     end
@@ -931,7 +955,7 @@ local function handleCountdownState(activeVote, countdownActive, endsIn)
     lastVoteActive = activeVote
 end
 
-local function updateConsoleDisplay(state, themeState)
+updateConsoleDisplay = function(state, themeState)
     ensureConsoleGui()
     if not state then
         return
@@ -1149,6 +1173,7 @@ local function ensureThemeOptionEntry(themeId)
             voteId = RANDOM_THEME_ID
         end
         rememberLocalVote(voteId)
+        applyLocalVoteFeedback()
         ThemeVote:FireServer(voteId)
         ensureReadyAfterVote()
     end
@@ -1185,7 +1210,7 @@ local function applyThemePanelVisibility(themeState)
     end
 end
 
-local function updateThemePanel(themeState, state)
+updateThemePanel = function(themeState, state)
     if not themePanel then
         return
     end
