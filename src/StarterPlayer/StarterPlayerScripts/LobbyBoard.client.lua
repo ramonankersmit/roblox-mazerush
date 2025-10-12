@@ -409,6 +409,18 @@ local function ensureConsoleThemeEntry(themeId)
     nameLabel.Size = UDim2.new(1, -32, 0, 24)
     nameLabel.Parent = button
 
+    local tagLabel = Instance.new("TextLabel")
+    tagLabel.Name = "Tag"
+    tagLabel.BackgroundTransparency = 1
+    tagLabel.Font = Enum.Font.GothamSemibold
+    tagLabel.TextSize = 15
+    tagLabel.TextColor3 = Color3.fromRGB(240, 244, 255)
+    tagLabel.TextXAlignment = Enum.TextXAlignment.Left
+    tagLabel.Position = UDim2.new(0, 16, 0, -14)
+    tagLabel.Size = UDim2.new(1, -32, 0, 22)
+    tagLabel.Visible = false
+    tagLabel.Parent = button
+
     local descLabel = Instance.new("TextLabel")
     descLabel.Name = "Description"
     descLabel.BackgroundTransparency = 1
@@ -462,6 +474,7 @@ local function ensureConsoleThemeEntry(themeId)
         name = nameLabel,
         desc = descLabel,
         votes = votesLabel,
+        tag = tagLabel,
     }
 
     consoleThemeEntries[themeId] = entry
@@ -808,6 +821,7 @@ local latestThemeState = nil
 local pendingAutoReady = false
 local pendingThemeVoteId = nil
 local pendingThemeVoteTime = 0
+local PENDING_VOTE_WINDOW_SECONDS = 8
 
 local function rememberLocalVote(voteId)
     if voteId == nil then
@@ -860,7 +874,7 @@ local function resolvePlayerVote(userId, themeState)
             end
         end
 
-        if os.clock() - pendingThemeVoteTime <= 3 then
+        if os.clock() - pendingThemeVoteTime <= PENDING_VOTE_WINDOW_SECONDS then
             return pendingThemeVoteId
         end
 
@@ -1044,6 +1058,19 @@ updateConsoleDisplay = function(state, themeState)
         entry.button.AutoButtonColor = interactionsEnabled
         entry.button.Active = interactionsEnabled
         entry.button.Selectable = interactionsEnabled
+        if entry.tag then
+            if isMine then
+                entry.tag.Visible = true
+                entry.tag.Text = "Jouw stem"
+                entry.tag.TextColor3 = ratioColor
+            elseif votes > 0 and votesMatch(option.id, RANDOM_THEME_ID) then
+                entry.tag.Visible = true
+                entry.tag.Text = votes == 1 and "1 speler kiest willekeurig" or string.format("%d spelers kiezen willekeurig", votes)
+                entry.tag.TextColor3 = ratioColor
+            else
+                entry.tag.Visible = false
+            end
+        end
         seen[option.id] = true
     end
 
